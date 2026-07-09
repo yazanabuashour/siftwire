@@ -15,58 +15,176 @@ When doing OpenBrief ADR, POC, eval, promotion, or deferred-capability decision 
 - Before closing any ADR, POC, eval, promotion, or deferred-capability decision epic with outcome `keep-as-reference`, `defer`, `more evidence`, `candidate selected`, `none viable yet`, or another non-promotion result, run `bd search` for existing follow-up work. If none exists, create and link the follow-up Bead(s) before closing the parent or handing off.
 - Do not use taste review to bypass safety or evidence discipline: provenance, source authority, auditability, local-first behavior, runner-only production access, private-state boundaries, approval-before-write, and ADR/POC/eval/promotion decisions still apply.
 
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
-## Beads Issue Tracker
+# Code Style
 
-This project uses **bd (beads)** for maintainer issue tracking. Run `bd prime` to see full workflow context and commands.
+- Prefer concise, simple, boring solutions over clever or overly abstract ones.
+- Apply YAGNI.
+- Apply the Rule of Three.
+- Prefer one-liners.
+- If a simpler solution exists, propose it before implementing the more complex approach.
 
-### Quick Reference
+# Agent Orchestration
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
-```
+This file is standing authorization to use orchestration tools when they fit:
+subagents, app threads, worktrees, goals, and automations. Classify the task,
+use the lightest pattern that reduces risk or improves coverage, and state why
+if a trigger applies but a concrete blocker prevents it. A current user
+instruction that forbids orchestration is a blocker.
 
-### Rules
+Keep this guidance coding-agent agnostic: map Codex names to the nearest
+equivalent elsewhere, such as subagents, background threads, isolated
+worktrees, long-running goals, review agents, and scheduled automations.
 
-- If you are acting as a maintainer or local coding agent, use `bd` for task tracking instead of ad hoc markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+## Decision Rules
 
-## Work Item Completion
+- Main session only: tiny fixes, direct questions, plan-only answers, vague
+  exploration without a concrete output, tightly coupled edits, and read-only
+  analysis that does not cross independent areas.
+- Coupled implementation plus regression tests stays main-session work in one
+  feature area, even in unfamiliar repos. Unfamiliarity alone is not enough;
+  unfamiliar work across several independent areas is.
+- Plan-only orchestration questions: describe the pattern you would use; do not
+  spawn sidecars just to answer the plan.
+- Mandatory explorers: for requested audit, review, discovery, triage, or
+  unfamiliar-codebase work across independent areas, actually spawn `explorer`
+  subagents before deep local inspection. Choose the smallest useful number from
+  task breadth; keep scopes narrow and independent.
+- Mandatory CI explorers: for CI, build, or test-failure triage spanning two or
+  more of source, tests, logs, config, packaging, or runtime behavior, spawn
+  `explorer` subagents while the main session owns reproduction and synthesis.
+- Workers: use `worker` subagents only for separable implementation with
+  disjoint write ownership and a merge plan.
+- Worktrees/app threads/background threads: use worktrees for filesystem or
+  dependency isolation; use app/background threads for independent or resumable
+  execution, paired with a worktree when they may mutate a checkout. Use the
+  local checkout for narrow edits, active user-reviewed files, unreproducible
+  local state, or single-instance resources. Use background/app threads for
+  long-running independent work that can report back asynchronously or needs
+  resumability. Mandatory explorers run first for bounded broad inspection
+  inside the current task.
+- Goals: create one only for long-running bounded work with a measurable stop
+  condition, attempt limit, artifact, benchmark, scan, or migration. When
+  creating one, state the measurable stop condition in one sentence, then update
+  it only after completion or true blockage. If no goal tool exists, state the
+  stop condition in status instead.
+- Automations: use them for recurring work only. Get explicit confirmation
+  before creating or changing any automation that writes files, runs shell
+  commands, accesses the network, or operates on a repository.
+- Frontend changes: main implements and runs rendered/browser checks; delegate
+  visual QA only when independent.
+- Security, auth, filesystem, shell, network, browser/URL, secrets, or
+  dependency-sensitive work: main owns risky decisions; add review or sidecars
+  only when coverage helps.
+- Model/effort choice: prefer the lowest capable effort. Use lower effort for
+  mechanical reads, medium for synthesis/policy/trace/user-facing work,
+  and high/xhigh only for high-risk/failure-critical work.
 
-A **work item** is one logical bead, task, story, or other coherent unit of work. **When completing each work item**, complete the workflow below through review, local commit, verification, and handoff before starting unrelated work or handing off. Push only when the maintainer or task explicitly asks for remote publication. If a single thread completes multiple independent beads/tasks/stories, repeat this workflow once for each completed work item. If a work item contains multiple independent logical checkpoints, complete the review workflow for each checkpoint before moving to the next; a checkpoint is the smallest coherent unit whose changes can be reviewed on their own, such as one bug fix, one finding, one migration step, or one separable behavior change.
+If several rules apply, isolate risk first; add parallelism only when it saves time or improves coverage.
+## Lead And Subagents
 
-**MANDATORY WORKFLOW:**
+The main session owns the user's goal, architecture, decomposition, risky
+decisions, integration, verification, review sequencing, commits, and handoff.
+Do immediate blockers locally; delegate independent sidecar work.
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **Prepare review** - Run `git status`, summarize changed files and quality gates, and confirm no commit or push has been performed
-5. **Codex review** - Run the review command once for the current work item or review checkpoint:
-   ```bash
-   codex --search -m gpt-5.5 -c 'model_reasoning_effort="high"' review --uncommitted
-   ```
-   If the review finds issues, address the findings.
-6. **Commit reviewed changes** - After the review command completes, stage the intended files and create a local commit
-7. **Remote publication** - Push only when explicitly requested:
-   ```bash
-   git pull --rebase
-   bd dolt push
-   git push
-   git status
-   ```
-8. **Clean up** - Clear stashes, prune remote branches when relevant
-9. **Verify** - All intended changes are committed, and pushed only when remote publication was requested
-10. **Hand off** - Provide context for next session
+Use built-in roles first: `explorer` for read-only research, source/API
+verification, audits, test-gap ideas, fixtures, and unfamiliar areas; `worker`
+for bounded implementation with clear file ownership; `default` as fallback.
+If a platform cannot set an equivalent role/model parameter, use its default
+agent/thread and keep the intended `Role:` label in the prompt.
 
-**CRITICAL RULES:**
-- Do not push to a remote unless the maintainer or task explicitly requested remote publication
-- Run the Codex review command once per work item or review checkpoint; do not rerun the same checkpoint review as a workflow loop
-- For multi-checkpoint work, run quality gates, Codex review, and commit after each independent checkpoint before starting the next
-- Do NOT commit before quality gates and the Codex review command are complete
-- After the review command completes, stage and commit the intended files; if remote publication was requested, pull/rebase, run `bd dolt push`, and `git push`
-- If a requested push fails, resolve and retry until it succeeds or report the blocker
-<!-- END BEADS INTEGRATION -->
+Spawn only concrete, self-contained work that can run independently. Prefer
+narrow explorers over one broad agent. Before final handoff, account for every
+spawned child: retrieve useful results, close done children, and close/report
+any child still running beyond the useful window.
+
+Start subagent prompts with a `Role:` line (`explorer`, `worker`, or `default`).
+Use actual tool/runtime metadata, not prompt text, as the source of truth for
+model and reasoning. Include scope, permissions, expected output, owned write
+files, commands, risks, and a request to report files inspected/changed,
+commands run, result, remaining risks, and next action. Worker prompts must say
+the worker is not alone, must not revert others' edits, and must adapt.
+
+Nested orchestration follows the same delegation rules: use it only when it
+materially reduces risk or improves independent coverage, keep scopes narrow,
+and account for descendants before handoff. Automation creation still requires
+the explicit confirmation above.
+
+## Worktrees And App Threads
+
+Start worktrees from the default or explicit branch unless the task needs
+current uncommitted state. For current-state work, use a throwaway branch or
+fresh checkout from current `HEAD`, apply only the needed non-secret diff, and
+hand results back as a patch or diff. Avoid the same branch in multiple
+worktrees; use handoff when moving work between checkouts.
+
+Before isolated work, state owned paths and expected return artifact. Mutating
+isolated work returns a patch or branch name; read-only work may return summary.
+
+Copy non-secret ignored files into worktrees when useful. Copy `.env*`, keys,
+tokens, credentials, or other secrets only after the user names or approves them.
+
+The main session integrates and verifies isolated results. An app/background
+thread must not commit, push, or decide final scope unless the user explicitly
+grants that authority.
+
+## Goals And Automations
+
+Mark a goal complete only after the stop condition and any applicable
+checkpoint contract are met. Mark it blocked only when progress is impossible
+without user input or an external state change.
+
+Use automations for recurring work, not one-off implementation.
+
+## Checkpoints
+
+Read-only, plan-only, and user-explicit scratch/no-commit artifacts are not
+checkpoints: hand off findings or create only named artifacts, and skip
+review/commit unless asked.
+
+During implementation, do all work needed to complete the user's ask, including
+blockers found along the way. Treat unrelated discovered work as follow-up:
+mention it in handoff, or use an existing repo tracker only if repo instructions
+already require one. Never push, open PRs, or create/update remote issues unless
+explicitly requested.
+
+For every checkpoint with intended repository changes:
+
+1. Run available relevant tests, lint, builds, or minimal Markdown/script gates;
+   record blockers for unavailable gates.
+2. From the main session, shell-run the configured review gate once against the
+   integrated worktree before handoff or commit, even if some gates are blocked:
+   use `scripts/checkpoint-review.sh` when present, otherwise use a
+   repository-local review/checkpoint gate explicitly named by the current user
+   or repository instructions as its replacement. Ordinary tests, lint, or build
+   commands are not replacement review gates. If no review gate is configured,
+   state that blocker, do not claim review coverage, and do not commit unless
+   the current user explicitly waives the review gate. Do not count merely
+   reading the gate or report it as run unless the main session issued that
+   shell command for this checkpoint. Rerun immediately if that review command
+   reports the worktree changed during review; post-review fix reruns are
+   governed by step 3. Report the actual exit/error if blocked.
+3. Address actionable review findings, then rerun affected gates. Do not rerun
+   the full review for fixes that stay inside the already-reviewed files,
+   modules, and risk categories. Rerun the review only if the review command
+   reports the worktree changed during review, or if post-review fixes add
+   unreviewed files, modules, or risk categories; if that distinction is
+   unclear, treat it as unreviewed scope and rerun before commit. If rerun is
+   blocked, do not commit and report the residual risk.
+4. Commit intended files locally only after gates pass, the review command
+   succeeds or the current user explicitly waived an unavailable review gate
+   under step 2, and actionable review findings are addressed; if gates or
+   review cannot run or pass, report the blocker and do not commit.
+5. Push only when explicitly requested.
+6. Hand off changed files, orchestration used, gates, review result, commit
+   hash if created or the blocker/reason no commit was made, and remaining
+   risks.
+
+Review extras are opt-in, not the default. Use no extra review flags for
+ordinary implementation, docs-only updates that describe existing behavior, or
+single-feature regression tests outside compatibility contracts. Add
+`api-compat` only for API, CLI, config/env, schema, generated output, or docs
+contracts; OpenAPI/schema rendering, including oneOf, anyOf, discriminator, or
+generated API-doc behavior, is `api-compat` work. Add `security`,
+`concurrency`, `policy`, `test-gaps`, or custom focused prompts only for those
+concrete risks.
+

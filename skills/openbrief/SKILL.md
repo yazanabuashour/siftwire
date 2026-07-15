@@ -25,6 +25,56 @@ The runner honors `OPENBRIEF_DATABASE_PATH`. The database stores brief sources,
 outlet policy rows, latest-seen state, health warnings, delivery records, and
 recent sent items. Do not maintain repo-local state files.
 
+## Prooflane Shadow Mode
+
+Use Prooflane shadow mode only when the operator explicitly enables it and
+supplies a reviewed Prooflane contract. Keep all configuration actions on
+`openbrief config`, and keep `validate` on `openbrief brief`. Replace only the
+`run_brief` and `record_delivery` invocations:
+
+The operator has enabled this local checkout for dogfooding. Scheduled jobs
+running from this checkout should use the helper below for `run_brief` and
+`record_delivery` until the operator explicitly disables shadow mode.
+
+```bash
+scripts/prooflane-shadow-openbrief.sh run <prooflane-contract>
+scripts/prooflane-shadow-openbrief.sh delivery <prooflane-run-id>
+```
+
+From the local OpenBrief checkout, use this helper so the automation resolves
+the sibling Prooflane checkout and the locally installed OpenBrief binary. Set
+`PROOFLANE_BINARY` or `OPENBRIEF_BINARY` only when the operator explicitly
+selects another local path.
+
+Pipe the same single `run_brief` or `record_delivery` JSON request to the
+matching command. Read the OpenBrief result from unchanged stdout and retain
+the final `PROOFLANE_METADATA<TAB>{...}` record from stderr. The Prooflane run
+ID is distinct from OpenBrief's `run_brief.run_id`. A valid delivery context is
+claimed atomically before the runner call so concurrent reuse cannot record a
+duplicate; missing Prooflane context still runs OpenBrief and reports a shadow
+proof error.
+
+If `record_delivery` exits nonzero or is interrupted, retry only with the same
+Prooflane run ID, OpenBrief run ID, and exact message. Active concurrent reuse
+is rejected; failed claims are released or expire after a 180-second lease, and
+OpenBrief returns the existing delivery for an identical retry while rejecting
+a different message. Make at most one bounded retry. On `already claimed`, wait
+for the active owner or lease expiry instead of retrying immediately. Never
+retry `run_brief` after an uncertain result.
+
+Shadow mode currently proves runner validity, run correlation, source-fetch
+coverage, selection conformance, and the committed local delivery record. Its
+successful verdict ceiling is `unverified` because OpenBrief does not yet
+expose digest-only item identity/latest-seen transitions and because
+`record_delivery` is not an external host acknowledgment; observed failures
+may still produce `failed`. Do not claim either missing proof, inspect SQLite,
+or change the final answer because of a shadow result.
+
+Use the same existing OpenBrief database and replace the direct calls inside
+the owning job; never run a mirrored shadow job against it. The adapter's
+internal `inspect_config` call is limited to 30 seconds and 4 MiB; `run_brief`
+and `record_delivery` are each limited to 120 seconds and 16 MiB.
+
 ## Reject Before Tools
 
 Answer with exactly one assistant response and no tools when the user asks to
@@ -102,6 +152,11 @@ Run brief tasks with:
 ```bash
 openbrief brief
 ```
+
+When Prooflane shadow mode is explicitly active, use the corresponding
+`scripts/prooflane-shadow-openbrief.sh` command above only for `run_brief` and
+`record_delivery`. The `validate` action remains a direct `openbrief brief`
+call. The request and OpenBrief JSON result remain unchanged.
 
 Request shapes:
 

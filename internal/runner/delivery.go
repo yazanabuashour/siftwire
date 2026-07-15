@@ -14,6 +14,7 @@ import (
 var deliveryBulletPattern = regexp.MustCompile(`(?m)^-\s+\[([^\]]+)\]\(<([^>]+)>\)\s*$`)
 
 type deliveryStore interface {
+	BriefRunExists(context.Context, string) (bool, error)
 	InsertDelivery(context.Context, string, string, []sqlite.SentItem) ([]sqlite.SentItem, error)
 	RecentDeliveries(context.Context, int) ([]sqlite.Delivery, error)
 }
@@ -28,6 +29,13 @@ func recordDeliveryWithStore(ctx context.Context, paths Paths, store deliverySto
 	}
 	if strings.TrimSpace(request.Message) == "" {
 		return rejectedBrief(paths, "message is required"), nil
+	}
+	exists, err := store.BriefRunExists(ctx, request.RunID)
+	if err != nil {
+		return BriefTaskResult{}, err
+	}
+	if !exists {
+		return rejectedBrief(paths, "run_id was not produced by the current OpenBrief database"), nil
 	}
 	items := parseDeliveryMessage(request.Message)
 	stored, err := store.InsertDelivery(ctx, request.RunID, request.Message, items)
@@ -47,7 +55,8 @@ func recordDeliveryWithStore(ctx context.Context, paths Paths, store deliverySto
 	}
 	deliveryRecords := convertDeliveryRecords(deliveries)
 	result.Deliveries = deliveryRecords
-	if finalAnswer := buildDeliveryFinalAnswer(deliveryRecords); finalAnswer != "" {
+	if len(deliveryRecords) > 0 && deliveryRecords[0].RunID == request.RunID && deliveryRecords[0].Message == request.Message {
+		finalAnswer := buildDeliveryFinalAnswer(deliveryRecords)
 		result.FinalAnswer = finalAnswer
 	}
 	return result, nil

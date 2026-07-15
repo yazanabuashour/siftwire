@@ -187,10 +187,11 @@ func TestRunBriefIncludesPreviousTwoBriefs(t *testing.T) {
 func TestRecordDeliveryStoresNoReplyWithoutSentItems(t *testing.T) {
 	ctx := context.Background()
 	cfg := testConfig(t)
+	runID := createCompletedBriefRun(t, cfg)
 
 	result, err := RunBriefTask(ctx, cfg, BriefTaskRequest{
 		Action:  BriefActionRecordDelivery,
-		RunID:   "run-no-reply",
+		RunID:   runID,
 		Message: "NO_REPLY",
 	})
 	if err != nil {
@@ -211,7 +212,7 @@ func TestRecordDeliveryStoresNoReplyWithoutSentItems(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RecentDeliveries: %v", err)
 	}
-	if len(deliveries) != 1 || deliveries[0].RunID != "run-no-reply" || deliveries[0].Message != "NO_REPLY" {
+	if len(deliveries) != 1 || deliveries[0].RunID != runID || deliveries[0].Message != "NO_REPLY" {
 		t.Fatalf("deliveries = %+v", deliveries)
 	}
 	sent, err := rt.Store().RecentSentItems(ctx, time.Time{})
@@ -220,6 +221,20 @@ func TestRecordDeliveryStoresNoReplyWithoutSentItems(t *testing.T) {
 	}
 	if len(sent) != 0 {
 		t.Fatalf("sent items = %+v, want none", sent)
+	}
+}
+
+func TestRecordDeliveryRejectsRunFromAnotherDatabase(t *testing.T) {
+	result, err := RunBriefTask(context.Background(), testConfig(t), BriefTaskRequest{
+		Action:  BriefActionRecordDelivery,
+		RunID:   "run-from-another-database",
+		Message: "NO_REPLY",
+	})
+	if err != nil {
+		t.Fatalf("record delivery: %v", err)
+	}
+	if !result.Rejected || result.RejectionReason != "run_id was not produced by the current OpenBrief database" {
+		t.Fatalf("result = %+v", result)
 	}
 }
 
@@ -232,11 +247,14 @@ func TestRecordDeliveryReturnsLatestThreeDeliveriesAndFinalAnswer(t *testing.T) 
 		"- [Three](<https://example.com/three>)\nFeed health changes - NEW: `techbuzz`.",
 		"- [Four](<https://example.com/four>)",
 	}
+	var runIDs []string
 
 	for i, message := range messages {
+		runID := createCompletedBriefRun(t, cfg)
+		runIDs = append(runIDs, runID)
 		result, err := RunBriefTask(ctx, cfg, BriefTaskRequest{
 			Action:  BriefActionRecordDelivery,
-			RunID:   fmt.Sprintf("run-%d", i+1),
+			RunID:   runID,
 			Message: message,
 		})
 		if err != nil {
@@ -251,7 +269,7 @@ func TestRecordDeliveryReturnsLatestThreeDeliveriesAndFinalAnswer(t *testing.T) 
 		}
 		for j, delivery := range result.Deliveries {
 			wantIndex := i - j
-			wantRunID := fmt.Sprintf("run-%d", wantIndex+1)
+			wantRunID := runIDs[wantIndex]
 			if delivery.RunID != wantRunID || delivery.Message != messages[wantIndex] || delivery.DeliveredAt == "" {
 				t.Fatalf("delivery %d record %d = %+v, want run_id=%q message=%q with delivered_at", i+1, j, delivery, wantRunID, messages[wantIndex])
 			}
@@ -260,6 +278,36 @@ func TestRecordDeliveryReturnsLatestThreeDeliveriesAndFinalAnswer(t *testing.T) 
 			t.Fatalf("delivery %d FinalAnswer = %q, want %q", i+1, result.FinalAnswer, expectedDeliveryFinalAnswer(result.Deliveries))
 		}
 	}
+
+	retry, err := RunBriefTask(ctx, cfg, BriefTaskRequest{
+		Action:  BriefActionRecordDelivery,
+		RunID:   runIDs[0],
+		Message: messages[0],
+	})
+	if err != nil {
+		t.Fatalf("retry first delivery: %v", err)
+	}
+	if retry.FinalAnswer != "Current brief\n\n"+messages[0] {
+		t.Fatalf("retry FinalAnswer = %q, want request-scoped first delivery", retry.FinalAnswer)
+	}
+}
+
+func createCompletedBriefRun(t *testing.T, cfg runclient.Config) string {
+	t.Helper()
+	ctx := context.Background()
+	rt, err := runclient.Open(ctx, cfg)
+	if err != nil {
+		t.Fatalf("open runtime: %v", err)
+	}
+	defer func() { _ = rt.Close() }()
+	runID, err := rt.Store().StartRun(ctx, false)
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	if err := rt.Store().FinishRun(ctx, runID, "ok", "test run"); err != nil {
+		t.Fatalf("finish run: %v", err)
+	}
+	return runID
 }
 
 func TestRecordDeliveryHistoryReadFailureStillReturnsRecordedCurrentBrief(t *testing.T) {
@@ -286,6 +334,10 @@ func TestRecordDeliveryHistoryReadFailureStillReturnsRecordedCurrentBrief(t *tes
 }
 
 type failingHistoryDeliveryStore struct{}
+
+func (failingHistoryDeliveryStore) BriefRunExists(context.Context, string) (bool, error) {
+	return true, nil
+}
 
 func (failingHistoryDeliveryStore) InsertDelivery(_ context.Context, _ string, _ string, items []sqlite.SentItem) ([]sqlite.SentItem, error) {
 	return items, nil

@@ -180,6 +180,12 @@ func TestRecentDeliveriesReturnsLatestTwoWithIDTieBreak(t *testing.T) {
 	if _, err := store.InsertDelivery(ctx, "run-old", "old", nil); err != nil {
 		t.Fatalf("insert old delivery: %v", err)
 	}
+	if _, err := store.InsertDelivery(ctx, "run-old", "old", nil); err != nil {
+		t.Fatalf("repeat old delivery: %v", err)
+	}
+	if _, err := store.InsertDelivery(ctx, "run-old", "changed", nil); err == nil {
+		t.Fatal("delivery run ID accepted a different message")
+	}
 	store.now = func() time.Time { return tie }
 	if _, err := store.InsertDelivery(ctx, "run-second", "second", nil); err != nil {
 		t.Fatalf("insert second delivery: %v", err)
@@ -200,5 +206,66 @@ func TestRecentDeliveriesReturnsLatestTwoWithIDTieBreak(t *testing.T) {
 	}
 	if deliveries[1].RunID != "run-second" || deliveries[1].Message != "second" || !deliveries[1].DeliveredAt.Equal(tie) {
 		t.Fatalf("second delivery = %+v", deliveries[1])
+	}
+}
+
+func TestInsertDeliveryIsIdempotentUnderConcurrency(t *testing.T) {
+	ctx := context.Background()
+	store, err := New(ctx, Config{DatabasePath: filepath.Join(t.TempDir(), "openbrief.sqlite")})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	const callers = 8
+	errs := make(chan error, callers)
+	for range callers {
+		go func() {
+			_, err := store.InsertDelivery(ctx, "same-run", "NO_REPLY", nil)
+			errs <- err
+		}()
+	}
+	for range callers {
+		err := <-errs
+		if err != nil {
+			t.Fatalf("InsertDelivery: %v", err)
+		}
+	}
+	deliveries, err := store.RecentDeliveries(ctx, callers)
+	if err != nil {
+		t.Fatalf("RecentDeliveries: %v", err)
+	}
+	if len(deliveries) != 1 || deliveries[0].RunID != "same-run" {
+		t.Fatalf("deliveries = %+v, want one", deliveries)
+	}
+}
+
+func TestDeliveryIdempotencyReconcilesWritesFromOlderBinary(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "openbrief.sqlite")
+	store, err := New(ctx, Config{DatabasePath: path})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	if _, err := store.InsertDelivery(ctx, "same-run", "old", nil); err != nil {
+		t.Fatalf("insert old: %v", err)
+	}
+	if _, err := store.db.ExecContext(ctx, `INSERT INTO delivery (run_id, message, delivered_at) VALUES (?, ?, ?)`, "same-run", "new", time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		t.Fatalf("simulate older binary: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	store, err = New(ctx, Config{DatabasePath: path})
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	defer func() { _ = store.Close() }()
+	if _, err := store.InsertDelivery(ctx, "same-run", "new", nil); err != nil {
+		t.Fatalf("reconciled retry: %v", err)
+	}
+	if _, err := store.InsertDelivery(ctx, "same-run", "old", nil); err == nil {
+		t.Fatal("stale pre-rollback message was accepted")
 	}
 }

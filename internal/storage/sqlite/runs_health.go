@@ -39,6 +39,14 @@ UPDATE brief_run SET finished_at = ?, status = ?, summary = ? WHERE id = ?`,
 	return err
 }
 
+func (s *Store) BriefRunExists(ctx context.Context, id string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRowContext(ctx, `SELECT EXISTS(
+		SELECT 1 FROM brief_run WHERE id = ? AND status = 'ok' AND finished_at IS NOT NULL
+	)`, id).Scan(&exists)
+	return exists, err
+}
+
 func (s *Store) InsertFetchLog(ctx context.Context, log FetchLog) error {
 	createdAt := log.CreatedAt
 	if createdAt.IsZero() {

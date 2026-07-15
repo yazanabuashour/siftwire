@@ -2,7 +2,9 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -78,6 +80,44 @@ func (s *Store) InsertDelivery(ctx context.Context, runID string, message string
 	if err != nil {
 		return nil, err
 	}
+	claim, err := tx.ExecContext(ctx, `
+INSERT INTO delivery_once (run_id, message)
+VALUES (?, ?)
+ON CONFLICT(run_id) DO NOTHING`, runID, message)
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	claimed, err := claim.RowsAffected()
+	if err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
+	if claimed == 0 {
+		var storedMessage string
+		var deliveryID sql.NullInt64
+		if err := tx.QueryRowContext(ctx, `SELECT message, delivery_id FROM delivery_once WHERE run_id = ?`, runID).Scan(&storedMessage, &deliveryID); err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		if storedMessage != message {
+			_ = tx.Rollback()
+			return nil, errors.New("run_id was already delivered with a different message")
+		}
+		if !deliveryID.Valid {
+			_ = tx.Rollback()
+			return nil, errors.New("delivery idempotency record is incomplete")
+		}
+		stored, err := sentItemsForDelivery(ctx, tx, deliveryID.Int64)
+		if err != nil {
+			_ = tx.Rollback()
+			return nil, err
+		}
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+		return stored, nil
+	}
 	deliveredAt := s.now().UTC()
 	result, err := tx.ExecContext(ctx, `
 INSERT INTO delivery (run_id, message, delivered_at)
@@ -101,8 +141,34 @@ VALUES (?, ?, ?, ?, ?, ?)`,
 			return nil, err
 		}
 	}
+	if _, err := tx.ExecContext(ctx, `UPDATE delivery_once SET delivery_id = ? WHERE run_id = ?`, deliveryID, runID); err != nil {
+		_ = tx.Rollback()
+		return nil, err
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+	return items, nil
+}
+
+func sentItemsForDelivery(ctx context.Context, tx *sql.Tx, deliveryID int64) ([]SentItem, error) {
+	rows, err := tx.QueryContext(ctx, `SELECT title, url, sent_at FROM sent_item WHERE delivery_id = ? ORDER BY id`, deliveryID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var items []SentItem
+	for rows.Next() {
+		var item SentItem
+		var sentAt string
+		if err := rows.Scan(&item.Title, &item.URL, &sentAt); err != nil {
+			return nil, err
+		}
+		item.SentAt, _ = time.Parse(time.RFC3339Nano, sentAt)
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read idempotent delivery items: %w", err)
 	}
 	return items, nil
 }

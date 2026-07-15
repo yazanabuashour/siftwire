@@ -40,6 +40,21 @@ A complete install has two parts:
 Use the agent's native skill manager. OpenBrief does not require a specific
 skill path or agent implementation.
 
+For local Prooflane dogfooding, do not cut or install a public release. Build
+the current checkout and install its matching skill together:
+
+```bash
+mise exec -- go build -o "$HOME/.local/bin/openbrief" ./cmd/openbrief
+install -D -m 0644 skills/openbrief/SKILL.md \
+  "${CODEX_HOME:-$HOME/.codex}/skills/openbrief/SKILL.md"
+"$HOME/.local/bin/openbrief" --version
+export OPENBRIEF_BINARY="$HOME/.local/bin/openbrief"
+```
+
+This local pair is intentionally replaced by subsequent checkout builds; it is
+not a release artifact. Keep `OPENBRIEF_BINARY` set for the shadow wrapper so an
+older `openbrief` earlier on `PATH` cannot be selected.
+
 ## Upgrade
 
 Tell your agent:
@@ -86,6 +101,13 @@ canonicalization, outlet extraction, priority rank, dedup groups, and
 always-report behavior. Configuration also stores brief options such as
 `max_delivery_items`, which defaults to 7 when unset. Brief actions run the
 brief, validate the runtime, and record delivered messages for deduplication.
+
+Opt-in Prooflane shadow dogfooding can observe the supported runner path
+without changing its JSON result or reading OpenBrief storage directly. The
+current adapter's successful verdict ceiling is intentionally `unverified` for
+item latest-seen identity and downstream host delivery; observed failures may
+still yield `failed`. See
+[`docs/prooflane-shadow-dogfood.md`](docs/prooflane-shadow-dogfood.md).
 
 ## Local Storage
 

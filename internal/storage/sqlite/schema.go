@@ -94,6 +94,11 @@ func (s *Store) initSchema(ctx context.Context) error {
 			message TEXT NOT NULL,
 			delivered_at TEXT NOT NULL
 		);`,
+		`CREATE TABLE IF NOT EXISTS delivery_once (
+			run_id TEXT PRIMARY KEY,
+			message TEXT NOT NULL,
+			delivery_id INTEGER REFERENCES delivery(id) ON DELETE CASCADE
+		);`,
 		`CREATE TABLE IF NOT EXISTS sent_item (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			delivery_id INTEGER NOT NULL REFERENCES delivery(id) ON DELETE CASCADE,
@@ -141,6 +146,14 @@ func (s *Store) migrateSchema(ctx context.Context) error {
 	}
 	if err := s.ensureColumn(ctx, "source_state", "latest_feed_identity", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `
+INSERT OR REPLACE INTO delivery_once (run_id, message, delivery_id)
+SELECT delivery.run_id, delivery.message, delivery.id
+FROM delivery
+JOIN (SELECT run_id, MAX(id) AS id FROM delivery GROUP BY run_id) latest
+	ON latest.id = delivery.id`); err != nil {
+		return fmt.Errorf("backfill delivery idempotency: %w", err)
 	}
 	now := s.now().Format(time.RFC3339Nano)
 	if _, err := s.db.ExecContext(ctx, `

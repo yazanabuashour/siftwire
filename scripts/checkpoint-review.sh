@@ -1,7 +1,8 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -Eeuo pipefail
+set +m
 
-repo_root="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root" || exit 1
 
 if [ "${CHECKPOINT_REVIEW_ACTIVE:-}" = "1" ]; then
@@ -17,6 +18,11 @@ fi
 
 if ! command -v codex >/dev/null 2>&1; then
   printf 'error: codex CLI is required\n' >&2
+  exit 127
+fi
+
+if ! command -v setsid >/dev/null 2>&1; then
+  printf 'error: setsid from util-linux is required\n' >&2
   exit 127
 fi
 
@@ -137,25 +143,13 @@ fi
 run_codex() {
   effort="$1"
   shift
-  codex --search \
+  exec setsid codex \
     -m "$REVIEW_MODEL" \
     -c "model_reasoning_effort=\"$effort\"" \
     "$@"
 }
 
-git_status() {
-  git status "$@" --untracked-files=all
-}
-
-git_status_short() {
-  git_status --short
-}
-
-git_status_porcelain() {
-  git_status --porcelain=v1
-}
-
-if [ -z "$(git_status_porcelain)" ]; then
+if [ -z "$(git status --porcelain=v1 --untracked-files=all)" ]; then
   printf 'No uncommitted changes; no review checkpoint was run.\n'
   exit 0
 fi
@@ -165,7 +159,7 @@ summary_file="$review_dir/summary.txt"
 
 snapshot_state() {
   {
-    git_status_porcelain
+    git status --porcelain=v1 --untracked-files=all
     git diff --cached --no-ext-diff --
     git diff --no-ext-diff --
     git ls-files --others --exclude-standard -z |
@@ -184,12 +178,16 @@ logs=()
 msgs=()
 
 cleanup_children() {
-  for pid in "${pids[@]}"; do
-    if kill -0 "$pid" 2>/dev/null; then
-      kill "$pid" 2>/dev/null || true
-    fi
+  # Reviewers are read-only, so cancellation is immediate. Running and stopped
+  # job queries both exclude completed jobs whose PIDs could be reused.
+  local live_pids=()
+  mapfile -t live_pids < <(jobs -pr; jobs -ps)
+  for pid in "${live_pids[@]}"; do
+    kill -KILL -- "-$pid" 2>/dev/null || kill -KILL "$pid" 2>/dev/null || true
   done
-  wait "${pids[@]}" 2>/dev/null || true
+  if [ "${#live_pids[@]}" -gt 0 ]; then
+    wait "${live_pids[@]}" 2>/dev/null || true
+  fi
 }
 
 cleanup_and_mark() {
@@ -252,15 +250,30 @@ policy_prompt="$review_prefix Focus on orchestration-policy quality: ambiguous d
 printf 'Requested reviews: %s\n' "${requested_reviews[*]}"
 printf 'Review output: %s\n' "$review_dir"
 printf '\nChanged files:\n'
-git_status_short
-git_status_short >"$review_dir/changed-files.txt"
+git status --short --untracked-files=all | tee "$review_dir/changed-files.txt"
 git diff HEAD --stat >"$review_dir/diff-stat.txt"
 review_state_hash="$(snapshot_state)"
+
+statuses=()
+failed=0
+
+wait_for_review() {
+  local i="$1"
+  if wait "${pids[$i]}"; then
+    statuses[i]=0
+  else
+    statuses[i]=$?
+    failed=1
+  fi
+}
 
 # Standard checkpoint review: keep this cheap enough to run for every work item.
 # These are independent Codex CLI review processes, not interactive subagent
 # threads, so they work in non-interactive checkpoint scripts.
+# Complete the built-in review before focused reviewers contend for the shared
+# model-manager process; focused reviews remain independent and parallel.
 start_builtin_review "correctness-review" "$correctness_effort"
+wait_for_review 0
 start_focused_review "avoidable-complexity-review" "$complexity_effort" "$complexity_prompt"
 start_focused_review "test-reduction-review" "$test_reduction_effort" "$test_reduction_prompt"
 
@@ -289,16 +302,11 @@ if [ -n "$custom_effort" ]; then
   start_focused_review "custom-review" "$custom_effort" "$review_prefix $custom_prompt"
 fi
 
-statuses=()
-failed=0
-
 for i in "${!pids[@]}"; do
-  if wait "${pids[$i]}"; then
-    statuses[$i]=0
-  else
-    statuses[$i]=$?
-    failed=1
+  if [ "$i" -eq 0 ]; then
+    continue
   fi
+  wait_for_review "$i"
 done
 trap - INT TERM HUP EXIT
 

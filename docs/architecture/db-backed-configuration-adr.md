@@ -2,11 +2,11 @@
 
 ## Status
 
-Accepted for the initial OpenBrief scaffold.
+Accepted.
 
 ## Context
 
-OpenBrief is intended to be open sourced. Personal source inventories, paywall
+Siftwire is intended to be open sourced. Personal source inventories, paywall
 policy, delivery history, and latest-seen state must not be committed to the
 repository or encoded in the skill.
 
@@ -18,22 +18,26 @@ repository files.
 
 ## Decision
 
-OpenBrief stores runtime configuration and mutable state in SQLite. The
+Siftwire stores runtime configuration and mutable state in SQLite. The
 database path is the storage anchor.
 
-The only app-specific environment variable is `OPENBRIEF_DATABASE_PATH`.
+The canonical app-specific environment variable is `SIFTWIRE_DATABASE_PATH`.
 The runner also accepts `--db` for explicit datasets and tests. If neither is
-provided, it uses `${XDG_DATA_HOME:-~/.local/share}/openbrief/openbrief.sqlite`.
+provided, it uses `${XDG_DATA_HOME:-~/.local/share}/siftwire/siftwire.sqlite`.
+During the v0.2.x rename window, `OPENBRIEF_DATABASE_PATH` remains a deprecated
+fallback. Conflicting values fail. If the prior default database exists while
+the Siftwire default does not, startup requires the operator to select the old
+file explicitly; Siftwire never moves or copies it.
 
 The repository seeds no personal sources, outlet policies, latest-seen state,
 delivery records, or run history. A fresh database contains only schema and
-runtime defaults. Operators configure sources through `openbrief config` or by
+runtime defaults. Operators configure sources through `siftwire config` or by
 preparing a host database outside this repository.
 
 Private historical artifacts are not automatically authoritative production
 configuration. When an operator explicitly points to legacy automation or config
 input, agents may inspect only the named input, draft sources and outlet
-policies for review, and apply approved changes through `openbrief config`.
+policies for review, and apply approved changes through `siftwire config`.
 Delivery history, latest-seen state, and run state remain unsupported until the
 runner provides an explicit import path.
 

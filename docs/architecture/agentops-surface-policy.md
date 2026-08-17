@@ -2,92 +2,86 @@
 
 ## Status
 
-Accepted planning decision for `ob-qbu`, `ob-wgw`, and `ob-48t`.
+Accepted.
 
-This decision follows `docs/architecture/openclerk-pattern-adoption-audit.md`.
-It does not authorize runner API, skill, schema, storage, release, or CI
-changes.
+## Context
 
-## Skill-Size Budget
+Siftwire serves agents through an installed JSON runner and a single-file
+skill. The design must keep routine production work local, auditable, and
+independent of repository or SQLite inspection while avoiding new APIs without
+real callers.
 
-`skills/openbrief/SKILL.md` should stay an activation, routing, safety, and
-minimal request-shape document. The current skill is about 144 lines and 6.4 KB,
-which is acceptable but close enough to need an explicit budget.
+## Decisions
 
-Budget:
+### The process protocol is the reusable boundary
 
-- target: keep the core skill at or below 175 lines and 8 KB
-- review threshold: any change that would push the skill above either target
-  must explain why runner JSON, compact help, eval docs, or maintainer docs are
-  insufficient
-- migration threshold: any change that would push the skill above 220 lines or
-  10 KB must include a follow-up Bead to move durable workflow detail out of
-  the skill
+The supported building block is the one-shot `siftwire config|brief` JSON
+process protocol. The skill, Prooflane adapter, and production eval harness all
+use this boundary. No production caller imports Rust modules.
 
-Routing policy:
+Keep `src/runner/`, `src/engine/`, and `src/storage/` private. A public Rust
+library, alternate store, fetch plugin, daemon, or generic client crate would
+add lifecycle and compatibility contracts without a real
+consumer. Reconsider an in-process API only when an integration cannot
+reasonably use the process protocol and supplies concrete lifecycle and error
+requirements.
 
-- Runner JSON results should carry data needed to answer routine brief and
-  configuration tasks.
-- Runner rejections should carry production-safe explanations for unsupported
-  or invalid requests.
-- Compact help can document stable command/action shapes when repeated
-  exact-JSON ceremony appears but a new runner action is not justified.
-- Eval docs should hold prompt choreography, scenario evidence, taste flags,
-  and promotion or deferral rationale.
-- Maintainer docs should hold release, review, security, Beads, and repository
-  administration workflows.
-- The skill should not become a long-lived workaround for missing runner-owned
-  workflow surfaces.
+### Sources stay generic
 
-## Discovery Surface Comparison
+RSS and Atom share one feed model. GitHub releases remain a separate source kind
+because they use a different fetch interface. Provider-specific feed source
+kinds do not belong in the runner when generic URL canonicalization, outlet
+extraction, deduplication, priority, and always-report fields express the task.
 
-| Candidate | Fit | Risk | Decision |
-| --- | --- | --- | --- |
-| Current primitives plus the existing skill | Good for proven `config` and `brief` actions. | Exact JSON and answer-shape ceremony can grow in the skill. | Keep as baseline. |
-| Compact runner help | Good when users need stable action shapes but not new behavior. | Help text can drift into a second skill if it becomes too broad. | Candidate for future eval/design rows. |
-| Read-only `capabilities` command | Good if agents repeatedly need machine-readable supported actions. | Adds runner API surface before evidence proves status quo or help is insufficient. | Do not promote yet. |
-| Narrow workflow guide action | Good if a small set of routine flows repeatedly need candidate assembly guidance. | Can become a soft implementation surface that bypasses clearer runner actions. | Do not promote yet. |
+### Intake separates inspection from writes
 
-Outcome: no new discovery API is selected yet. Existing specific follow-up
-Beads should compare candidate surfaces where evidence is concrete:
+A user-provided public feed, repository, topic, or named legacy configuration
+can authorize focused inspection. It does not authorize a durable write.
 
-- source capture and field-policy candidates: `ob-rab`, `ob-8nt`, `ob-k92`,
-  `ob-ivy`, `ob-776`, `ob-7an`, and `ob-zxn`
-- high-touch handoff candidates: `ob-1qj`, `ob-z19`, and `ob-brh`
+- Infer mechanical fields such as source kind, key, label, and neutral defaults.
+- Propose fields that affect grouping, ranking, suppression, or alerting.
+- Require explicit approval before writing configuration through the runner.
+- Never infer credentials, private source authority, destructive changes, or
+  operational state.
+- Do not import delivery history, latest-seen state, or run state without an
+  explicit runner-backed import path.
 
-Those follow-ups should compare status quo JSON, compact help, and runner-owned
-surfaces before any implementation promotion.
+### The skill routes tasks; the runner owns behavior
 
-## Committed-Artifact Validation
+`skills/siftwire/SKILL.md` contains activation, safety boundaries, minimal
+request shapes, source-intake guidance, and final-answer choreography. Runner
+JSON carries task data and safe rejection reasons. Eval docs own scenario and
+promotion evidence. Maintainer docs own repository, release, and security work.
+Detailed local Prooflane behavior belongs in its runbook, not in the installed
+skill.
 
-Existing coverage:
+### No discovery API yet
 
-- `scripts/validate-release-docs.sh` requires release-note shape, matching
-  `CHANGELOG.md` links, and no hard-wrapped release prose.
-- `scripts/validate-agent-skill.sh` validates the single-file skill contract,
-  frontmatter, skill-local links, required runner guidance, and known forbidden
-  legacy/private guidance.
-- `scripts/validate-all-agent-skills.sh` keeps future skill directories from
-  bypassing validation.
-- `.github/workflows/pull-request.yml` and `.github/workflows/release.yml` run
-  formatting, lint, tests, and all-skill validation.
-- `.github/PULL_REQUEST_TEMPLATE.md`, `AGENTS.md`, and `docs/maintainers.md`
-  require repo-relative paths or neutral placeholders and call out private-state
-  exclusions.
+Current `config` and `brief` actions cover proven tasks. Compact skill guidance
+is sufficient for source intake today. Do not add a capabilities command,
+draft API, or handoff action until repeated eval evidence shows that agents fail
+or require unreasonable ceremony with the current surface.
 
-Assessment:
+## Taste review
 
-- Public release artifacts and the shipped skill have enough committed
-  validation for the current surface.
-- A repo-wide private-state or absolute-path validator is not adopted yet. The
-  current docs intentionally mention examples such as local database filenames,
-  private-state categories, and neutral placeholders; a broad string denylist
-  would likely create false positives without evidence of repeated misses.
-- If review misses recur in committed docs or eval reports, prefer a narrow
-  validator for that artifact class over a broad repository denylist.
+Decision reports record safety, capability, and user experience separately. A
+technically passing workflow can still carry taste debt when it needs many
+calls, exact prompt choreography, surprising clarification, or brittle manual
+sequencing.
 
-This assessment preserves the existing review requirement: committed docs,
-reports, and artifact references must use repo-relative paths or neutral
-placeholders, and private source inventories, outlet policy evidence, delivery
-logs, run history, workspace backups, and local SQLite databases must stay out
-of the repository.
+Known debt remains around exact-message delivery recording and some config
+assembly. The exact delivered message is currently load-bearing for auditability,
+history, and repeat suppression, so no shortcut is promoted without evidence
+that preserves those properties.
+
+Reopen a surface decision only when new evidence identifies a repeated failure,
+unsafe ambiguity, or materially excessive ceremony and compares the current
+protocol, compact guidance, an extension to an existing action, and a new action
+where applicable.
+
+## Repository evidence
+
+Public artifacts stay repo-relative and free of personal source inventories,
+outlet-policy evidence, delivery logs, run history, workspace backups, and local
+SQLite databases. Validate the shipped skill, release documentation, runner
+behavior, and production agent path with their repository-owned gates.

@@ -1,93 +1,84 @@
 # Agent Production Eval Protocol
 
-OpenBrief evals measure the production AgentOps path: the installed
-`openbrief` binary plus `skills/openbrief/SKILL.md`.
+Siftwire evals measure the production path: one checkout-built `siftwire`
+binary plus the shipped `skills/siftwire/SKILL.md`.
 
 ## Coverage
 
-Initial scenarios should cover:
+The current harness exercises 13 scenarios from
+`src/bin/siftwire-agent-eval/scenarios.rs`:
 
-- empty configured database rejects `run_brief`
-- configured RSS source produces a candidate on first run
-- configured GitHub release source produces a must-include item
-- repeat run without new source state returns no bullets
-- `record_delivery` suppresses exact recent URL or title repeats
-- feed failure creates a health footnote
-- feed recovery resolves the health warning
-- configured feed URL canonicalization rewrites feed item URLs through runner
-  JSON without adding provider-specific source types
-- outlet policy suppression and watch audit behavior
-- configured `max_delivery_items` caps delivered candidate bullets and records
-  the exact delivered message
-- same-run topic deduplication and 24-hour recent topic suppression
-- invalid source config rejects through runner JSON
-- routine production agent does not inspect SQLite or repo files as a fallback
-  for runner JSON
+- empty configuration rejection
+- RSS first-run selection and repeat suppression
+- GitHub release must-include behavior
+- delivery recording and recent suppression
+- generic feed processing and outlet-policy audit
+- configured delivery limits
+- brief history rendering
+- feed failure and recovery health changes
+- invalid source rejection
+- routine runner-only agent hygiene
+
+The implementation is the scenario inventory. Update this summary when adding or
+removing a scenario.
 
 ## Gate
 
-Production is release-ready only when:
+A release is ready only when the selected scenarios pass, fixtures remain
+synthetic, agents use runner JSON only, and production bypass requests receive a
+final-answer-only rejection.
 
-- selected scenarios pass
-- no private fixtures or personal source data are committed
-- production agents use runner JSON only
-- production runner-bypass attempts are final-answer-only rejections
+Report three conclusions separately:
 
-Passing this gate proves the selected production path is safe enough for the
-release decision. It is not, by itself, proof that the workflow is good UX for
-routine operators.
+- **Safety:** source authority, provenance, local-first state, runner-only
+  production access, and approval-before-write were preserved.
+- **Capability:** current runner actions could complete the scenario.
+- **User experience:** note high step count, latency, brittle prompt
+  choreography, surprising clarification, or delivery/config ceremony even when
+  the scenario passed.
 
-## Taste Review
+An eval pass does not by itself prove good user experience or authorize a new
+runner surface.
 
-Future eval, promotion, and decision reports should separate three conclusions:
+## Run the harness
 
-- **Safety pass:** the workflow preserved source authority, provenance,
-  auditability, local-first behavior, private-state boundaries, runner-only
-  production access, and approval-before-write.
-- **Capability pass:** current runner primitives can technically express the
-  workflow.
-- **UX quality / taste debt:** the workflow is or is not acceptable for routine
-  use, even when it passes safety and capability checks.
+The harness builds the runner once from the current checkout into
+`<run-root>/bin`. Each scenario receives an empty workspace, a separate SQLite
+database, synthetic fixtures, raw logs, and an isolated temporary directory.
+The harness installs the shipped skill once in each isolated scenario
+workspace, matching Codex's native project-skill path.
 
-Taste debt signals include high tool or command count, many assistant turns,
-long wall time, exact prompt choreography, surprising clarification turns,
-brittle manual sequencing, and record-delivery or config-mutation ceremony
-that a normal operator would not expect.
+Provision a dedicated, least-privilege Codex home once, then select it explicitly:
 
-Taste review does not authorize implementation. It creates audit, design, or
-eval backlog unless targeted evidence and a later promotion decision name the
-exact smoother surface and show that OpenBrief's safety boundaries remain
-intact.
+```bash
+CODEX_HOME="$HOME/.local/share/siftwire/eval-codex" codex login
+export SIFTWIRE_EVAL_CODEX_HOME="$HOME/.local/share/siftwire/eval-codex"
+mise exec -- ./scripts/run-agent-eval.sh run --scenario routine-agent-hygiene
+```
 
-## Harness
+The default run root is under the user's cache directory. An explicit run root
+must be outside the repository and either absent or marked by an earlier harness
+run. The harness marks dedicated roots and holds an atomic ownership lock for
+the full run; a concurrent owner fails before any scenario directory is reset.
+The harness links only the dedicated eval home's `auth.json` into an isolated
+Codex home, passes `--ignore-user-config`,
+gives tool subprocesses a strict non-secret environment without the auth path,
+and disables login-shell profiles. Single-turn scenarios use `--ephemeral`;
+multi-turn scenarios persist only in the isolated eval home.
 
-The agent eval harness lives at `scripts/agent-eval/openbrief`. It runs from a
-throwaway `<run-root>` outside the repository, copies the repository into each
-scenario directory, builds the production `openbrief` binary into that
-scenario's private `bin/`, and sets
-`OPENBRIEF_DATABASE_PATH=<run-root>/<scenario>/repo/openbrief.sqlite`.
-The copied repo omits root maintainer instructions and installs the shipped
-production skill at `.agents/skills/openbrief/SKILL.md`.
-
-Every run creates an isolated Codex home at `<run-root>/codex-home`. The harness
-copies only the user's Codex `auth.json` into that directory, sets `CODEX_HOME`
-for all Codex CLI calls, and passes `--ignore-user-config` to `codex exec` and
-`codex exec resume`. Single-turn scenarios use `codex exec --ephemeral`.
-Multi-turn scenarios persist only inside `<run-root>/codex-home` and resume from
-that isolated session store.
-
-Raw Codex logs and copied repositories stay under `<run-root>` and are not
-committed. Any committed reduced report must replace local run directories with
-neutral placeholders such as `<run-root>`.
+Every prompt receives an evaluator instruction requiring runner-only production
+behavior. Reduced reports must identify this instruction; it is part of the eval
+method, not hidden product guidance.
 
 ## Reports
 
-Reduced reports are committed under `docs/agent-eval-results/`. They are the
-only eval artifacts intended for the repository. Raw JSONL logs, copied repos,
-temporary databases, isolated Codex homes, and caches stay under `<run-root>`
-outside this repository.
+Write reduced reports only with an explicit name:
 
-When a report is used for promotion or deferral decisions, include a compact
-taste section that records safety pass, capability pass, UX quality, and any
-taste-debt signals. Keep committed report paths repo-relative and continue to
-replace local run directories with neutral placeholders such as `<run-root>`.
+```bash
+mise exec -- ./scripts/run-agent-eval.sh run \
+  --report-dir docs/agent-eval-results \
+  --report-name siftwire-v0.2.0-candidate
+```
+
+Raw logs, workspaces, databases, caches, and Codex state stay under `<run-root>`
+and are not committed. Reduced reports scrub local paths to `<run-root>`.

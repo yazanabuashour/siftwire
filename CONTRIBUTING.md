@@ -1,12 +1,10 @@
 # Contributing
 
-Use the production runner and tests when changing OpenBrief behavior:
+Install the pinned tools and run the repository gate when changing Siftwire:
 
 ```bash
-mise exec -- gofmt -w .
-mise exec -- golangci-lint run
-mise exec -- go test ./...
-mise exec -- ./scripts/validate-all-agent-skills.sh
+mise install
+mise exec -- ./scripts/ci.sh
 ```
 
 Do not commit personal source inventories, `.openclaw` content, workspace
@@ -19,5 +17,4 @@ update the matching docs and release notes. Before tagging a release, run:
 mise exec -- ./scripts/validate-release-docs.sh <tag>
 ```
 
-Maintainers use Beads for local task tracking, but outside contributors can work
-entirely through GitHub issues and pull requests.
+Use GitHub issues and pull requests for tracked project work.

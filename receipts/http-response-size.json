@@ -1,0 +1,8 @@
+{
+  "date_utc": "2026-08-17",
+  "method": "Fetched every enabled configured HTTP(S) source with redirects and content decoding, accepted successful responses, and counted decoded body bytes.",
+  "configured_source_count": 36,
+  "healthy_response_count": 35,
+  "maximum_decoded_response_bytes": 2739024,
+  "response_size_tripwire_bytes": 16777216
+}

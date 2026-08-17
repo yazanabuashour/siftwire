@@ -1,69 +1,30 @@
 # Maintainer Notes
 
-This repository uses **Beads** (`bd`) in embedded mode for maintainer task tracking.
+This repository is public and includes a production `siftwire` runner binary and a single-file Siftwire skill. Keep maintainer docs honest about the actual supported surface.
 
-This repository is public and includes a production `openbrief` runner binary and a single-file OpenBrief skill. Keep maintainer docs honest about the actual supported surface.
-
-Keep `skills/openbrief/SKILL.md` thin. Substantial skill growth must first ask
+Keep `skills/siftwire/SKILL.md` thin. Substantial skill growth must first ask
 whether the detail belongs in an existing runner action, a new narrow
 runner-owned workflow action, compact runner help, or maintainer/eval docs. If
 temporary skill text is still needed, explain why runner JSON results,
-rejections, and caller judgment are insufficient, and link a follow-up Bead to
-remove or replace that text. Do not repair routine brief or configuration UX by
-adding long-lived workflow recipes to the skill.
+rejections, and caller judgment are insufficient, and document follow-up work
+to remove or replace that text. Do not repair routine brief or configuration UX
+by adding long-lived workflow recipes to the skill.
 
 Recurring security operations are tracked in [docs/security-operations.md](security-operations.md). Use that runbook for dependency review cadence, advisory rehearsal, threat-model refreshes, and deeper testing expectations.
 
 ## Initial Setup
 
-Preferred tool install:
+Install the repository-pinned developer tools:
 
 ```bash
 mise install
 ```
 
-Alternative:
-
-```bash
-brew install beads dolt
-```
-
-## Clone Bootstrap
-
-For a fresh maintainer clone or a second machine:
-
-```bash
-git clone git@github.com:yazanabuashour/openbrief.git
-cd openbrief
-bd bootstrap
-bd hooks install
-```
-
-If role detection warns in a maintainer clone, set:
-
-```bash
-git config beads.role maintainer
-```
-
-## Sync Between Machines
-
-Push local Beads state before switching machines, then pull on the other machine:
-
-```bash
-bd dolt push
-bd dolt pull
-```
-
-If `bd dolt pull` reports uncommitted Dolt changes, commit them first and retry:
-
-```bash
-bd dolt commit
-bd dolt pull
-```
+Use GitHub issues and pull requests for tracked project work.
 
 ## Public Repo Expectations
 
-- Outside contributors must be able to contribute without Beads.
+- Contributors must be able to work from the public Git repository and GitHub project history.
 - Policy and workflow files are part of the public contract and should stay reviewable in Git alone.
 - Do not document machine-absolute filesystem paths in committed docs.
 - Do not assume private infrastructure, deploy secrets, or internal services exist unless they have been added explicitly.
@@ -110,15 +71,15 @@ When changing GitHub settings, keep the repo aligned with:
 
 ## Release Publication
 
-Public releases use annotated semantic version tags in the `v0.y.z` range. The release contract is a tagged release for the `openbrief` binary and the single-file OpenBrief skill. Tag a version like `v0.1.0`, push the tag, and let the release workflow:
+Public releases use annotated semantic version tags in the `v0.y.z` range. The release contract is a tagged release for the `siftwire` binary and the single-file Siftwire skill. Tag a version like `v0.2.0`, push the tag, and let the release workflow:
 
 - validate release notes, formatting, lint, skill validation, and tests before publish
-- build binaries with `openbrief --version` set from the tag
+- build binaries with `siftwire --version` set from the tag
 - require `docs/release-notes/<tag>.md` and a matching `CHANGELOG.md` entry before publishing
 - create or reuse only a draft GitHub Release before assets are attached
-- use `docs/release-notes/<tag>.md`, for example `docs/release-notes/v0.1.0.md`, as the GitHub Release body
+- use `docs/release-notes/<tag>.md`, for example `docs/release-notes/v0.2.0.md`, as the GitHub Release body
 - keep release-note paragraphs and list items on one source line so GitHub Releases and API clients do not show hard-wrapped prose
-- attach platform binary archives, the skill archive, the canonical source archive, release installer, SHA256 checksums, and SPDX SBOM
+- attach four platform binaries, the skill archive, canonical source archive, root installer, SHA256 checksums, and SPDX SBOM
 - verify the draft release has the expected asset set before publication
 - generate GitHub attestations for the published assets
 - publish the draft only after all assets and attestations are ready, then verify the release is latest
@@ -130,8 +91,8 @@ Before tagging, add `docs/release-notes/<tag>.md`, update `CHANGELOG.md`, and ru
 For ADR, POC, eval, promotion, and deferred-capability work, report safety,
 capability, and UX quality separately. Exact-command or scripted eval rows prove
 capability only. If routine success depends on exact JSON, command choreography,
-or skill-only recipes, classify the gap as OpenBrief workflow ceremony and
+or skill-only recipes, classify the gap as Siftwire workflow ceremony and
 compare runner-owned surface candidates before expanding
-`skills/openbrief/SKILL.md`.
+`skills/siftwire/SKILL.md`.
 
-After this draft-first workflow is active, enable GitHub release immutability in repository settings for future releases. Published release tags and assets should then be treated as immutable; fix bad artifacts with a new patch release instead of replacing assets on an existing release.
+GitHub release immutability is enabled. Treat published tags and assets as immutable; fix bad artifacts with a new patch release instead of replacing an existing release.

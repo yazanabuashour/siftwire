@@ -1,168 +1,152 @@
-# OpenBrief
+# Siftwire
 
-OpenBrief is a local-first brief runtime for agents. The supported agent path is
-a small `openbrief` JSON runner plus a single-file skill.
-
-OpenBrief is designed for open-source distribution. This repository must not
-contain personal source inventories, paywall policies, delivery logs, `.openclaw`
-content, workspace backups, run history, or local SQLite databases.
+Siftwire is a local-first brief runtime for agents. Its supported production
+surface is one installed `siftwire` JSON runner plus one single-file skill.
+Runtime configuration and mutable state stay in the operator's SQLite database,
+not in this repository.
 
 ## Install
 
 Tell your agent:
 
 ```text
-Install OpenBrief from https://github.com/yazanabuashour/openbrief.
-Complete both required steps before reporting success:
-1. Install and verify the OpenBrief runner binary with `openbrief --version`.
-2. Register the OpenBrief skill from skills/openbrief/SKILL.md using your native skill system.
+Install Siftwire from https://github.com/yazanabuashour/siftwire.
+Complete both steps before reporting success:
+1. Install and verify the runner with `siftwire --version`.
+2. Register skills/siftwire/SKILL.md with the agent's native skill system.
 ```
 
-For the latest release:
+Install the latest runner:
 
 ```bash
-sh -c "$(curl -fsSL https://github.com/yazanabuashour/openbrief/releases/latest/download/install.sh)"
+sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/download/install.sh)"
 ```
 
-For a pinned release:
+Install a pinned runner:
 
 ```bash
-OPENBRIEF_VERSION=v0.1.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/openbrief/releases/download/v0.1.0/install.sh)"
+SIFTWIRE_VERSION=v0.2.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.2.0/install.sh)"
 ```
 
-A complete install has two parts:
+Set `SIFTWIRE_INSTALL_DIR` to choose another executable directory. The installer
+accepts no arguments; these two environment variables are its configuration.
 
-- `openbrief --version` succeeds
-- the matching skill is registered from `skills/openbrief/SKILL.md`,
-  `https://github.com/yazanabuashour/openbrief/tree/<tag>/skills/openbrief`,
-  or `openbrief_<version>_skill.tar.gz`
-
-Use the agent's native skill manager. OpenBrief does not require a specific
-skill path or agent implementation.
-
-For local Prooflane dogfooding, do not cut or install a public release. Build
-the current checkout and install its matching skill together:
-
-```bash
-mise exec -- go build -o "$HOME/.local/bin/openbrief" ./cmd/openbrief
-install -D -m 0644 skills/openbrief/SKILL.md \
-  "${CODEX_HOME:-$HOME/.codex}/skills/openbrief/SKILL.md"
-"$HOME/.local/bin/openbrief" --version
-export OPENBRIEF_BINARY="$HOME/.local/bin/openbrief"
-```
-
-This local pair is intentionally replaced by subsequent checkout builds; it is
-not a release artifact. Keep `OPENBRIEF_BINARY` set for the shadow wrapper so an
-older `openbrief` earlier on `PATH` cannot be selected.
+The skill must come from the same tag as the runner. Register it from
+`skills/siftwire/SKILL.md`, the matching repository tag, or the release's
+`siftwire_<version>_skill.tar.gz`. Siftwire does not require a particular
+agent implementation or skill directory.
 
 ## Upgrade
 
-Tell your agent:
-
-```text
-Upgrade OpenBrief from https://github.com/yazanabuashour/openbrief.
-Complete both required steps before reporting success:
-1. Upgrade and verify the OpenBrief runner binary with `openbrief --version`.
-2. Re-register the OpenBrief skill from skills/openbrief/SKILL.md using your native skill system.
-```
-
-Or upgrade the runner manually:
+Upgrade the runner with the latest installer, verify it, then re-register the
+matching skill:
 
 ```bash
-sh -c "$(curl -fsSL https://github.com/yazanabuashour/openbrief/releases/latest/download/install.sh)"
+sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/download/install.sh)"
+siftwire --version
 ```
 
-Then verify the runner and re-register the matching skill:
+## First use
+
+The runner reads exactly one JSON request from stdin and writes one JSON result
+to stdout:
 
 ```bash
-command -v openbrief
-openbrief --version
+printf '%s\n' '{"action":"init"}' | siftwire config
+printf '%s\n' '{"action":"inspect_config"}' | siftwire config
+printf '%s\n' '{"action":"run_brief","dry_run":true}' | siftwire brief
 ```
 
-## AgentOps Architecture
+Configuration actions manage RSS, Atom, and GitHub release sources; generic
+feed processing; outlet policies; and brief options. Brief actions validate the
+runtime, run a brief, and record the exact delivered message for history and
+repeat suppression. See [`skills/siftwire/SKILL.md`](skills/siftwire/SKILL.md)
+for the installed agent policy.
 
-OpenBrief's agent-facing path is the AgentOps pattern: the skill gives the agent
-task policy, and the local runner performs stateful brief operations through
-structured JSON. Runtime configuration, latest-seen state, health warnings, and
-delivery records live in the host SQLite database, not in this repository.
+## Storage
 
-## Runner Interface
+The default database is
+`${XDG_DATA_HOME:-~/.local/share}/siftwire/siftwire.sqlite`. `XDG_DATA_HOME`
+is used only when it is absolute. Select another database with:
 
-The skill sends structured JSON on stdin and reads structured JSON from stdout:
-
-```bash
-openbrief config
-openbrief brief
-```
-
-Configuration actions manage sources and outlet policies. Sources are generic:
-RSS/Atom feeds, GitHub releases, and optional feed-processing rules such as URL
-canonicalization, outlet extraction, priority rank, dedup groups, and
-always-report behavior. Configuration also stores brief options such as
-`max_delivery_items`, which defaults to 7 when unset. Brief actions run the
-brief, validate the runtime, and record delivered messages for deduplication.
-
-Opt-in Prooflane shadow dogfooding can observe the supported runner path
-without changing its JSON result or reading OpenBrief storage directly. The
-current adapter's successful verdict ceiling is intentionally `unverified` for
-item latest-seen identity and downstream host delivery; observed failures may
-still yield `failed`. See
-[`docs/prooflane-shadow-dogfood.md`](docs/prooflane-shadow-dogfood.md).
-
-## Local Storage
-
-The default SQLite path is
-`${XDG_DATA_HOME:-~/.local/share}/openbrief/openbrief.sqlite`. Override it with:
-
-- `OPENBRIEF_DATABASE_PATH`
+- `SIFTWIRE_DATABASE_PATH`
 - `--db` for explicit datasets and tests
 
-`OPENBRIEF_DATABASE_PATH` is the only app-specific environment variable.
-OpenBrief does not support a data-dir environment variable, workspace paths,
-config-file environment variables, or repo-local state files.
+Siftwire does not support a data-directory variable, workspace state, or
+repo-local runtime files. This repository must not contain personal source
+inventories, outlet policies, delivery logs, `.openclaw` content, workspace
+backups, run history, or local SQLite databases.
 
-## Development
+## Rename from OpenBrief
 
-Use the repo-pinned local toolchain for repository development:
+Siftwire v0.2.0 is a clean command, skill, module, and release-asset rename. It
+does not install an `openbrief` command alias or remove an old binary. Remove or
+disable the old OpenBrief skill and update scheduled commands after installing
+the matching Siftwire runner and skill.
+
+The SQLite schema is unchanged, but Siftwire will not move or silently fork an
+existing default database. Select the old file explicitly:
+
+```bash
+export SIFTWIRE_DATABASE_PATH="$HOME/.local/share/openbrief/openbrief.sqlite"
+siftwire config <<'JSON'
+{"action":"inspect_config"}
+JSON
+```
+
+If the old database used an absolute `XDG_DATA_HOME` or another override, use
+its actual path instead. `OPENBRIEF_DATABASE_PATH` remains a deprecated fallback
+through v0.2.x; `SIFTWIRE_DATABASE_PATH` is canonical. Conflicting values fail.
+
+To roll back, first capture the exact active path returned by
+`inspect_config.paths.database_path`:
+
+```bash
+siftwire_database_path="$(
+  siftwire config <<'JSON' | jq -er '.paths.database_path'
+{"action":"inspect_config"}
+JSON
+)"
+```
+
+Then stop Siftwire jobs, point the old runner at that captured path, and restore
+the old command and skill:
+
+```bash
+export OPENBRIEF_DATABASE_PATH="$siftwire_database_path"
+```
+
+This reuses explicit paths and absolute `XDG_DATA_HOME` paths without guessing.
+Do not run both products against the same database during rollback.
+
+## Develop
+
+Install the pinned Rust toolchain and run the repository gate:
 
 ```bash
 mise install
-mise exec -- gofmt -w .
-mise exec -- golangci-lint run
-mise exec -- go test ./...
-mise exec -- ./scripts/validate-all-agent-skills.sh
-mise exec -- ./scripts/validate-release-docs.sh v0.1.0
+mise exec -- ./scripts/ci.sh
 ```
 
-The production runner supports RSS/Atom feeds, GitHub releases, generic URL
-canonicalization strategies, outlet policy suppression, topic deduplication,
-delivery-history suppression, and feed health warnings. End users configure
-their own feed URLs, outlet policies, priorities, and always-report choices in
-the host SQLite database; this repository does not seed personal sources or
-policies.
+The gate enforces formatting, the repository's strict Rust and Clippy lint
+policy, tests, shell checks, skill validation, installer behavior, and a release
+build.
 
-## Eval Evidence
+Release-document changes also require:
 
-The production runner/skill is gated by agent evals documented in
-[`docs/evals/agent-production.md`](docs/evals/agent-production.md). Current
-release evidence lives in
-[`docs/agent-eval-results/openbrief-v0.1.0-final.md`](docs/agent-eval-results/openbrief-v0.1.0-final.md).
+```bash
+mise exec -- ./scripts/validate-release-docs.sh <tag>
+```
 
-## Releases
+## Documentation
 
-Tagged `v0.y.z` releases publish platform binary archives, the skill archive,
-the installer, source archive, SHA256 checksums, an SPDX SBOM, and GitHub
-attestations. Published release assets are intended to be immutable going
-forward. See
-[`docs/release-verification.md`](docs/release-verification.md) for verification
-steps.
+- [`docs/README.md`](docs/README.md): task-oriented documentation index
+- [`docs/evals/agent-production.md`](docs/evals/agent-production.md): production
+  agent eval protocol
+- [`docs/release-verification.md`](docs/release-verification.md): release
+  verification
+- [`CONTRIBUTING.md`](CONTRIBUTING.md): contribution expectations
+- [`SECURITY.md`](SECURITY.md): private vulnerability reporting
 
-## Contributing
-
-Outside contributors can work entirely through GitHub issues and pull requests.
-Beads is maintainer-only workflow tooling and is not required for community
-contributions.
-
-See `CONTRIBUTING.md` for contribution expectations, `CODE_OF_CONDUCT.md` for
-community standards, `SECURITY.md` for vulnerability reporting, and
-`docs/maintainers.md` for maintainer-only workflow details.
+Published release assets are immutable. Fix an artifact with a new patch release
+rather than replacing an existing tag or asset.

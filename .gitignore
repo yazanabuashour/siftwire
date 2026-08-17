@@ -1,11 +1,8 @@
 .DS_Store
 dist/
+target/
 *.sqlite
 *.sqlite-*
 *.db
 *.db-*
 .tmp/
-
-# Beads / Dolt files (added by bd init)
-.dolt/
-.beads-credential-key

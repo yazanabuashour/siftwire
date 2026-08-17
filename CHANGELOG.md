@@ -1,10 +1,14 @@
 # Changelog
 
-This CHANGELOG summarizes public releases. Full OpenBrief release notes are
-published with GitHub Releases and mirrored in `docs/release-notes/`.
+This CHANGELOG summarizes public releases. Full release notes are published with
+GitHub Releases and mirrored in `docs/release-notes/`.
 
 ## Releases
 
+- [v0.2.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.2.0)
+  renames OpenBrief to Siftwire, ports the runtime to Rust under strict lint
+  rules, documents the JSON process contract, preserves the SQLite schema, and
+  adds explicit old-database migration tripwires.
 - [v0.1.8](https://github.com/yazanabuashour/openbrief/releases/tag/v0.1.8)
   adds `record_delivery` delivery-history output and a ready-to-send final
   answer so agents can return the current brief plus two prior deliveries

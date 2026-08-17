@@ -2,7 +2,7 @@
 
 ## Supported Versions
 
-This project is pre-`1.0` and ships a production `openbrief` runner plus a single-file OpenBrief skill. The supported code lines are the current default branch and the most recent `0.y.z` tag, if one exists.
+This project is pre-`1.0` and ships a production `siftwire` runner plus a single-file Siftwire skill. The supported code lines are the current default branch and the most recent `0.y.z` tag, if one exists.
 
 Older pre-`1.0` tags are not guaranteed to receive fixes or backports.
 
@@ -53,4 +53,4 @@ Maintainers use [docs/security-operations.md](docs/security-operations.md) for r
 
 If a vulnerability affects the latest supported code line, maintainers may cut an out-of-band patch tag and GitHub Release outside the normal release cadence.
 
-Emergency fixes publish updated binary, skill, and source releases with checksums, SBOMs, and GitHub attestations. OpenBrief does not publish a hosted service deployment or remote HTTP API contract.
+Emergency fixes publish updated binary, skill, and source releases with checksums, SBOMs, and GitHub attestations. Siftwire does not publish a hosted service deployment or remote HTTP API contract.

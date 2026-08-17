@@ -27,7 +27,8 @@ fi
 
 notes_path="docs/release-notes/$tag.md"
 [ -e "$notes_path" ] || fail "$notes_path not found"
-[ -f "$notes_path" ] && [ -r "$notes_path" ] || fail "read $notes_path"
+[ -f "$notes_path" ] || fail "$notes_path is not a file"
+[ -r "$notes_path" ] || fail "read $notes_path"
 title="# $brand $tag"
 
 awk -v file="$notes_path" -v title="$title" '
@@ -158,7 +159,8 @@ function die(message) {
 ' "$notes_path"
 
 [ -e CHANGELOG.md ] || fail 'CHANGELOG.md not found'
-[ -f CHANGELOG.md ] && [ -r CHANGELOG.md ] || fail 'read CHANGELOG.md'
+[ -f CHANGELOG.md ] || fail 'CHANGELOG.md is not a file'
+[ -r CHANGELOG.md ] || fail 'read CHANGELOG.md'
 release_url="https://github.com/yazanabuashour/$repository/releases/tag/$tag"
 grep -Fq "$release_url" CHANGELOG.md || fail "CHANGELOG.md must link to $release_url"
 

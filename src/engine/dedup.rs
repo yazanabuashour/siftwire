@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, FixedOffset};
+use url::Url;
 
 use crate::contract::{BriefItem, SuppressedItem};
 use crate::domain::{SOURCE_KIND_GITHUB_RELEASE, Source, THRESHOLD_ALWAYS, THRESHOLD_AUDIT};
@@ -70,15 +71,13 @@ fn collapse_duplicates(items: Vec<CollectedItem>) -> (Vec<CollectedItem>, Vec<Su
     let mut representatives: Vec<CollectedItem> = Vec::new();
     let mut suppressed = Vec::new();
     for item in items {
-        let duplicate = representatives.iter().position(|existing| {
-            effective_group(&item.source) == effective_group(&existing.source)
-                && duplicate_titles(&item.brief_item.title, &existing.brief_item.title)
+        let duplicate = representatives.iter_mut().find(|existing| {
+            duplicate_urls(&item, existing)
+                || (effective_group(&item.source) == effective_group(&existing.source)
+                    && duplicate_titles(&item.brief_item.title, &existing.brief_item.title))
         });
-        let Some(position) = duplicate else {
+        let Some(existing) = duplicate else {
             representatives.push(item);
-            continue;
-        };
-        let Some(existing) = representatives.get_mut(position) else {
             continue;
         };
         if compare_preference(&item, existing).is_lt() {
@@ -89,6 +88,12 @@ fn collapse_duplicates(items: Vec<CollectedItem>) -> (Vec<CollectedItem>, Vec<Su
         }
     }
     (representatives, suppressed)
+}
+
+fn duplicate_urls(left: &CollectedItem, right: &CollectedItem) -> bool {
+    !left.brief_item.url.is_empty()
+        && left.brief_item.url == right.brief_item.url
+        && (left.source.key == right.source.key || Url::parse(&left.brief_item.url).is_ok())
 }
 
 fn effective_group(source: &Source) -> &str {

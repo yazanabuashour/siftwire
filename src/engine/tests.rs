@@ -232,6 +232,47 @@ fn outlet_extraction_and_policy_matching_work_together() -> Result<()> {
 }
 
 #[test]
+fn same_run_exact_url_dedupes_different_titles() -> Result<()> {
+    let feed = source("hnrss");
+    let url = "https://www.githubstatus.com/incidents/zkxwbgr0cnmx";
+    let mut current = collected(&feed, "Incident with Github.com", url)?;
+    current.brief_item.published_at = "Mon, 17 Aug 2026 13:40:55 +0000".to_owned();
+    let mut resolved = collected(&feed, "Incident with Github.com [resolved]", url)?;
+    resolved.brief_item.published_at = "Mon, 17 Aug 2026 13:35:06 +0000".to_owned();
+
+    let classified = classify_and_dedupe(vec![resolved, current]);
+
+    assert_eq!(
+        classified
+            .candidates
+            .iter()
+            .map(|item| item.brief_item.title.as_str())
+            .collect::<Vec<_>>(),
+        ["Incident with Github.com"],
+        "exact-URL dedup did not keep only the preferred item"
+    );
+    Ok(())
+}
+
+#[test]
+fn same_run_relative_urls_do_not_cross_source_boundaries() -> Result<()> {
+    let first = source("first");
+    let second = source("second");
+
+    let classified = classify_and_dedupe(vec![
+        collected(&first, "First status", "/status")?,
+        collected(&second, "Second status", "/status")?,
+    ]);
+
+    assert_eq!(
+        classified.candidates.len(),
+        2,
+        "relative URLs crossed source boundaries"
+    );
+    Ok(())
+}
+
+#[test]
 fn same_run_preference_flows_into_recent_topic_suppression() -> Result<()> {
     let title = "Sony raises PlayStation 5 prices in US";
     let mut generic = source("generic");

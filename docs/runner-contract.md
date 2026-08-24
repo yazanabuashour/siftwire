@@ -1,6 +1,6 @@
 # Runner Contract
 
-Siftwire is a language-neutral one-shot process building block. Consumers invoke
+SiftWire is a language-neutral one-shot process building block. Consumers invoke
 the installed executable; they do not import implementation packages or read its
 SQLite database.
 
@@ -118,7 +118,7 @@ history. Do not treat raw requests or results as telemetry-safe.
 
 ## Storage selection
 
-Path precedence is explicit `--db`, `SIFTWIRE_DATABASE_PATH`, then the Siftwire
+Path precedence is explicit `--db`, `SIFTWIRE_DATABASE_PATH`, then the SiftWire
 default of `${XDG_DATA_HOME:-~/.local/share}/siftwire/siftwire.sqlite`.
 `XDG_DATA_HOME` is honored only when absolute. Newly created database
 directories and files are owner-only; existing explicit parent directories

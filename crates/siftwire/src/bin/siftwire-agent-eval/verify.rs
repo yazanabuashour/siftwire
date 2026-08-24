@@ -80,13 +80,13 @@ fn verify_second_group(checker: &mut Checker<'_>, id: &str, message: &str) -> bo
             checker.contains_all(
                 message,
                 &[
-                    "- [Siftwire history story 1](<https://fixture.example/history-1>)",
-                    "- [Siftwire history story 2](<https://fixture.example/history-2>)",
-                    "- [Siftwire history story 3](<https://fixture.example/history-3>)",
+                    "- [SiftWire history story 1](<https://fixture.example/history-1>)",
+                    "- [SiftWire history story 2](<https://fixture.example/history-2>)",
+                    "- [SiftWire history story 3](<https://fixture.example/history-3>)",
                 ],
             );
             checker.latest_delivery_is(
-                "- [Siftwire history story 3](<https://fixture.example/history-3>)",
+                "- [SiftWire history story 3](<https://fixture.example/history-3>)",
             );
         }
         "github-release-source-must-include" => {

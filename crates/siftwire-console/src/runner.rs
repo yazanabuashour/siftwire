@@ -6,7 +6,7 @@ use serde_json::Value;
 use tokio::io::AsyncWriteExt as _;
 use tokio::process::Command;
 
-/// One invocation of the installed Siftwire runner.
+/// One invocation of the installed SiftWire runner.
 #[derive(Clone, Debug)]
 pub struct Invocation {
     pub runner_bin: String,

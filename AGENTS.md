@@ -2,7 +2,7 @@
 
 ## Project
 
-Siftwire is a local-first Rust brief runtime for agents. Its supported production
+SiftWire is a local-first Rust brief runtime for agents. Its supported production
 boundary is the installed, one-shot `siftwire config|brief` JSON process plus
 `skills/siftwire/SKILL.md`. Operator configuration and mutable state live in an
 external SQLite database; they never belong in this repository.
@@ -40,9 +40,9 @@ external SQLite database; they never belong in this repository.
 
 # ADR/POC/Eval Decision Taste Review
 
-When doing Siftwire ADR, POC, eval, promotion, or deferred-capability decision work, keep the existing evidence discipline but add a taste check before accepting a defer/reference outcome:
+When doing SiftWire ADR, POC, eval, promotion, or deferred-capability decision work, keep the existing evidence discipline but add a taste check before accepting a defer/reference outcome:
 
-- Ask whether a normal user would expect a simpler Siftwire surface than the one being preserved.
+- Ask whether a normal user would expect a simpler SiftWire surface than the one being preserved.
 - Distinguish read/fetch/inspect permission from durable configuration or write approval. User-provided public feeds, release sources, or named migration inputs can justify inspection; durable config writes and private or state imports still require explicit approval and runner support.
 - Prefer extending the natural existing runner action when the input clearly belongs there, instead of declaring the adjacent UX unsupported.
 - Treat "completed but ceremonial" eval passes as possible taste debt when they require high step count, long latency, exact prompt choreography, or surprising clarification turns.

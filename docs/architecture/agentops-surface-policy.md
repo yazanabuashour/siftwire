@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-Siftwire serves agents through an installed JSON runner and a single-file
+SiftWire serves agents through an installed JSON runner and a single-file
 skill. The design must keep routine production work local, auditable, and
 independent of repository or SQLite inspection while avoiding new APIs without
 real callers.

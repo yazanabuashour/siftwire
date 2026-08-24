@@ -6,7 +6,7 @@ GitHub Releases and mirrored in `docs/release-notes/`.
 ## Releases
 
 - [v0.2.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.2.0)
-  presents the Siftwire name, ports the runtime to Rust under strict lint
+  presents the SiftWire name, ports the runtime to Rust under strict lint
   rules, documents the JSON process contract, and preserves the SQLite
   schema.
 - [v0.1.8](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.8)
@@ -21,7 +21,7 @@ GitHub Releases and mirrored in `docs/release-notes/`.
   adds previous-brief context to brief runner JSON, splits runner and SQLite
   internals into smaller testable modules, broadens skill validation coverage,
   and records taste-review and candidate-surface decisions for future
-  Siftwire workflow work.
+  SiftWire workflow work.
 - [v0.1.5](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.5)
   improves feed canonicalization fallback behavior, memoizes duplicate Google
   News article resolution within a brief run, and backs off Google News
@@ -37,13 +37,13 @@ GitHub Releases and mirrored in `docs/release-notes/`.
   outlet policy matching without changing the runner CLI or install flow.
 - [v0.1.2](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.2)
   allows user-directed legacy automation/config migration through a reviewed
-  draft-and-apply Siftwire skill workflow and hardens skill markdown
+  draft-and-apply SiftWire skill workflow and hardens skill markdown
   validation tests without changing runner behavior.
 - [v0.1.1](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.1)
-  refines the public Siftwire skill display name and production runner-bypass
+  refines the public SiftWire skill display name and production runner-bypass
   refusal policy without changing runner behavior.
 - [v0.1.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.0)
-  is the first public release of the local-first Siftwire runner and skill.
+  is the first public release of the local-first SiftWire runner and skill.
 
 ## Unreleased
 

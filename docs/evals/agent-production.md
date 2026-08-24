@@ -1,6 +1,6 @@
 # Agent Production Eval Protocol
 
-Siftwire evals measure the production path: one checkout-built `siftwire`
+SiftWire evals measure the production path: one checkout-built `siftwire`
 binary plus the shipped `skills/siftwire/SKILL.md`.
 
 ## Coverage

@@ -1,6 +1,6 @@
 # Release Verification
 
-A Siftwire release publishes exactly nine assets:
+A SiftWire release publishes exactly nine assets:
 
 - four `siftwire_<version>_<os>_<arch>` binaries
 - `siftwire_<version>_skill.tar.gz`

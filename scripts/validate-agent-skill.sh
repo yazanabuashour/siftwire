@@ -124,7 +124,7 @@ END {
 }
 ' "$skill_file" > "$body"
 
-required_contract='# Siftwire
+required_contract='# SiftWire
 ## Production Boundary
 ## Source Intake
 ## Config Tasks

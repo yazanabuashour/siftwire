@@ -1,6 +1,6 @@
 # Maintainer Notes
 
-This repository is public and includes a production `siftwire` runner binary and a single-file Siftwire skill. Keep maintainer docs honest about the actual supported surface.
+This repository is public and includes a production `siftwire` runner binary and a single-file SiftWire skill. Keep maintainer docs honest about the actual supported surface.
 
 Keep `skills/siftwire/SKILL.md` thin. Substantial skill growth must first ask
 whether the detail belongs in an existing runner action, a new narrow
@@ -71,7 +71,7 @@ When changing GitHub settings, keep the repo aligned with:
 
 ## Release Publication
 
-Public releases use annotated semantic version tags in the `v0.y.z` range. The release contract is a tagged release for the `siftwire` binary and the single-file Siftwire skill. Tag a version like `v0.2.0`, push the tag, and let the release workflow:
+Public releases use annotated semantic version tags in the `v0.y.z` range. The release contract is a tagged release for the `siftwire` binary and the single-file SiftWire skill. Tag a version like `v0.2.0`, push the tag, and let the release workflow:
 
 - validate release notes, formatting, lint, skill validation, and tests before publish
 - build binaries with `siftwire --version` set from the tag
@@ -91,7 +91,7 @@ Before tagging, add `docs/release-notes/<tag>.md`, update `CHANGELOG.md`, and ru
 For ADR, POC, eval, promotion, and deferred-capability work, report safety,
 capability, and UX quality separately. Exact-command or scripted eval rows prove
 capability only. If routine success depends on exact JSON, command choreography,
-or skill-only recipes, classify the gap as Siftwire workflow ceremony and
+or skill-only recipes, classify the gap as SiftWire workflow ceremony and
 compare runner-owned surface candidates before expanding
 `skills/siftwire/SKILL.md`.
 

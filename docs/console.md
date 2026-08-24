@@ -1,7 +1,7 @@
 # Operator Console
 
 `siftwire-console` is a local web application for viewing and configuring a
-Siftwire database. It is an operator tool, not part of the runner protocol:
+SiftWire database. It is an operator tool, not part of the runner protocol:
 every request spawns the installed `siftwire` binary and uses the `config`
 JSON contract or the `runs` operator CLI. The console never opens
 SQLite directly.

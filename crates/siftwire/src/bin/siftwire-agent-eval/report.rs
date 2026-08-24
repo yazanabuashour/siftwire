@@ -24,7 +24,7 @@ pub fn write_reduced(directory: &Path, name: &str, report: &RunResult) -> Result
 
 fn markdown(name: &str, report: &RunResult) -> Result<String> {
     let mut output = String::new();
-    writeln!(output, "# Siftwire Agent Eval {name}\n")?;
+    writeln!(output, "# SiftWire Agent Eval {name}\n")?;
     writeln!(
         output,
         "Harness: one checkout-built runner plus `codex exec --json --approve-for-me` from isolated workspaces. Single-turn scenarios use `--ephemeral`; multi-turn scenarios resume an isolated eval session.\n"

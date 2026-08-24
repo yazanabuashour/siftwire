@@ -1,6 +1,6 @@
 # Contributing
 
-Install the pinned tools and run the repository gate when changing Siftwire:
+Install the pinned tools and run the repository gate when changing SiftWire:
 
 ```bash
 mise install

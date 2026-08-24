@@ -162,7 +162,7 @@ pub struct Store {
 }
 
 impl Store {
-    /// Opens and migrates a Siftwire `SQLite` database.
+    /// Opens and migrates a SiftWire `SQLite` database.
     ///
     /// # Errors
     ///

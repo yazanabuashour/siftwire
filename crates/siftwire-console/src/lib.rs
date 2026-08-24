@@ -26,7 +26,7 @@ pub struct AppState {
 pub fn router(state: AppState) -> Router {
     let web_root = PathBuf::from(&state.settings.web_root);
     let index = ServeFile::new(web_root.join("index.html"));
-    let static_files = ServeDir::new(&web_root).not_found_service(index);
+    let static_files = ServeDir::new(&web_root).fallback(index);
     Router::new()
         .route("/api/v1/health", get(api::health))
         .route("/api/v1/config", get(api::config))

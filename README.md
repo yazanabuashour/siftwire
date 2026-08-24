@@ -1,6 +1,6 @@
-# Siftwire
+# SiftWire
 
-Siftwire is a local-first brief runtime for agents. Its supported production
+SiftWire is a local-first brief runtime for agents. Its supported production
 surface is one installed `siftwire` JSON runner plus one single-file skill.
 Runtime configuration and mutable state stay in the operator's SQLite database,
 not in this repository.
@@ -10,7 +10,7 @@ not in this repository.
 Tell your agent:
 
 ```text
-Install Siftwire from https://github.com/yazanabuashour/siftwire.
+Install SiftWire from https://github.com/yazanabuashour/siftwire.
 Complete both steps before reporting success:
 1. Install and verify the runner with `siftwire --version`.
 2. Register skills/siftwire/SKILL.md with the agent's native skill system.
@@ -33,7 +33,7 @@ accepts no arguments; these two environment variables are its configuration.
 
 The skill must come from the same tag as the runner. Register it from
 `skills/siftwire/SKILL.md`, the matching repository tag, or the release's
-`siftwire_<version>_skill.tar.gz`. Siftwire does not require a particular
+`siftwire_<version>_skill.tar.gz`. SiftWire does not require a particular
 agent implementation or skill directory.
 
 ## Upgrade
@@ -99,7 +99,7 @@ is used only when it is absolute. Select another database with:
 - `SIFTWIRE_DATABASE_PATH`
 - `--db` for explicit datasets and tests
 
-Siftwire does not support a data-directory variable, workspace state, or
+SiftWire does not support a data-directory variable, workspace state, or
 repo-local runtime files. This repository must not contain personal source
 inventories, outlet policies, delivery logs, `.openclaw` content, workspace
 backups, run history, or local SQLite databases.

@@ -116,7 +116,7 @@ async fn unknown_run_maps_to_404() {
 }
 
 #[tokio::test]
-async fn static_fallback_serves_index() {
+async fn static_fallback_serves_spa_routes() {
     let temp = TempDir::new().expect("temp dir");
     std::fs::write(temp.path().join("index.html"), "<html>siftwire</html>").expect("write index");
     let app = crate::router(state_with_runner(
@@ -126,7 +126,7 @@ async fn static_fallback_serves_index() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/")
+                .uri("/sources")
                 .body(Body::empty())
                 .expect("request"),
         )

@@ -13,7 +13,7 @@ fail() {
 tag="$(printf '%s' "$1" | awk '{$1=$1; print}')"
 printf '%s\n' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "tag must match vMAJOR.MINOR.PATCH: \"$tag\""
 
-brand=Siftwire
+brand=SiftWire
 repository=siftwire
 
 notes_path="docs/release-notes/$tag.md"

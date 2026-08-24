@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-Siftwire is intended to be open sourced. Personal source inventories, paywall
+SiftWire is intended to be open sourced. Personal source inventories, paywall
 policy, delivery history, and latest-seen state must not be committed to the
 repository or encoded in the skill.
 
@@ -18,7 +18,7 @@ repository files.
 
 ## Decision
 
-Siftwire stores runtime configuration and mutable state in SQLite. The
+SiftWire stores runtime configuration and mutable state in SQLite. The
 database path is the storage anchor.
 
 The canonical app-specific environment variable is `SIFTWIRE_DATABASE_PATH`.

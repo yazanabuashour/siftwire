@@ -1,4 +1,5 @@
 too-many-lines-threshold = 100
+doc-valid-idents = ["SiftWire", ".."]
 
 disallowed-types = [
   { path = "std::any::Any", reason = "Use domain enums or boundary decoders instead of runtime type recovery." },

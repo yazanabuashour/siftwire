@@ -3,93 +3,166 @@ import { useEffect, useState } from "react"
 
 import { replaceOutlets } from "../api-client"
 import type { OutletPolicy } from "../api-contracts"
-import { ErrorNote, useConfig } from "./shared"
+import { Button, inputClass, Toggle } from "./controls"
+import { ErrorNote, PageHeader, Pill, Skeleton, useConfig } from "./shared"
 
 export default function OutletsPage() {
   const config = useConfig()
   const client = useQueryClient()
   const [rows, setRows] = useState<OutletPolicy[] | null>(null)
-
   useEffect(() => {
-    // Hydrate once per server state; local edits are never clobbered.
-    if (config.data && rows === null) {
-      setRows(config.data.outlets)
-    }
+    // Do not clobber unsaved edits when the query refetches.
+    if (config.data && rows === null) setRows(config.data.outlets)
   }, [config.data, rows])
-
   const save = useMutation({
     mutationFn: (outlets: OutletPolicy[]) => replaceOutlets(outlets),
     onSuccess: () => void client.invalidateQueries({ queryKey: ["config"] }),
   })
-
-  if (config.isPending) return <p className="text-(--muted)">Loading…</p>
-  if (config.isError) return <ErrorNote error={config.error} />
-
   const update = (index: number, patch: Partial<OutletPolicy>): void =>
     setRows((current) =>
       (current ?? []).map((row, at) =>
         at === index ? { ...row, ...patch } : row,
       ),
     )
+  const dirty =
+    rows !== null &&
+    JSON.stringify(rows) !== JSON.stringify(config.data?.outlets)
 
   return (
-    <div className="flex flex-col gap-4 text-sm">
-      <p className="text-(--muted)">
-        Saving replaces the full outlet policy list in one runner write.
+    <>
+      <PageHeader
+        title="Outlet policies"
+        subtitle={
+          config.data
+            ? `${config.data.outlets.length} policies · saving replaces the full list`
+            : undefined
+        }
+        actions={
+          <Button
+            variant="primary"
+            disabled={rows === null || !dirty || save.isPending}
+            onClick={() => {
+              if (rows) save.mutate(rows)
+            }}
+          >
+            {save.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        }
+      />
+      {save.isError ? (
+        <div className="mb-4">
+          <ErrorNote error={save.error} />
+        </div>
+      ) : null}
+      {dirty ? (
+        <div className="border-warn/30 bg-warn-dim text-warn mb-4 rounded-lg border px-3 py-2 text-xs">
+          You have unsaved changes. Saving replaces every policy in one runner
+          write.
+        </div>
+      ) : null}
+      <OutletTable
+        rows={rows}
+        pending={config.isPending}
+        error={config.isError ? config.error : null}
+        update={update}
+      />
+      <p className="text-muted mt-3 flex items-center gap-2 text-xs">
+        Policy meanings:
+        <Pill tone="ok">allow</Pill>
+        <Pill tone="error">block</Pill>
+        <Pill tone="warn">watch</Pill>
       </p>
-      <table className="text-sm">
-        <thead className="text-(--muted)">
-          <tr className="text-left">
-            <th className="py-1">Name</th>
-            <th>Aliases (comma separated)</th>
-            <th>Policy</th>
-            <th>Note</th>
-            <th>Enabled</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(rows ?? []).map((row, index) => (
-            <OutletRow
-              key={row.name}
-              row={row}
-              onChange={(patch) => update(index, patch)}
-            />
-          ))}
-        </tbody>
-      </table>
-      {save.isError ? <ErrorNote error={save.error} /> : null}
-      {save.isPending ? <p className="text-(--muted)">Saving…</p> : null}
-      <button
-        type="button"
-        disabled={rows === null || save.isPending}
-        onClick={() => {
-          if (rows !== null) save.mutate(rows)
-        }}
-        className="self-start rounded border border-(--accent) px-3 py-1 hover:bg-(--accent) hover:text-black disabled:opacity-50"
-      >
-        Save policies
-      </button>
+    </>
+  )
+}
+
+function OutletTable({
+  rows,
+  pending,
+  error,
+  update,
+}: {
+  rows: OutletPolicy[] | null
+  pending: boolean
+  error: unknown | null
+  update: (index: number, patch: Partial<OutletPolicy>) => void
+}) {
+  let content
+  if (error) content = <ErrorNote error={error} />
+  else if (pending || rows === null) {
+    content = (
+      <div className="space-y-px p-2">
+        {[1, 2, 3, 4, 5].map((key) => (
+          <Skeleton key={key} className="h-10" />
+        ))}
+      </div>
+    )
+  } else if (rows.length === 0) {
+    content = (
+      <p className="text-muted px-4 py-10 text-center text-sm">
+        No policies configured.
+      </p>
+    )
+  } else {
+    content = (
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-4xl text-sm">
+          <OutletHead />
+          <tbody className="divide-edge divide-y">
+            {rows.map((row, index) => (
+              <OutletRow
+                key={row.name}
+                row={row}
+                index={index}
+                update={update}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+  return (
+    <div className="border-edge bg-surface overflow-hidden rounded-xl border">
+      {content}
     </div>
+  )
+}
+
+function OutletHead() {
+  return (
+    <thead>
+      <tr className="border-edge text-muted border-b text-left text-[11px] font-semibold tracking-wider uppercase">
+        <th className="px-4 py-2.5 font-semibold">Name</th>
+        <th className="w-64 px-3 py-2.5 font-semibold">Aliases</th>
+        <th className="px-3 py-2.5 font-semibold">Policy</th>
+        <th className="w-80 px-3 py-2.5 font-semibold">Note</th>
+        <th className="px-4 py-2.5 text-right font-semibold">Enabled</th>
+      </tr>
+    </thead>
   )
 }
 
 function OutletRow({
   row,
-  onChange,
+  index,
+  update,
 }: {
   row: OutletPolicy
-  onChange: (patch: Partial<OutletPolicy>) => void
+  index: number
+  update: (index: number, patch: Partial<OutletPolicy>) => void
 }) {
   return (
-    <tr className="border-t border-(--border)">
-      <td className="py-1 font-mono">{row.name}</td>
-      <td>
+    <tr className="hover:bg-raised/60 transition-colors">
+      <td className="text-ink px-4 py-2.5 font-mono text-[13px]">{row.name}</td>
+      <td className="px-3 py-2.5">
         <input
-          className={inputClass}
+          className={`${inputClass} font-mono text-xs`}
           aria-label={`Aliases for ${row.name}`}
+          title={row.aliases.join(", ")}
           value={row.aliases.join(", ")}
           onChange={(event) =>
-            onChange({
+            update(index, {
               aliases: event.target.value
                 .split(",")
                 .map((alias) => alias.trim())
@@ -98,37 +171,37 @@ function OutletRow({
           }
         />
       </td>
-      <td>
+      <td className="px-3 py-2.5">
         <select
-          className={inputClass}
+          className={`${inputClass} w-28`}
           aria-label={`Policy for ${row.name}`}
           value={row.policy}
-          onChange={(event) => onChange({ policy: event.target.value })}
+          onChange={(event) => update(index, { policy: event.target.value })}
         >
           <option value="allow">allow</option>
           <option value="block">block</option>
           <option value="watch">watch</option>
         </select>
       </td>
-      <td>
+      <td className="px-3 py-2.5">
         <input
           className={inputClass}
           aria-label={`Note for ${row.name}`}
+          title={row.note}
           value={row.note}
-          onChange={(event) => onChange({ note: event.target.value })}
+          onChange={(event) => update(index, { note: event.target.value })}
         />
       </td>
-      <td>
-        <input
-          type="checkbox"
-          aria-label={`Enabled policy ${row.name}`}
-          checked={row.enabled}
-          onChange={(event) => onChange({ enabled: event.target.checked })}
-        />
+      <td className="px-4 py-2.5">
+        <div className="flex justify-end">
+          <Toggle
+            label={`Enabled policy ${row.name}`}
+            checked={row.enabled}
+            hideLabel
+            onChange={(checked) => update(index, { enabled: checked })}
+          />
+        </div>
       </td>
     </tr>
   )
 }
-
-const inputClass =
-  "w-full rounded border border-(--border) bg-transparent px-2 py-1 focus:border-(--accent) focus:outline-none"

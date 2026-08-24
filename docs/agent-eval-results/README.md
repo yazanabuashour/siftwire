@@ -12,7 +12,7 @@ These immutable reports cover the selected v0.1.0 runner and skill. They do not
 prove current HEAD or later releases. Their method predates the current report
 requirement to identify the runner-only evaluator instruction.
 
-## Siftwire v0.2.0 evidence
+## SiftWire v0.2.0 evidence
 
 - `docs/agent-eval-results/siftwire-v0.2.0-final.md`
 - `docs/agent-eval-results/siftwire-v0.2.0-final.json`

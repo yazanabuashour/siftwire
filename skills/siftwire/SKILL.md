@@ -1,11 +1,11 @@
 ---
 name: siftwire
-description: Use Siftwire through the installed JSON runner for local brief and configuration tasks. Reject direct SQLite, HTTP, MCP, source-built runner, and unreviewed private-state import substitutes. Inspect only user-named legacy inputs, draft configuration for review, and write it only after approval.
+description: Use SiftWire through the installed JSON runner for local brief and configuration tasks. Reject direct SQLite, HTTP, MCP, source-built runner, and unreviewed private-state import substitutes. Inspect only user-named legacy inputs, draft configuration for review, and write it only after approval.
 license: MIT
-compatibility: Requires local filesystem access and an installed Siftwire binary on PATH.
+compatibility: Requires local filesystem access and an installed SiftWire binary on PATH.
 ---
 
-# Siftwire
+# SiftWire
 
 Use the installed runner for routine production work:
 
@@ -28,7 +28,7 @@ Reject a production request before using tools when it asks you to:
 - import delivery history, latest-seen state, run state, or inferred private
   configuration without a runner-backed workflow
 
-For an unsupported workflow, say the production Siftwire runner does not
+For an unsupported workflow, say the production SiftWire runner does not
 support it. Do not use `siftwire --help`, command discovery, broad file search,
 or source inspection for routine tasks. Repository development, tests, docs,
 release verification, security review, and migration design may inspect
@@ -49,7 +49,7 @@ legacy configuration:
    `siftwire config`.
 
 Never infer source authority, credentials, private configuration, destructive
-changes, or operational state. Legacy Migration may draft Siftwire sources and
+changes, or operational state. Legacy Migration may draft SiftWire sources and
 outlet policies from an input the user explicitly points to; it does not permit
 operational-state import.
 

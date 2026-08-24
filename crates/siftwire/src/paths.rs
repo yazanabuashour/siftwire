@@ -9,7 +9,7 @@ use crate::contract::Paths;
 pub const DATABASE_ENV: &str = "SIFTWIRE_DATABASE_PATH";
 
 /// Resolves the selected database path from an explicit flag, the canonical
-/// environment variable, or the Siftwire default.
+/// environment variable, or the SiftWire default.
 ///
 /// # Errors
 ///

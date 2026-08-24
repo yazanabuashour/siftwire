@@ -2,34 +2,80 @@ import { useQuery } from "@tanstack/react-query"
 import Markdown from "react-markdown"
 
 import { listRuns } from "../api-client"
+import {
+  Card,
+  EmptyState,
+  ErrorNote,
+  formatWhen,
+  PageHeader,
+  Skeleton,
+} from "./shared"
 
 export default function DeliveriesPage() {
   const runs = useQuery({
     queryKey: ["deliveries"],
     queryFn: ({ signal }) => listRuns(100, signal),
   })
-  if (runs.isPending) return <p className="text-(--muted)">Loading…</p>
-  if (runs.isError)
-    return <p className="text-sm text-red-400">{runs.error.message}</p>
-  const delivered = runs.data.runs.filter((run) => run.delivered_at)
-  if (delivered.length === 0)
-    return <p className="text-(--muted)">No deliveries recorded yet.</p>
+
+  if (runs.isPending) {
+    return (
+      <>
+        <PageHeader
+          title="Deliveries"
+          subtitle="Every brief that shipped, newest first."
+        />
+        <div className="space-y-4">
+          {[1, 2, 3].map((key) => (
+            <Skeleton key={key} className="h-36" />
+          ))}
+        </div>
+      </>
+    )
+  }
+  if (runs.isError) return <ErrorNote error={runs.error} />
+
+  const delivered = runs.data.runs.filter((run) => run.delivered_at !== null)
   return (
-    <div className="flex flex-col gap-4">
-      {delivered.map((run) => (
-        <article
-          key={run.run_id}
-          className="rounded-lg border border-(--border) bg-(--surface) p-4"
-        >
-          <header className="mb-2 flex items-baseline justify-between text-xs text-(--muted)">
-            <span>{run.delivered_at}</span>
-            <span className="font-mono">{run.run_id}</span>
-          </header>
-          <div className="prose prose-invert text-sm [&_a]:text-(--accent) [&_li]:my-0.5 [&_ul]:list-disc [&_ul]:pl-5">
-            <Markdown>{run.message ?? ""}</Markdown>
-          </div>
-        </article>
-      ))}
-    </div>
+    <>
+      <PageHeader
+        title="Deliveries"
+        subtitle={
+          delivered.length > 0
+            ? `${delivered.length} briefs shipped, newest first.`
+            : undefined
+        }
+      />
+      {delivered.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="No deliveries recorded yet"
+            hint="Briefs appear here after the first scheduled run delivers."
+          />
+        </Card>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {delivered.map((run) => (
+            <Card key={run.run_id} className="overflow-hidden">
+              <header className="border-edge flex items-center justify-between gap-3 border-b px-4 py-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-ink text-sm font-medium">
+                    {formatWhen(run.delivered_at)}
+                  </span>
+                  <span className="bg-raised text-muted rounded-full px-2 py-0.5 font-mono text-[11px]">
+                    {run.run_id.slice(0, 8)}
+                  </span>
+                </div>
+                <span className="text-muted text-xs">
+                  {run.message?.match(/^-/gm)?.length ?? 0} stories
+                </span>
+              </header>
+              <div className="[&_a]:text-accent px-4 py-3 text-sm [&_a:hover]:underline [&_li]:my-1 [&_p]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5">
+                <Markdown>{run.message ?? ""}</Markdown>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </>
   )
 }

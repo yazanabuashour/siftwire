@@ -181,7 +181,7 @@ fn run_config_action(paths: Paths, store: &Store, request: ConfigRequest) -> Res
         "init" => Ok(ConfigResult {
             paths,
             runtime_config: store.runtime_config()?,
-            summary: "initialized Siftwire database".to_owned(),
+            summary: "initialized SiftWire database".to_owned(),
             ..ConfigResult::default()
         }),
         "inspect_config" => inspect_config(paths, store),

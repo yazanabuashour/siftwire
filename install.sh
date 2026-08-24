@@ -133,7 +133,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-printf 'Installing Siftwire %s for %s/%s\n' "$tag" "$os" "$arch"
+printf 'Installing SiftWire %s for %s/%s\n' "$tag" "$os" "$arch"
 cd "$tmp_dir"
 curl -fsSL "${release_url}/${asset}" -o "$asset" || fail "download failed: ${release_url}/${asset}"
 curl -fsSL "${release_url}/${checksum}" -o "$checksum" || fail "download failed: ${release_url}/${checksum}"
@@ -156,6 +156,6 @@ else
 fi
 
 printf '%s\n' \
-  "Register the matching Siftwire skill before reporting installation complete:" \
+  "Register the matching SiftWire skill before reporting installation complete:" \
   "  https://github.com/${repo}/tree/${tag}/skills/siftwire" \
   "  ${release_url}/siftwire_${asset_version}_skill.tar.gz"

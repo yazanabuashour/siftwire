@@ -1,8 +1,19 @@
 import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 
-import { getRun, listRuns } from "../api-client"
-import type { RunDetail } from "../api-contracts"
+import { listRuns } from "../api-client"
+import type { RunSummary } from "../api-contracts"
+import { RunDetailPanel } from "./RunDetailPanel"
+import { RunStatusPill } from "./RunStatusPill"
+import {
+  Card,
+  EmptyState,
+  ErrorNote,
+  formatWhen,
+  PageHeader,
+  parseSummary,
+  Skeleton,
+} from "./shared"
 
 export default function RunsPage() {
   const runs = useQuery({
@@ -10,144 +21,106 @@ export default function RunsPage() {
     queryFn: ({ signal }) => listRuns(50, signal),
   })
   const [selected, setSelected] = useState<string | null>(null)
+  const activeId = selected ?? runs.data?.runs[0]?.run_id ?? null
+
   return (
-    <div className="flex flex-col gap-4">
-      {runs.isPending ? <p className="text-(--muted)">Loading…</p> : null}
-      {runs.isError ? (
-        <p className="text-sm text-red-400">{runs.error.message}</p>
-      ) : null}
-      {runs.data ? (
-        <table className="text-sm">
-          <thead className="text-(--muted)">
-            <tr className="text-left">
-              <th className="py-1">Started</th>
-              <th>Status</th>
-              <th>Delivered</th>
-              <th>Summary</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.data.runs.map((run) => (
-              <tr
-                key={run.run_id}
-                className={`cursor-pointer border-t border-(--border) hover:text-(--accent) ${
-                  selected === run.run_id ? "text-(--accent)" : ""
-                }`}
-                onClick={() =>
-                  setSelected(run.run_id === selected ? null : run.run_id)
-                }
-              >
-                <td className="py-1 font-mono text-xs">{run.started_at}</td>
-                <td>{run.status}</td>
-                <td>{run.delivered_at ? "yes" : "no"}</td>
-                <td className="max-w-md truncate">{run.summary}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : null}
-      {selected ? <RunPanel runId={selected} /> : null}
-    </div>
+    <>
+      <PageHeader
+        title="Runs"
+        subtitle="Each scheduled pass, including selected, delivered, and dropped items."
+      />
+      {runs.isPending ? (
+        <RunsSkeleton />
+      ) : runs.isError ? (
+        <ErrorNote error={runs.error} />
+      ) : runs.data.runs.length === 0 ? (
+        <Card>
+          <EmptyState
+            title="No runs yet"
+            hint="Runs appear after the first scheduled brief."
+          />
+        </Card>
+      ) : (
+        <div className="grid items-start gap-4 xl:grid-cols-[380px_1fr]">
+          <RunHistory
+            runs={runs.data.runs}
+            activeId={activeId}
+            onSelect={setSelected}
+          />
+          {activeId ? <RunDetailPanel runId={activeId} /> : null}
+        </div>
+      )}
+    </>
   )
 }
 
-function RunPanel({ runId }: { runId: string }) {
-  const detail = useQuery({
-    queryKey: ["run", runId],
-    queryFn: ({ signal }) => getRun(runId, signal),
-  })
-  if (detail.isPending) return <p className="text-(--muted)">Loading run…</p>
-  if (detail.isError)
-    return <p className="text-sm text-red-400">{detail.error.message}</p>
-  return <DetailBody data={detail.data} />
-}
-
-function DetailBody({ data }: { data: RunDetail }) {
-  const [tab, setTab] = useState<"candidates" | "dropped" | "fetch">(
-    "candidates",
-  )
+function RunsSkeleton() {
   return (
-    <section className="rounded-lg border border-(--border) bg-(--surface) p-4 text-sm">
-      <h2 className="mb-2 font-semibold">Run {data.run.run_id}</h2>
-      <div className="mb-3 flex gap-2">
-        {(["candidates", "dropped", "fetch"] as const).map((name) => (
-          <button
-            key={name}
-            type="button"
-            onClick={() => setTab(name)}
-            className={`rounded border px-2 py-0.5 capitalize ${
-              tab === name
-                ? "border-(--accent) text-(--accent)"
-                : "border-(--border)"
-            }`}
-          >
-            {name}
-          </button>
+    <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
+      <div className="space-y-px">
+        {[1, 2, 3, 4, 5].map((key) => (
+          <Skeleton key={key} className="h-14" />
         ))}
       </div>
-      {tab === "candidates" ? (
-        <>
-          <ItemList
-            title="Must include"
-            items={data.must_include.map(toLine)}
-          />
-          <ItemList
-            title="Candidates (* = delivered)"
-            items={data.candidates.map(toLine)}
-          />
-        </>
-      ) : null}
-      {tab === "dropped" ? (
-        <ul className="flex flex-col gap-1">
-          {data.dropped.map((drop) => (
-            <li key={`${drop.source_key}-${drop.url}`}>
-              <span className="font-mono">{drop.source_key}</span> —{" "}
-              {drop.title}
-              <span className="text-(--muted)"> ({drop.reason})</span>
-            </li>
-          ))}
-          {data.dropped.length === 0 ? (
-            <li className="text-(--muted)">Nothing dropped.</li>
-          ) : null}
-        </ul>
-      ) : null}
-      {tab === "fetch" ? (
-        <ul className="flex flex-col gap-1">
-          {data.fetch.map((entry) => (
-            <li key={entry.source_key}>
-              <span className="font-mono">{entry.source_key}</span>{" "}
-              {entry.status === "ok"
-                ? `ok · items ${entry.items ?? 0} · new ${entry.new_items ?? 0}`
-                : `error: ${entry.error}`}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
+      <Skeleton className="h-72" />
+    </div>
   )
 }
 
-function toLine(item: {
-  source_key: string
-  title: string
-  url: string
-  selected: boolean
-}): string {
-  return `${item.selected ? "* " : ""}[${item.source_key}] ${item.title} — ${item.url}`
-}
-
-function ItemList({ title, items }: { title: string; items: string[] }) {
-  if (items.length === 0) {
-    return <p className="text-(--muted)">{title}: none</p>
-  }
+function RunHistory({
+  runs,
+  activeId,
+  onSelect,
+}: {
+  runs: RunSummary[]
+  activeId: string | null
+  onSelect: (runId: string) => void
+}) {
   return (
-    <div className="mb-3">
-      <h3 className="text-(--muted)">{title}</h3>
-      <ul className="list-inside list-disc">
-        {items.map((line) => (
-          <li key={line}>{line}</li>
+    <Card className="console-scroll max-h-80 overflow-y-auto xl:sticky xl:top-7 xl:max-h-[calc(100vh-7rem)]">
+      <ul className="divide-edge divide-y">
+        {runs.map((run) => (
+          <li key={run.run_id}>
+            <button
+              type="button"
+              onClick={() => onSelect(run.run_id)}
+              aria-current={run.run_id === activeId ? "true" : undefined}
+              className={`relative w-full px-4 py-3 text-left transition-colors ${
+                run.run_id === activeId ? "bg-accent-dim" : "hover:bg-raised/60"
+              }`}
+            >
+              {run.run_id === activeId ? (
+                <span className="bg-accent absolute top-1/2 left-0 h-8 w-0.5 -translate-y-1/2 rounded-full" />
+              ) : null}
+              <div className="flex items-center justify-between gap-2">
+                <span
+                  className={`text-sm font-medium ${
+                    run.run_id === activeId ? "text-accent" : "text-ink"
+                  }`}
+                >
+                  {formatWhen(run.started_at)}
+                </span>
+                <RunStatusPill
+                  status={run.status}
+                  delivered={run.delivered_at !== null}
+                />
+              </div>
+              <RunCounts summary={run.summary} />
+            </button>
+          </li>
         ))}
       </ul>
-    </div>
+    </Card>
+  )
+}
+
+function RunCounts({ summary }: { summary: string }) {
+  const counts = parseSummary(summary)
+  if (!counts)
+    return <p className="text-muted mt-0.5 truncate text-xs">{summary}</p>
+  return (
+    <p className="text-muted mt-0.5 text-xs">
+      {counts.mustInclude} must-include · {counts.candidates} candidates
+    </p>
   )
 }

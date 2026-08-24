@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-The visibility-surface plan sequenced Siftwire operator tooling: CLI commands
+The visibility-surface plan sequenced SiftWire operator tooling: CLI commands
 first, then a read-only viewer, then a configuring dashboard when a concrete
 task demanded writes. The concrete task now exists: the operator wants to view
 and edit sources, inspect deliveries including past ones, and review

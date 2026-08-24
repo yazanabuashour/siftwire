@@ -1,6 +1,6 @@
 # Security Operations
 
-This runbook defines recurring security work for Siftwire maintainers. It complements the public reporting and response policy in [SECURITY.md](../SECURITY.md); do not put private vulnerability details in public issues, pull requests, release notes, or this document.
+This runbook defines recurring security work for SiftWire maintainers. It complements the public reporting and response policy in [SECURITY.md](../SECURITY.md); do not put private vulnerability details in public issues, pull requests, release notes, or this document.
 
 ## Cadence
 

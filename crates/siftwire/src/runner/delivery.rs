@@ -21,7 +21,7 @@ pub(super) fn record(paths: Paths, store: &Store, request: &BriefRequest) -> Res
     if !store.brief_run_exists(&request.run_id)? {
         return Ok(rejected(
             paths,
-            "run_id was not produced by the current Siftwire database",
+            "run_id was not produced by the current SiftWire database",
         ));
     }
     let items = delivery_items(&request.message)?;

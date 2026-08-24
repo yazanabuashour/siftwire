@@ -1,20 +1,47 @@
 @import "tailwindcss";
 
-:root {
-  --bg: oklch(0.16 0.015 260);
-  --surface: oklch(0.21 0.02 260);
-  --border: oklch(0.32 0.02 260);
-  --text: oklch(0.93 0.01 260);
-  --muted: oklch(0.65 0.02 260);
-  --accent: oklch(0.72 0.14 165);
+@theme {
+  --color-canvas: #0f1115;
+  --color-sidebar: #12141a;
+  --color-surface: #171a21;
+  --color-raised: #1d222b;
+  --color-edge: rgba(255, 255, 255, 0.08);
+  --color-edge-strong: rgba(255, 255, 255, 0.16);
+  --color-ink: #e7eaf0;
+  --color-muted: #8b93a3;
+  --color-accent: #34d399;
+  --color-accent-dim: rgba(52, 211, 153, 0.12);
+  --color-danger: #f87171;
+  --color-danger-dim: rgba(248, 113, 113, 0.12);
+  --color-warn: #fbbf24;
+  --color-warn-dim: rgba(251, 191, 36, 0.12);
+  --font-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-html {
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, sans-serif;
+@layer base {
+  html {
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      sans-serif;
+    font-size: 14px;
+  }
+
+  body {
+    margin: 0;
+  }
+
+  ::selection {
+    background: rgba(52, 211, 153, 0.3);
+  }
 }
 
-body {
-  margin: 0;
+@utility console-scroll {
+  scrollbar-color: var(--color-edge-strong) transparent;
+  scrollbar-width: thin;
 }

@@ -2,7 +2,7 @@
 
 Use this index to find the smallest document for the task.
 
-## Use Siftwire
+## Use SiftWire
 
 - [README](../README.md): install, upgrade, first use, and storage
 - [Agent skill](../skills/siftwire/SKILL.md): installed agent task policy

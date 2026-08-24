@@ -5,8 +5,8 @@ substitute for running the current harness against a candidate release.
 
 ## Historical evidence
 
-- `docs/agent-eval-results/openbrief-v0.1.0-final.md`
-- `docs/agent-eval-results/openbrief-v0.1.0-final.json`
+- `docs/agent-eval-results/siftwire-v0.1.0-final.md`
+- `docs/agent-eval-results/siftwire-v0.1.0-final.json`
 
 These immutable reports cover the selected v0.1.0 runner and skill. They do not
 prove current HEAD or later releases. Their method predates the current report

@@ -1,4 +1,4 @@
-# OpenBrief Agent Eval openbrief-v0.1.0-final
+# Siftwire Agent Eval siftwire-v0.1.0-final
 
 Harness: `codex exec --json --full-auto from throwaway run directories; single-turn scenarios use --ephemeral, multi-turn scenarios resume a persisted eval session with explicit writable eval roots`.
 
@@ -26,6 +26,6 @@ Harness: `codex exec --json --full-auto from throwaway run directories; single-t
 
 ## Gate
 
-Recommendation: `ship_openbrief_runner_production`.
+Recommendation: `ship_siftwire_runner_production`.
 
 Raw Codex logs, copied repositories, local SQLite databases, caches, and isolated session stores are intentionally not committed. Reduced artifacts use `<run-root>` placeholders.

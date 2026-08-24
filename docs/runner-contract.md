@@ -114,15 +114,10 @@ history. Do not treat raw requests or results as telemetry-safe.
 ## Storage selection
 
 Path precedence is explicit `--db`, `SIFTWIRE_DATABASE_PATH`, then the Siftwire
-default. During the v0.2.x rename window, `OPENBRIEF_DATABASE_PATH` is accepted
-with a deprecation warning when the canonical variable is absent. Conflicting
-canonical and legacy values fail.
-
-A default OpenBrief database is never moved, copied, merged, or silently
-ignored. If it exists and the Siftwire default does not, startup fails with
-instructions to select the old file explicitly. SQLite tables and migration
-behavior remain compatible. Newly created database directories and files are
-owner-only; existing explicit parent directories retain their permissions.
+default of `${XDG_DATA_HOME:-~/.local/share}/siftwire/siftwire.sqlite`.
+`XDG_DATA_HOME` is honored only when absolute. Newly created database
+directories and files are owner-only; existing explicit parent directories
+retain their permissions.
 
 ## Minimal consumer
 

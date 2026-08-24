@@ -12,9 +12,6 @@ fail() {
 
 [ "$#" -eq 0 ] || fail "arguments are not supported; use SIFTWIRE_VERSION and SIFTWIRE_INSTALL_DIR"
 
-[ -z "${OPENBRIEF_VERSION:-}" ] || fail "OPENBRIEF_VERSION is no longer supported; use SIFTWIRE_VERSION"
-[ -z "${OPENBRIEF_INSTALL_DIR:-}" ] || fail "OPENBRIEF_INSTALL_DIR is no longer supported; use SIFTWIRE_INSTALL_DIR"
-
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
 }
@@ -156,10 +153,6 @@ if path_contains_dir "$install_dir"; then
     fail "installed siftwire did not report ${tag}"
 else
   printf 'Add this directory to PATH: export PATH="%s:$PATH"\n' "$install_dir"
-fi
-
-if command -v openbrief >/dev/null 2>&1; then
-  printf 'Warning: the old openbrief command remains on PATH; update schedules and remove it after migration.\n' >&2
 fi
 
 printf '%s\n' \

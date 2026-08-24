@@ -77,48 +77,6 @@ repo-local runtime files. This repository must not contain personal source
 inventories, outlet policies, delivery logs, `.openclaw` content, workspace
 backups, run history, or local SQLite databases.
 
-## Rename from OpenBrief
-
-Siftwire v0.2.0 is a clean command, skill, module, and release-asset rename. It
-does not install an `openbrief` command alias or remove an old binary. Remove or
-disable the old OpenBrief skill and update scheduled commands after installing
-the matching Siftwire runner and skill.
-
-The SQLite schema is unchanged, but Siftwire will not move or silently fork an
-existing default database. Select the old file explicitly:
-
-```bash
-export SIFTWIRE_DATABASE_PATH="$HOME/.local/share/openbrief/openbrief.sqlite"
-siftwire config <<'JSON'
-{"action":"inspect_config"}
-JSON
-```
-
-If the old database used an absolute `XDG_DATA_HOME` or another override, use
-its actual path instead. `OPENBRIEF_DATABASE_PATH` remains a deprecated fallback
-through v0.2.x; `SIFTWIRE_DATABASE_PATH` is canonical. Conflicting values fail.
-
-To roll back, first capture the exact active path returned by
-`inspect_config.paths.database_path`:
-
-```bash
-siftwire_database_path="$(
-  siftwire config <<'JSON' | jq -er '.paths.database_path'
-{"action":"inspect_config"}
-JSON
-)"
-```
-
-Then stop Siftwire jobs, point the old runner at that captured path, and restore
-the old command and skill:
-
-```bash
-export OPENBRIEF_DATABASE_PATH="$siftwire_database_path"
-```
-
-This reuses explicit paths and absolute `XDG_DATA_HOME` paths without guessing.
-Do not run both products against the same database during rollback.
-
 ## Develop
 
 Install the pinned Rust toolchain and run the repository gate:

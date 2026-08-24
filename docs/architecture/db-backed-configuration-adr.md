@@ -24,10 +24,6 @@ database path is the storage anchor.
 The canonical app-specific environment variable is `SIFTWIRE_DATABASE_PATH`.
 The runner also accepts `--db` for explicit datasets and tests. If neither is
 provided, it uses `${XDG_DATA_HOME:-~/.local/share}/siftwire/siftwire.sqlite`.
-During the v0.2.x rename window, `OPENBRIEF_DATABASE_PATH` remains a deprecated
-fallback. Conflicting values fail. If the prior default database exists while
-the Siftwire default does not, startup requires the operator to select the old
-file explicitly; Siftwire never moves or copies it.
 
 The repository seeds no personal sources, outlet policies, latest-seen state,
 delivery records, or run history. A fresh database contains only schema and

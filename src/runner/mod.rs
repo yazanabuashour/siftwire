@@ -130,16 +130,9 @@ fn decode_request<T: Default + DeserializeOwned>() -> Result<T> {
 }
 
 fn open_store(explicit: Option<&str>) -> Result<(Paths, Store)> {
-    let resolution = paths::resolve(explicit)?;
-    if resolution.deprecated_environment {
-        eprintln!(
-            "warning: {} is deprecated; use {}",
-            paths::LEGACY_DATABASE_ENV,
-            paths::DATABASE_ENV
-        );
-    }
-    let store = Store::open(&resolution.paths.database_path)?;
-    Ok((resolution.paths, store))
+    let paths = paths::resolve(explicit)?;
+    let store = Store::open(&paths.database_path)?;
+    Ok((paths, store))
 }
 
 fn run_config_action(paths: Paths, store: &Store, request: ConfigRequest) -> Result<ConfigResult> {

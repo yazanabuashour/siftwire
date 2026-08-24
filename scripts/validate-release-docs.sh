@@ -13,17 +13,8 @@ fail() {
 tag="$(printf '%s' "$1" | awk '{$1=$1; print}')"
 printf '%s\n' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || fail "tag must match vMAJOR.MINOR.PATCH: \"$tag\""
 
-version=${tag#v}
-major=${version%%.*}
-remainder=${version#*.}
-minor=${remainder%%.*}
-if awk -v major="$major" -v minor="$minor" 'BEGIN { exit !((major + 0) > 0 || (minor + 0) >= 2) }'; then
-  brand=Siftwire
-  repository=siftwire
-else
-  brand=OpenBrief
-  repository=openbrief
-fi
+brand=Siftwire
+repository=siftwire
 
 notes_path="docs/release-notes/$tag.md"
 [ -e "$notes_path" ] || fail "$notes_path not found"

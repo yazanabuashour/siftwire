@@ -108,7 +108,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
     )?;
     let feed_url = url::Url::from_file_path(&feed)
         .map_err(|()| anyhow::anyhow!("fixture path is not an absolute file URL"))?;
-    let database = temp.path().join("legacy-openbrief.sqlite");
+    let database = temp.path().join("contract.sqlite");
     let database_text = database.to_string_lossy().into_owned();
     let mut environment = BTreeMap::new();
     environment.insert("SIFTWIRE_EVAL_ALLOW_FILE_URLS", "1");
@@ -220,66 +220,6 @@ fn default_database_rejects_empty_home_and_blank_overrides() -> Result<()> {
     Ok(())
 }
 
-#[test]
-fn database_rename_migration_tripwires() -> Result<()> {
-    let temp = TempDir::new()?;
-    let legacy = temp.path().join("selected-openbrief.sqlite");
-    let legacy_text = legacy.to_string_lossy().into_owned();
-    let mut environment = BTreeMap::new();
-    environment.insert("OPENBRIEF_DATABASE_PATH", legacy_text.as_str());
-    let selected = invoke(
-        &["config"],
-        Some(r#"{"action":"inspect_config"}"#),
-        &environment,
-    )?;
-    assert!(selected.status.success(), "legacy env failed: {selected:?}");
-    assert!(
-        text(&selected.stderr).contains("OPENBRIEF_DATABASE_PATH is deprecated"),
-        "legacy warning missing: {selected:?}"
-    );
-
-    let current = temp.path().join("siftwire.sqlite");
-    let current_text = current.to_string_lossy().into_owned();
-    environment.insert("SIFTWIRE_DATABASE_PATH", current_text.as_str());
-    let conflict = invoke(
-        &["config"],
-        Some(r#"{"action":"inspect_config"}"#),
-        &environment,
-    )?;
-    assert_eq!(
-        conflict.status.code(),
-        Some(1),
-        "conflicting env: {conflict:?}"
-    );
-    assert!(
-        text(&conflict.stderr).contains("select different databases"),
-        "conflict diagnostic differs: {conflict:?}"
-    );
-
-    let xdg = temp.path().join("xdg");
-    let legacy_default = xdg.join("openbrief/openbrief.sqlite");
-    fs::create_dir_all(legacy_default.parent().context("legacy database parent")?)?;
-    fs::write(&legacy_default, [])?;
-    let xdg_text = xdg.to_string_lossy().into_owned();
-    let mut default_environment = BTreeMap::new();
-    default_environment.insert("XDG_DATA_HOME", xdg_text.as_str());
-    let default = invoke(
-        &["config"],
-        Some(r#"{"action":"inspect_config"}"#),
-        &default_environment,
-    )?;
-    assert_eq!(
-        default.status.code(),
-        Some(1),
-        "legacy default: {default:?}"
-    );
-    assert!(
-        text(&default.stderr).contains("existing OpenBrief database found"),
-        "legacy default diagnostic differs: {default:?}"
-    );
-    Ok(())
-}
-
 fn assert_history_wrapper_rejected(
     database: &str,
     run_id: &str,
@@ -329,7 +269,6 @@ fn invoke(
     command
         .args(arguments)
         .env_remove("SIFTWIRE_DATABASE_PATH")
-        .env_remove("OPENBRIEF_DATABASE_PATH")
         .env_remove("SIFTWIRE_EVAL_ALLOW_FILE_URLS")
         .env_remove("XDG_DATA_HOME")
         .stdin(Stdio::piped())

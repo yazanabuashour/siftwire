@@ -102,10 +102,5 @@ if run_install v0.2.3 >"$root/duplicate.out" 2>&1; then
   exit 1
 fi
 
-if OPENBRIEF_VERSION=v0.1.8 run_install v0.2.0 >"$root/legacy-env.out" 2>&1; then
-  echo "installer accepted OPENBRIEF_VERSION" >&2
-  exit 1
-fi
-
 test -z "$(find "$install_dir" -name '.siftwire.new.*' -print -quit)"
 printf 'installer contract passed\n'

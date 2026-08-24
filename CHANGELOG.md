@@ -6,43 +6,43 @@ GitHub Releases and mirrored in `docs/release-notes/`.
 ## Releases
 
 - [v0.2.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.2.0)
-  renames OpenBrief to Siftwire, ports the runtime to Rust under strict lint
-  rules, documents the JSON process contract, preserves the SQLite schema, and
-  adds explicit old-database migration tripwires.
-- [v0.1.8](https://github.com/yazanabuashour/openbrief/releases/tag/v0.1.8)
+  presents the Siftwire name, ports the runtime to Rust under strict lint
+  rules, documents the JSON process contract, and preserves the SQLite
+  schema.
+- [v0.1.8](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.8)
   adds `record_delivery` delivery-history output and a ready-to-send final
   answer so agents can return the current brief plus two prior deliveries
   without reconstructing history from large `run_brief` payloads.
-- [v0.1.7](https://github.com/yazanabuashour/openbrief/releases/tag/v0.1.7)
+- [v0.1.7](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.7)
   fixes previous-brief rendering guidance so recorded previous brief bodies keep
   their Markdown links, strengthens regression coverage for the history eval,
   and refreshes maintainer workflow instructions from the OpenClerk template.
-- [v0.1.6](https://github.com/yazanabuashour/openbrief/releases/tag/v0.1.6)
+- [v0.1.6](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.6)
   adds previous-brief context to brief runner JSON, splits runner and SQLite
   internals into smaller testable modules, broadens skill validation coverage,
   and records taste-review and candidate-surface decisions for future
-  OpenBrief workflow work.
-- [v0.1.5](https://github.com/yazanabuashour/openbrief/releases/tag/v0.1.5)
+  Siftwire workflow work.
+- [v0.1.5](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.5)
   improves feed canonicalization fallback behavior, memoizes duplicate Google
   News article resolution within a brief run, and backs off Google News
   resolution after rate limits or timeouts without changing the runner CLI or
   install flow.
-- [v0.1.4](https://github.com/yazanabuashour/openbrief/releases/tag/v0.1.4)
+- [v0.1.4](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.4)
   adds a SQLite-backed `max_delivery_items` brief option, exposes the resolved
   limit in runner JSON, updates the production skill to honor it, and adds a
   targeted production-agent eval for configured delivery limits.
-- [v0.1.3](https://github.com/yazanabuashour/openbrief/releases/tag/v0.1.3)
+- [v0.1.3](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.3)
   bounds feed URL canonicalization work, preserves feed item ordering during
   parallel resolution, and makes RSS source outlet extraction effective for
   outlet policy matching without changing the runner CLI or install flow.
-- [v0.1.2](https://github.com/yazanabuashour/openbrief/releases/tag/v0.1.2)
+- [v0.1.2](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.2)
   allows user-directed legacy automation/config migration through a reviewed
-  draft-and-apply OpenBrief skill workflow and hardens skill markdown
+  draft-and-apply Siftwire skill workflow and hardens skill markdown
   validation tests without changing runner behavior.
-- [v0.1.1](https://github.com/yazanabuashour/openbrief/releases/tag/v0.1.1)
-  refines the public OpenBrief skill display name and production runner-bypass
+- [v0.1.1](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.1)
+  refines the public Siftwire skill display name and production runner-bypass
   refusal policy without changing runner behavior.
-- [v0.1.0](https://github.com/yazanabuashour/openbrief/releases/tag/v0.1.0)
-  is the first public release of the local-first OpenBrief runner and skill.
+- [v0.1.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.1.0)
+  is the first public release of the local-first Siftwire runner and skill.
 
 ## Unreleased

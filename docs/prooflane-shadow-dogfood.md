@@ -22,8 +22,8 @@ Prooflane checkout, and confirm:
 - a reviewed Prooflane Siftwire contract exists at `<prooflane-contract>`
 - the normal `SIFTWIRE_DATABASE_PATH` environment, when the default Siftwire
   database is not intended, still points to the existing database
-- `PROOFLANE_HOME` points to an explicit, private Siftwire-only directory that
-  has never held OpenBrief state
+- `PROOFLANE_HOME` points to an explicit, private Siftwire-only ledger
+  directory
 
 The executable checks can be performed without running a brief:
 
@@ -47,9 +47,9 @@ environment variable would split run and delivery state.
 
 ## Routing And Limits
 
-Prooflane publishes current observations under the `siftwire` identifier. Its
-`openbrief` command and stored-context support remain compatibility surfaces for
-historical runs; new Siftwire automation must not create OpenBrief contexts.
+Prooflane publishes current observations under the `siftwire` identifier.
+Siftwire automation must use only the `siftwire` adapter and its isolated
+`PROOFLANE_HOME` ledger.
 
 Only two actions pass through Prooflane shadow mode:
 

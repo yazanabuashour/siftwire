@@ -47,14 +47,10 @@ GitHub Releases and mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
-- Adds an optional local web console (`siftwire-console`) with a React web
-  application under `apps/web`; see `docs/console.md`. It spawns the installed
-  runner per request, never reads SQLite directly, binds loopback by default,
-  and exposes no run execution.
-- Adds persisted per-run selection evidence (`brief_run_item`) so every finished
-  run keeps its must-include items, candidates, and blocked-outlet drops.
-- Adds operator CLI commands `source list/add`, `runs list`, and
-  `runs show --candidates --dropped --selected` with `--json` output, documented
-  in the README as outside the versioned `config|brief` process contract.
-- Removes retired product-name compatibility from database-path resolution and
-  the installer.
+## Releases
+
+- [v0.3.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.3.0)
+  adds persisted per-run selection evidence, operator `source` and `runs`
+  inspection commands, and an optional local web console that drives the runner
+  process contract, and removes retired product-name compatibility from path
+  resolution and the installer.

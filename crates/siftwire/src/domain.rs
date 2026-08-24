@@ -8,6 +8,10 @@ use url::Url;
 pub const SOURCE_KIND_RSS: &str = "rss";
 pub const SOURCE_KIND_ATOM: &str = "atom";
 pub const SOURCE_KIND_GITHUB_RELEASE: &str = "github_release";
+pub const SOURCE_KIND_SCHEDULE: &str = "sports_schedule";
+pub const SCHEDULE_FORMAT_ESPN: &str = "espn";
+pub const SCHEDULE_FORMAT_ESPN_CORE: &str = "espn_core";
+pub const SCHEDULE_FORMAT_RIOT: &str = "riot";
 pub const THRESHOLD_ALWAYS: &str = "always";
 pub const THRESHOLD_MEDIUM: &str = "medium";
 pub const THRESHOLD_HIGH: &str = "high";
@@ -74,6 +78,16 @@ pub struct Source {
         skip_serializing_if = "std::ops::Not::not"
     )]
     pub always_report: bool,
+    #[serde(
+        deserialize_with = "crate::serde_util::null_default",
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub schedule_format: String,
+    #[serde(
+        deserialize_with = "crate::serde_util::null_default",
+        skip_serializing_if = "String::is_empty"
+    )]
+    pub api_key: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -111,6 +125,9 @@ pub fn normalize_source(mut source: Source) -> Result<Source> {
     source.url_canonicalization = source.url_canonicalization.trim().to_lowercase();
     source.outlet_extraction = source.outlet_extraction.trim().to_lowercase();
     source.dedup_group = source.dedup_group.trim().to_lowercase();
+    source.schedule_format = source.schedule_format.trim().to_lowercase();
+    // API keys are case-sensitive; trim only.
+    source.api_key = source.api_key.trim().to_owned();
     validate_source_fields(&mut source)?;
     Ok(source)
 }
@@ -181,8 +198,9 @@ fn validate_source_fields(source: &mut Source) -> Result<()> {
         SOURCE_KIND_RSS | SOURCE_KIND_ATOM => validate_fetch_url(&source.url)
             .map_err(|error| anyhow::anyhow!("source {:?} url: {error}", source.key)),
         SOURCE_KIND_GITHUB_RELEASE => validate_github_source(source),
+        SOURCE_KIND_SCHEDULE => validate_schedule_source(source),
         _ => bail!(
-            "source {:?} kind must be rss, atom, or github_release",
+            "source {:?} kind must be rss, atom, github_release, or sports_schedule",
             source.key
         ),
     }
@@ -197,6 +215,9 @@ fn set_source_defaults(source: &mut Source) {
     }
     if source.outlet_extraction.is_empty() {
         OUTLET_EXTRACTION_NONE.clone_into(&mut source.outlet_extraction);
+    }
+    if source.kind == SOURCE_KIND_SCHEDULE && source.schedule_format.is_empty() {
+        SCHEDULE_FORMAT_ESPN.clone_into(&mut source.schedule_format);
     }
 }
 
@@ -230,6 +251,41 @@ fn validate_source_options(source: &Source) -> Result<()> {
     ) {
         bail!(
             "source {:?} outlet_extraction must be none, title_suffix, url_host, or rss_source",
+            source.key
+        );
+    }
+    if source.kind != SOURCE_KIND_SCHEDULE
+        && (!source.schedule_format.is_empty() || !source.api_key.is_empty())
+    {
+        bail!(
+            "source {:?} schedule_format and api_key apply only to sports_schedule sources",
+            source.key
+        );
+    }
+    Ok(())
+}
+
+fn validate_schedule_source(source: &Source) -> Result<()> {
+    validate_fetch_url(&source.url)
+        .map_err(|error| anyhow::anyhow!("source {:?} url: {error}", source.key))?;
+    if !matches!(
+        source.schedule_format.as_str(),
+        SCHEDULE_FORMAT_ESPN | SCHEDULE_FORMAT_ESPN_CORE | SCHEDULE_FORMAT_RIOT
+    ) {
+        bail!(
+            "source {:?} schedule_format must be espn, espn_core, or riot",
+            source.key
+        );
+    }
+    if source.schedule_format == SCHEDULE_FORMAT_RIOT && source.api_key.is_empty() {
+        bail!(
+            "source {:?} api_key is required for the riot schedule format",
+            source.key
+        );
+    }
+    if source.schedule_format != SCHEDULE_FORMAT_RIOT && !source.api_key.is_empty() {
+        bail!(
+            "source {:?} api_key applies only to the riot schedule format",
             source.key
         );
     }

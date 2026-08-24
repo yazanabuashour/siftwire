@@ -5,13 +5,17 @@ use chrono::{DateTime, FixedOffset};
 use url::Url;
 
 use crate::contract::{BriefItem, SuppressedItem};
-use crate::domain::{SOURCE_KIND_GITHUB_RELEASE, Source, THRESHOLD_ALWAYS, THRESHOLD_AUDIT};
+use crate::domain::{
+    SOURCE_KIND_GITHUB_RELEASE, SOURCE_KIND_SCHEDULE, Source, THRESHOLD_ALWAYS, THRESHOLD_AUDIT,
+};
 use crate::storage::normalize_title_key;
 
 #[derive(Clone, Debug)]
 pub struct CollectedItem {
     pub source: Source,
     pub brief_item: BriefItem,
+    /// Provider fixture identity for `sports_schedule` items; empty otherwise.
+    pub fixture_identity: String,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -30,14 +34,29 @@ struct TopicIdentity {
 pub fn classify_and_dedupe(items: Vec<CollectedItem>) -> ClassifiedItems {
     let mut must_include = Vec::new();
     let mut candidates = Vec::new();
+    let mut fixture_duplicates: Vec<SuppressedItem> = Vec::new();
+    let mut fixture_keys: BTreeSet<String> = BTreeSet::new();
     for item in items {
         if is_always_report_source(&item.source) {
+            // Two followed teams can surface the same fixture through separate
+            // sources with different display URLs; the provider identity is the
+            // stable key. The window already governs repetition across runs.
+            if item.source.kind == SOURCE_KIND_SCHEDULE && !item.fixture_identity.is_empty() {
+                let key =
+                    super::schedule::fixture_key(&item.fixture_identity, &item.brief_item.url);
+                if !fixture_keys.insert(key) {
+                    fixture_duplicates.push(suppressed_item(&item.brief_item, "duplicate_fixture"));
+                    continue;
+                }
+            }
             must_include.push(item.brief_item);
         } else if item.source.threshold != THRESHOLD_AUDIT {
             candidates.push(item);
         }
     }
-    let (mut candidates, suppressed) = collapse_duplicates(candidates);
+    let (mut candidates, duplicate_suppressed) = collapse_duplicates(candidates);
+    let mut suppressed = fixture_duplicates;
+    suppressed.extend(duplicate_suppressed);
     sort_brief_items(&mut must_include);
     sort_collected_items(&mut candidates);
     ClassifiedItems {
@@ -52,6 +71,7 @@ pub fn is_always_report_source(source: &Source) -> bool {
     source.always_report
         || source.threshold == THRESHOLD_ALWAYS
         || source.kind == SOURCE_KIND_GITHUB_RELEASE
+        || source.kind == SOURCE_KIND_SCHEDULE
 }
 
 pub fn sort_brief_items(items: &mut [BriefItem]) {

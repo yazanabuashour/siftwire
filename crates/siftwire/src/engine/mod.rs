@@ -9,6 +9,7 @@ mod model;
 mod policy;
 mod process;
 mod recent;
+mod schedule;
 mod selection;
 
 pub use dedup::{CollectedItem, classify_and_dedupe, sort_brief_items};

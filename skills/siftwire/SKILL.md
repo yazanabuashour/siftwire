@@ -68,7 +68,10 @@ Use `siftwire config` with one of these request shapes:
 {"action":"set_brief_options","max_delivery_items":7}
 ```
 
-Supported source kinds are `rss`, `atom`, and `github_release`. Supported
+Supported source kinds are `rss`, `atom`, `github_release`, and
+`sports_schedule` (schedule endpoints; `schedule_format` is `espn`,
+`espn_core`, or `riot`, and `riot` requires the public Riot frontend key in
+`api_key`). Supported
 thresholds are `always`, `medium`, `high`, and `audit`. A fresh database has no
 sources. For `github_release`, include the user-provided `url` when present; it
 overrides the generated GitHub API endpoint while `repo` keeps the source

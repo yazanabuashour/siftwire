@@ -63,11 +63,16 @@ Actions:
 Config results contain `rejected`, optional `rejection_reason`, `paths`, optional
 `runtime_config`, `sources`, and `outlets`, plus `summary`.
 
-Sources support `rss`, `atom`, and `github_release`. Their stable fields are
-`key`, `label`, `kind`, `url`, `repo`, `section`, `threshold`, `enabled`,
-`url_canonicalization`, `outlet_extraction`, `dedup_group`, `priority_rank`, and
-`always_report`. A `github_release` source fetches `url` when provided;
-otherwise it derives the GitHub API endpoint from `repo`. Network sources must
+Sources support `rss`, `atom`, `github_release`, and `sports_schedule`. Their
+stable fields are `key`, `label`, `kind`, `url`, `repo`, `section`, `threshold`,
+`enabled`, `url_canonicalization`, `outlet_extraction`, `dedup_group`,
+`priority_rank`, `always_report`, `schedule_format`, and `api_key`. A
+`github_release` source fetches `url` when provided; otherwise it derives the
+GitHub API endpoint from `repo`. A `sports_schedule` source (see
+`docs/architecture/schedule-source-adr.md`) fetches a schedule endpoint and
+emits upcoming fixtures inside the pre-kickoff window as must-include items;
+`schedule_format` selects the response parser (`espn`, `espn_core`, or `riot`)
+and `api_key` carries Riot's public frontend key for `riot`. Network sources must
 resolve only to public addresses. The runner applies that policy to every DNS
 resolution and redirect, disables proxy bypass, and rejects decoded response
 bodies beyond the measured 16 MiB tripwire in

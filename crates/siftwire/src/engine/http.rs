@@ -39,14 +39,21 @@ impl HttpClient {
     }
 
     pub fn get(&self, endpoint: &str) -> Result<Vec<u8>> {
+        self.get_with_headers(endpoint, &[])
+    }
+
+    /// Fetches an endpoint with extra request headers (e.g. Riot's `x-api-key`).
+    pub fn get_with_headers(&self, endpoint: &str, headers: &[(&str, &str)]) -> Result<Vec<u8>> {
         if let Ok(parsed) = Url::parse(endpoint)
             && parsed.scheme() == "file"
         {
             return read_eval_file(&parsed);
         }
-        let mut response = self
-            .agent
-            .get(endpoint)
+        let mut request = self.agent.get(endpoint);
+        for (header, value) in headers {
+            request = request.header(*header, *value);
+        }
+        let mut response = request
             .call()
             .map_err(|error| request_error(error, endpoint))?;
         read_response(&mut response).with_context(|| format!("read response from {endpoint}"))

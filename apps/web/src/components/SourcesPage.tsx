@@ -23,6 +23,8 @@ const EMPTY_SOURCE: Source = {
   dedup_group: "",
   priority_rank: 0,
   always_report: false,
+  schedule_format: "",
+  api_key: "",
 }
 
 export default function SourcesPage() {

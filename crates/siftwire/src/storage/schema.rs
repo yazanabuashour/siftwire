@@ -162,6 +162,8 @@ impl Store {
             ("dedup_group", "TEXT NOT NULL DEFAULT ''"),
             ("priority_rank", "INTEGER NOT NULL DEFAULT 0"),
             ("always_report", "INTEGER NOT NULL DEFAULT 0"),
+            ("schedule_format", "TEXT NOT NULL DEFAULT ''"),
+            ("api_key", "TEXT NOT NULL DEFAULT ''"),
         ] {
             ensure_column(&transaction, "brief_source", name, definition)?;
         }

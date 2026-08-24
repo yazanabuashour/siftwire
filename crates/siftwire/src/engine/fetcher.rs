@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use serde::Deserialize;
 
-use crate::domain::Source;
+use crate::domain::{SOURCE_KIND_SCHEDULE, Source};
 
 use super::canonical::process_feed_items;
 use super::feed::parse_feed;
@@ -45,6 +45,9 @@ impl Fetcher {
         match source.kind.as_str() {
             "rss" | "atom" => self.fetch_feed(source),
             "github_release" => self.fetch_github_releases(source),
+            SOURCE_KIND_SCHEDULE => {
+                super::schedule::fetch_schedule(&self.client, source, chrono::Utc::now())
+            }
             unsupported => bail!("unsupported source kind {unsupported:?}"),
         }
     }

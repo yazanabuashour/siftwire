@@ -94,22 +94,24 @@ function IdentityFields({
         <select
           className={inputClass}
           value={form.kind}
-          onChange={(event) => update({ kind: event.target.value })}
+          onChange={(event) => {
+            const kind = event.target.value
+            update(
+              kind === "sports_schedule"
+                ? { kind }
+                : { kind, schedule_format: "", api_key: "" },
+            )
+          }}
         >
           <option value="rss">rss</option>
           <option value="atom">atom</option>
           <option value="github_release">github_release</option>
+          <option value="sports_schedule">sports_schedule</option>
         </select>
       </Field>
+      <ScheduleFields form={form} update={update} />
       <div className="col-span-2">
-        <Field
-          label="URL"
-          hint={
-            form.kind === "github_release"
-              ? "Optional. SiftWire derives it from the repository when empty."
-              : undefined
-          }
-        >
+        <Field label="URL" hint={urlHint(form.kind)}>
           <input
             className={`${inputClass} font-mono text-[13px]`}
             value={form.url}
@@ -132,6 +134,65 @@ function IdentityFields({
       ) : null}
     </>
   )
+}
+
+function ScheduleFields({
+  form,
+  update,
+}: {
+  form: Source
+  update: (patch: Partial<Source>) => void
+}) {
+  if (form.kind !== "sports_schedule") return null
+  return (
+    <>
+      <Field
+        label="Schedule format"
+        hint="espn: team/scoreboard schedules. espn_core: UFC event lists. riot: LoL esports (needs an API key)."
+      >
+        <select
+          className={inputClass}
+          value={form.schedule_format || "espn"}
+          onChange={(event) => {
+            const schedule_format = event.target.value
+            update(
+              schedule_format === "riot"
+                ? { schedule_format }
+                : { schedule_format, api_key: "" },
+            )
+          }}
+        >
+          <option value="espn">espn</option>
+          <option value="espn_core">espn_core</option>
+          <option value="riot">riot</option>
+        </select>
+      </Field>
+      {form.schedule_format === "riot" ? (
+        <div className="col-span-2">
+          <Field
+            label="API key"
+            hint="Riot's public lolesports.com frontend key; sent as x-api-key."
+          >
+            <input
+              className={`${inputClass} font-mono`}
+              value={form.api_key}
+              onChange={(event) => update({ api_key: event.target.value })}
+            />
+          </Field>
+        </div>
+      ) : null}
+    </>
+  )
+}
+
+function urlHint(kind: string): string | undefined {
+  if (kind === "github_release") {
+    return "Optional. SiftWire derives it from the repository when empty."
+  }
+  if (kind === "sports_schedule") {
+    return "Schedule API endpoint. ESPN example: https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/teams/382/schedule"
+  }
+  return undefined
 }
 
 function PolicyFields({

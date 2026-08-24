@@ -1,5 +1,5 @@
 use crate::contract::{SuppressedPolicyItem, SuppressedUnresolvedItem};
-use crate::domain::{OutletPolicy, Source};
+use crate::domain::{OutletPolicy, SOURCE_KIND_SCHEDULE, Source};
 use crate::storage::SourceState;
 
 use super::dedup::CollectedItem;
@@ -33,7 +33,13 @@ pub fn process_source_items(
         })
         .collect();
     let policy_result = apply_outlet_policies(source, output.items, policies);
-    let new_items = select_new_items(&policy_result.items, state, output.truncated);
+    // Schedule items repeat by window arithmetic (the two runs before kickoff),
+    // so latest-seen suppression would drop their second appearance.
+    let new_items = if source.kind == SOURCE_KIND_SCHEDULE {
+        policy_result.items.clone()
+    } else {
+        select_new_items(&policy_result.items, state, output.truncated)
+    };
     ProcessedSource {
         items: policy_result.items,
         new_items,
@@ -49,6 +55,11 @@ pub fn collect_new_items(source: &Source, items: &[FetchedItem]) -> Vec<Collecte
         .map(|item| CollectedItem {
             source: source.clone(),
             brief_item: item_to_brief_item(source, item),
+            fixture_identity: if source.kind == SOURCE_KIND_SCHEDULE {
+                item.identity.clone()
+            } else {
+                String::new()
+            },
         })
         .collect()
 }

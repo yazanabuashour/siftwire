@@ -23,31 +23,30 @@ would invite accidental duplicate-suppressed runs.
 ## Running
 
 An installed `siftwire` runner must be on `PATH` (or named through
-`SIFTWIRE_CONSOLE_RUNNER_BIN`). Build the console and web assets from a
-checkout:
+`SIFTWIRE_CONSOLE_RUNNER_BIN`). Build and install the console and web assets
+from a checkout:
 
 ```bash
-mise exec -- cargo build --locked --release -p siftwire-console
-mise exec -- bun --cwd apps/web build
+mise exec -- ./scripts/install-console.sh
 ```
+
+This installs `~/.local/bin/siftwire-console` and the web assets under
+`~/.local/share/siftwire-console/web`. Re-run it after pulling changes; a
+systemd user service can then restart against the new files.
 
 Start the server against the default database:
 
 ```bash
-SIFTWIRE_CONSOLE_WEB_ROOT=apps/web/dist \
-  target/release/siftwire-console
+SIFTWIRE_CONSOLE_WEB_ROOT="$HOME/.local/share/siftwire-console/web" \
+  ~/.local/bin/siftwire-console
 ```
 
 The server binds loopback only by default. Sharing beyond loopback is an
 explicit operator decision; there is no authentication, so expose it only on a
 trusted network. A Host-header check rejects requests addressed through foreign
 domain names, which blocks browser-based DNS rebinding against both loopback
-and LAN bindings.
-
-```bash
-SIFTWIRE_CONSOLE_BIND=192.168.x.x:8790 SIFTWIRE_CONSOLE_WEB_ROOT=apps/web/dist \
-  target/release/siftwire-console
-```
+and LAN bindings. On this machine the LAN exposure is the systemd user unit
+plus one UFW rule scoped to `192.168.0.0/24`.
 
 ## Configuration
 

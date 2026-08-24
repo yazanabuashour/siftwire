@@ -63,6 +63,27 @@ runtime, run a brief, and record the exact delivered message for history and
 repeat suppression. See [`skills/siftwire/SKILL.md`](skills/siftwire/SKILL.md)
 for the installed agent policy.
 
+## Operator commands
+
+Beside the JSON protocol, the installed runner ships operator commands for
+inspection and one configuration shortcut:
+
+```bash
+siftwire source list [--enabled] [--json] [--db path]
+siftwire runs list [--limit N] [--json] [--db path]
+siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]
+siftwire source add [--json] [--db path] < source.json
+```
+
+`source list`, `runs list`, and `runs show` are read-only. Each run persists its
+must-include items, candidates, and dropped evidence, so `runs show` can render
+what was selected versus dropped for selection tuning. `source add` reads
+exactly one JSON source object from stdin and stores it with the same validation
+as the `upsert_source` config action; it is a durable configuration write.
+Each successfully completed non-dry run persists selection evidence. `--json`
+switches to machine-readable output; `runs show --json` returns the complete
+run detail regardless of section flags.
+
 ## Storage
 
 The default database is

@@ -5,17 +5,21 @@ use std::thread;
 use anyhow::{Context, Result};
 use chrono::{SecondsFormat, TimeDelta, Utc};
 
-use crate::contract::{BriefRequest, BriefResult, FetchStatus, Paths, PreviousBrief};
-use crate::domain::Source;
+use crate::contract::{
+    BriefItem, BriefRequest, BriefResult, FetchStatus, Paths, PreviousBrief, SuppressedItem,
+    SuppressedPolicyItem, SuppressedUnresolvedItem,
+};
+use crate::domain::{OUTLET_POLICY_BLOCK, Source};
 use crate::engine::{
-    FetchOutput, Fetcher, add_fetch_failure_warning, add_recurring_failure_warnings,
-    add_stale_heartbeat_warning, brief_summary, build_health_footnote, classify_and_dedupe,
-    collect_new_items, enabled_source_keys, process_source_items, sort_brief_items,
-    suppress_recent_candidates,
+    FetchOutput, Fetcher, RecentSuppression, add_fetch_failure_warning,
+    add_recurring_failure_warnings, add_stale_heartbeat_warning, brief_summary,
+    build_health_footnote, classify_and_dedupe, collect_new_items, enabled_source_keys,
+    process_source_items, sort_brief_items, suppress_recent_candidates,
 };
 use crate::storage::{
     DEFAULT_MAX_DELIVERY_ITEMS, Delivery, FetchLog, MAX_DELIVERY_ITEMS_UPPER_BOUND,
-    RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, SourceState, Store,
+    RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
+    RunItemRow, SourceState, Store,
 };
 
 use super::delivery;
@@ -73,6 +77,18 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
     }
     let mut classified = classify_and_dedupe(accumulator.collected);
     let recent_result = suppress_recent_candidates(classified.candidates, &recent);
+    let run_rows = if dry_run {
+        Vec::new()
+    } else {
+        run_item_rows(
+            &classified.must_include,
+            &recent_result.candidates,
+            &recent_result,
+            &classified.suppressed,
+            &accumulator.suppressed_policy,
+            &accumulator.suppressed_unresolved,
+        )
+    };
     classified.suppressed.extend(recent_result.suppressed);
     let runtime_config = store.runtime_config()?;
     let options = brief_options(&runtime_config);
@@ -107,6 +123,7 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
         .sort_by(|left, right| left.source_key.cmp(&right.source_key));
     let summary = brief_summary(&classified.must_include, &candidates, &health_footnote);
     if !dry_run {
+        store.insert_run_items(&run_id, &run_rows)?;
         store.finish_run(&run_id, "ok", &summary)?;
     }
     Ok(BriefResult {
@@ -288,6 +305,97 @@ where
 struct BriefOptions {
     max_delivery_items: i64,
     warning: Option<String>,
+}
+
+/// Converts one finished run's outcome into persisted selection evidence.
+/// Dropped rows keep their own context because suppression happens before the
+/// full item view exists.
+fn run_item_rows(
+    must_include: &[BriefItem],
+    candidates: &[BriefItem],
+    recent_result: &RecentSuppression,
+    same_run_suppressed: &[SuppressedItem],
+    suppressed_policy: &[SuppressedPolicyItem],
+    suppressed_unresolved: &[SuppressedUnresolvedItem],
+) -> Vec<RunItemRow> {
+    let mut rows: Vec<RunItemRow> = must_include
+        .iter()
+        .map(|item| item_row(RUN_ITEM_MUST_INCLUDE, item, "", ""))
+        .collect();
+    rows.extend(
+        candidates
+            .iter()
+            .map(|item| item_row(RUN_ITEM_CANDIDATE, item, "", "")),
+    );
+    rows.extend(same_run_suppressed.iter().map(|item| RunItemRow {
+        category: RUN_ITEM_DROPPED.to_owned(),
+        source_key: item.source_key.clone(),
+        title: item.title.clone(),
+        url: item.url.clone(),
+        reason: item.reason.clone(),
+        ..RunItemRow::default()
+    }));
+    rows.extend(recent_result.suppressed_recent.iter().map(|item| {
+        RunItemRow {
+            category: RUN_ITEM_DROPPED.to_owned(),
+            source_key: item.source_key.clone(),
+            title: item.title.clone(),
+            url: item.url.clone(),
+            reason: "recently_sent".to_owned(),
+            detail: serde_json::json!({
+                "matched_prior_title": item.matched_prior_title,
+                "prior_sent_at": item.prior_sent_at,
+            })
+            .to_string(),
+            ..RunItemRow::default()
+        }
+    }));
+    // Only blocked outlets remove items; watch and allow audits stay queryable
+    // through the candidate row that survives.
+    rows.extend(
+        suppressed_policy
+            .iter()
+            .filter(|item| item.policy == OUTLET_POLICY_BLOCK)
+            .map(|item| RunItemRow {
+                category: RUN_ITEM_DROPPED.to_owned(),
+                source_key: item.source_key.clone(),
+                outlet: item.outlet.clone(),
+                title: item.title.clone(),
+                url: item.url.clone(),
+                reason: "outlet_policy".to_owned(),
+                detail: serde_json::json!({ "policy": item.policy }).to_string(),
+                ..RunItemRow::default()
+            }),
+    );
+    rows.extend(suppressed_unresolved.iter().map(|item| RunItemRow {
+        category: RUN_ITEM_DROPPED.to_owned(),
+        source_key: item.source_key.clone(),
+        title: item.title.clone(),
+        url: item.url.clone(),
+        reason: "unresolved".to_owned(),
+        detail: serde_json::json!({ "reason": item.reason }).to_string(),
+        ..RunItemRow::default()
+    }));
+    rows
+}
+
+fn item_row(category: &str, item: &BriefItem, reason: &str, detail: &str) -> RunItemRow {
+    RunItemRow {
+        category: category.to_owned(),
+        source_key: item.source_key.clone(),
+        source_label: item.source_label.clone(),
+        kind: item.kind.clone(),
+        section: item.section.clone(),
+        threshold: item.threshold.clone(),
+        priority_rank: item.priority_rank,
+        always_report: item.always_report,
+        published_at: item.published_at.clone(),
+        outlet: item.outlet.clone(),
+        title: item.title.clone(),
+        url: item.url.clone(),
+        reason: reason.to_owned(),
+        detail: detail.to_owned(),
+    }
 }
 
 fn brief_options(config: &BTreeMap<String, String>) -> BriefOptions {

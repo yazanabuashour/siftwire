@@ -11,6 +11,11 @@ siftwire config [--db path]
 siftwire brief [--db path]
 ```
 
+Human-facing operator commands also exist on the same binary: read-only
+`source list` and `runs list|show`, plus a `source add` stdin write that uses
+the same validation as `upsert_source`. They are operator conveniences outside
+this protocol; automated consumers must use only `config` and `brief`.
+
 The binary release version is the protocol compatibility version. There is no
 separate in-band protocol version.
 

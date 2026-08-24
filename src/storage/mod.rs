@@ -1,5 +1,6 @@
 mod delivery;
 mod outlets;
+mod run_items;
 mod runs_health;
 mod runtime_config;
 mod schema;
@@ -23,6 +24,9 @@ use rusqlite::Connection;
 
 pub use crate::domain::{OutletPolicy, Source, normalize_source};
 pub use delivery::normalize_title_key;
+pub use run_items::{
+    RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RunDetail, RunItemRow, RunSummary,
+};
 
 pub const RUNTIME_CONFIG_CONFIGURATION_VERSION: &str = "configuration_version";
 pub const RUNTIME_CONFIG_MAX_DELIVERY_ITEMS: &str = "max_delivery_items";

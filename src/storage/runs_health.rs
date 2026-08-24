@@ -187,7 +187,7 @@ impl Store {
     }
 }
 
-struct RawFetchLog {
+pub(super) struct RawFetchLog {
     run_id: String,
     source_key: String,
     status: String,
@@ -214,7 +214,7 @@ impl TryFrom<RawFetchLog> for FetchLog {
     }
 }
 
-fn raw_fetch_log(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawFetchLog> {
+pub(super) fn raw_fetch_log(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawFetchLog> {
     Ok(RawFetchLog {
         run_id: row.get(0)?,
         source_key: row.get(1)?,

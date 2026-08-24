@@ -1,5 +1,8 @@
 mod brief;
 mod delivery;
+mod format;
+mod runs_cli;
+mod source_cli;
 
 use std::env;
 use std::io::{self, Read, Write};
@@ -35,10 +38,22 @@ pub fn run_process() -> ExitCode {
         }
         "config" => run_config_process(&rest),
         "brief" => run_brief_process(&rest),
+        "source" => source_cli::run(&rest),
+        "runs" => runs_cli::run(&rest),
         _ => {
             eprintln!("unknown siftwire command {command:?}");
             usage(false);
             ExitCode::from(EXIT_USAGE_CODE)
+        }
+    }
+}
+
+fn emit_json<T: serde::Serialize>(value: &T) -> ExitCode {
+    match crate::runner::format::write_json(value) {
+        Ok(()) => EXIT_OK,
+        Err(error) => {
+            eprintln!("{error:#}");
+            EXIT_FAILURE
         }
     }
 }
@@ -93,6 +108,32 @@ fn run_brief_process(arguments: &[String]) -> ExitCode {
             EXIT_FAILURE
         }
     }
+}
+
+/// Removes the database flag so each operator subcommand parses only its own
+/// flags.
+fn split_database_flag(arguments: &[String]) -> Result<(Option<String>, Vec<String>)> {
+    let mut database = None;
+    let mut rest = Vec::with_capacity(arguments.len());
+    let mut values = arguments.iter();
+    while let Some(argument) = values.next() {
+        if matches!(argument.as_str(), "--db" | "-db") {
+            database = Some(
+                values
+                    .next()
+                    .ok_or_else(|| anyhow::anyhow!("flag needs an argument: {argument}"))?
+                    .clone(),
+            );
+        } else if let Some(value) = argument
+            .strip_prefix("--db=")
+            .or_else(|| argument.strip_prefix("-db="))
+        {
+            database = Some(value.to_owned());
+        } else {
+            rest.push(argument.clone());
+        }
+    }
+    Ok((database, rest))
 }
 
 fn parse_database_argument(arguments: &[String]) -> Result<Option<String>> {
@@ -260,7 +301,7 @@ fn write_result<T: Serialize>(result: &T, label: &str) -> ExitCode {
 }
 
 fn usage(stdout: bool) {
-    let text = "usage: siftwire <version|config|brief> [--db path]\n       siftwire config [--db path] < request.json\n       siftwire brief [--db path] < request.json";
+    let text = "usage: siftwire <version|config|brief|source|runs>\n       siftwire config [--db path] < request.json\n       siftwire brief [--db path] < request.json\n       siftwire source add [--json] [--db path] < source.json\n       siftwire source list [--enabled] [--json] [--db path]\n       siftwire runs list [--limit N] [--json] [--db path]\n       siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]";
     if stdout {
         println!("{text}");
     } else {

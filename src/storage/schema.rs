@@ -95,6 +95,25 @@ const SCHEMA: &[&str] = &[
     );",
     "CREATE INDEX IF NOT EXISTS idx_sent_item_sent_at ON sent_item(sent_at DESC);",
     "CREATE INDEX IF NOT EXISTS idx_fetch_log_run_id ON fetch_log(run_id);",
+    "CREATE TABLE IF NOT EXISTS brief_run_item (\
+        id INTEGER PRIMARY KEY AUTOINCREMENT,\
+        run_id TEXT NOT NULL REFERENCES brief_run(id) ON DELETE CASCADE,\
+        category TEXT NOT NULL,\
+        source_key TEXT NOT NULL,\
+        source_label TEXT NOT NULL DEFAULT '',\
+        kind TEXT NOT NULL DEFAULT '',\
+        section TEXT NOT NULL DEFAULT '',\
+        threshold TEXT NOT NULL DEFAULT '',\
+        priority_rank INTEGER NOT NULL DEFAULT 0,\
+        always_report INTEGER NOT NULL DEFAULT 0,\
+        published_at TEXT NOT NULL DEFAULT '',\
+        outlet TEXT NOT NULL DEFAULT '',\
+        title TEXT NOT NULL,\
+        url TEXT NOT NULL,\
+        reason TEXT NOT NULL DEFAULT '',\
+        detail TEXT NOT NULL DEFAULT ''\
+    );",
+    "CREATE INDEX IF NOT EXISTS idx_brief_run_item_run ON brief_run_item(run_id, category);",
 ];
 
 impl Store {

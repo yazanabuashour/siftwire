@@ -46,3 +46,11 @@ GitHub Releases and mirrored in `docs/release-notes/`.
   is the first public release of the local-first Siftwire runner and skill.
 
 ## Unreleased
+
+- Adds persisted per-run selection evidence (`brief_run_item`) so every finished
+  run keeps its must-include items, candidates, and blocked-outlet drops.
+- Adds operator CLI commands `source list/add`, `runs list`, and
+  `runs show --candidates --dropped --selected` with `--json` output, documented
+  in the README as outside the versioned `config|brief` process contract.
+- Removes retired product-name compatibility from database-path resolution and
+  the installer.

@@ -191,6 +191,67 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         repeat.suppressed_recent.is_empty(),
         "latest-seen repeat reached recent suppression"
     );
+
+    let dry: RunResult = decode(invoke_json(
+        &["brief", "--db", &database_text],
+        &json!({"action": "run_brief", "dry_run": true}),
+        &environment,
+    )?)?;
+    assert!(!dry.rejected, "dry run was rejected");
+    assert_runs_report_selection_evidence(&database_text, &run.run_id, &message)?;
+    Ok(())
+}
+
+fn assert_runs_report_selection_evidence(
+    database_text: &str,
+    run_id: &str,
+    message: &str,
+) -> Result<()> {
+    let listing = invoke_cli_json(
+        &["runs", "list", "--json", "--db", database_text],
+        &BTreeMap::new(),
+    )?;
+    let runs = listing
+        .get("runs")
+        .and_then(|runs| runs.as_array())
+        .context("runs list payload differs")?;
+    assert_eq!(runs.len(), 2, "dry runs must not persist run rows");
+
+    let detail = invoke_cli_json(
+        &["runs", "show", run_id, "--json", "--db", database_text],
+        &BTreeMap::new(),
+    )?;
+    let stored_message = detail
+        .pointer("/run/message")
+        .and_then(|message| message.as_str())
+        .context("run delivery message missing")?;
+    assert_eq!(stored_message, message, "delivered message differs");
+    let selected_flags: Vec<bool> = detail
+        .pointer("/candidates")
+        .and_then(|items| items.as_array())
+        .context("candidates payload differs")?
+        .iter()
+        .filter_map(|item| item.get("selected").and_then(serde_json::Value::as_bool))
+        .collect();
+    assert_eq!(
+        selected_flags,
+        vec![true],
+        "candidate selection flags differ"
+    );
+    assert_eq!(
+        detail
+            .pointer("/sent_items")
+            .and_then(|items| items.as_array())
+            .map(Vec::len),
+        Some(1),
+        "sent item count differs"
+    );
+    let missing = invoke(
+        &["runs", "show", "missing-run", "--db", database_text],
+        None,
+        &BTreeMap::new(),
+    )?;
+    assert_eq!(missing.status.code(), Some(1), "unknown run: {missing:?}");
     Ok(())
 }
 
@@ -289,10 +350,73 @@ fn invoke(
     child.wait_with_output().context("wait for siftwire")
 }
 
+fn invoke_cli_json(
+    arguments: &[&str],
+    environment: &BTreeMap<&str, &str>,
+) -> Result<serde_json::Value> {
+    let output = invoke(arguments, None, environment)?;
+    if !output.status.success() {
+        anyhow::bail!("siftwire {arguments:?}: {}", text(&output.stderr));
+    }
+    serde_json::from_slice(&output.stdout).context("decode siftwire output")
+}
+
 fn decode<T: for<'de> Deserialize<'de>>(value: serde_json::Value) -> Result<T> {
     serde_json::from_value(value).context("decode typed siftwire result")
 }
 
 fn text(bytes: &[u8]) -> String {
     String::from_utf8_lossy(bytes).into_owned()
+}
+
+#[test]
+fn source_commands_validate_store_and_list() -> Result<()> {
+    let temp = TempDir::new()?;
+    let database_text = temp
+        .path()
+        .join("sources.sqlite")
+        .to_string_lossy()
+        .into_owned();
+    let feed_url = url::Url::parse("https://fixture.test/feed.xml")?;
+
+    let invalid = invoke(
+        &["source", "add", "--db", &database_text],
+        Some(
+            r#"{"key":"Bad Key","label":"Bad","kind":"rss","url":"https://fixture.test/feed","section":"technology","enabled":true}"#,
+        ),
+        &BTreeMap::new(),
+    )?;
+    assert_eq!(invalid.status.code(), Some(1), "invalid key: {invalid:?}");
+
+    let added = invoke_json(
+        &["source", "add", "--json", "--db", &database_text],
+        &json!({
+            "key": "fixture", "label": "Fixture", "kind": "rss",
+            "url": feed_url, "section": "technology", "threshold": "medium",
+            "enabled": true
+        }),
+        &BTreeMap::new(),
+    )?;
+    assert_eq!(
+        added.get("key").and_then(|key| key.as_str()),
+        Some("fixture"),
+        "stored source key differs"
+    );
+
+    let listing = invoke_cli_json(
+        &["source", "list", "--json", "--db", &database_text],
+        &BTreeMap::new(),
+    )?;
+    let keys: Vec<&str> = listing
+        .get("sources")
+        .and_then(|sources| sources.as_array())
+        .map(|sources| {
+            sources
+                .iter()
+                .filter_map(|source| source.get("key").and_then(|key| key.as_str()))
+                .collect()
+        })
+        .unwrap_or_default();
+    assert_eq!(keys, vec!["fixture"], "listed keys differ");
+    Ok(())
 }

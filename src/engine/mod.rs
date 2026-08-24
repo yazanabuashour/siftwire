@@ -19,7 +19,7 @@ pub use health::{
 };
 pub use model::FetchOutput;
 pub use process::{collect_new_items, process_source_items};
-pub use recent::suppress_recent_candidates;
+pub use recent::{RecentSuppression, suppress_recent_candidates};
 
 #[cfg(test)]
 mod tests;

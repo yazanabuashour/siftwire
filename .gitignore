@@ -1,8 +1,9 @@
 .DS_Store
-dist/
+apps/web/dist/
 target/
 *.sqlite
 *.sqlite-*
 *.db
 *.db-*
 .tmp/
+node_modules/

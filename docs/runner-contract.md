@@ -50,15 +50,15 @@ Every config request can contain:
 
 Actions:
 
-| Action | Purpose |
-| --- | --- |
-| `init` | Open and initialize the selected database. |
-| `inspect_config` | Return runtime configuration, sources, and outlet policies. |
-| `replace_sources` | Transactionally replace all sources. An empty array clears them. |
-| `upsert_source` | Add or replace one normalized source. |
-| `delete_source` | Delete one source by key. |
+| Action                    | Purpose                                                                  |
+| ------------------------- | ------------------------------------------------------------------------ |
+| `init`                    | Open and initialize the selected database.                               |
+| `inspect_config`          | Return runtime configuration, sources, and outlet policies.              |
+| `replace_sources`         | Transactionally replace all sources. An empty array clears them.         |
+| `upsert_source`           | Add or replace one normalized source.                                    |
+| `delete_source`           | Delete one source by key.                                                |
 | `replace_outlet_policies` | Transactionally replace all outlet policies. An empty array clears them. |
-| `set_brief_options` | Set `max_delivery_items`. |
+| `set_brief_options`       | Set `max_delivery_items`.                                                |
 
 Config results contain `rejected`, optional `rejection_reason`, `paths`, optional
 `runtime_config`, `sources`, and `outlets`, plus `summary`.
@@ -78,11 +78,11 @@ bodies beyond the measured 16 MiB tripwire in
 
 Every brief request can contain `action`, `dry_run`, `run_id`, and `message`.
 
-| Action | Purpose |
-| --- | --- |
-| `validate` | Verify that the selected runtime and database open. It does not fetch sources. |
-| `run_brief` | Fetch configured sources, update permitted state, and return selection evidence. |
-| `record_delivery` | Record the exact delivered body and return history-backed final output. |
+| Action            | Purpose                                                                          |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `validate`        | Verify that the selected runtime and database open. It does not fetch sources.   |
+| `run_brief`       | Fetch configured sources, update permitted state, and return selection evidence. |
+| `record_delivery` | Record the exact delivered body and return history-backed final output.          |
 
 Brief results contain `rejected`, optional `rejection_reason`, `paths`, optional
 `run_id`, `must_include`, `candidates`, `previous_briefs`,

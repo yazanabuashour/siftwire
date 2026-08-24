@@ -35,7 +35,7 @@ jobs:
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           revision="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
           git merge-base --is-ancestor "$revision" refs/remotes/origin/main
-          package_version="$(git show "$revision:Cargo.toml" | sed -n 's/^version = "\([^"]*\)"/\1/p' | head -n 1)"
+          package_version="$(git show "$revision:crates/siftwire/Cargo.toml" | sed -n 's/^version = "\([^"]*\)"/\1/p' | head -n 1)"
           test -n "$package_version"
           test "${RELEASE_TAG#v}" = "$package_version"
           scripts/validate-release-docs.sh "$RELEASE_TAG"

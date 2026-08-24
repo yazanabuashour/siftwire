@@ -18,7 +18,7 @@ Prooflane checkout, and confirm:
 - the active `siftwire` binary was built from this checkout and is configured
   against the existing database
 - `../prooflane/bin/prooflane` is executable and includes the `dogfood
-  siftwire` adapter commands
+siftwire` adapter commands
 - a reviewed Prooflane Siftwire contract exists at `<prooflane-contract>`
 - the normal `SIFTWIRE_DATABASE_PATH` environment, when the default Siftwire
   database is not intended, still points to the existing database

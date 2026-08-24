@@ -6,7 +6,7 @@ binary plus the shipped `skills/siftwire/SKILL.md`.
 ## Coverage
 
 The current harness exercises 13 scenarios from
-`src/bin/siftwire-agent-eval/scenarios.rs`:
+`crates/siftwire/src/bin/siftwire-agent-eval/scenarios.rs`:
 
 - empty configuration rejection
 - RSS first-run selection and repeat suppression

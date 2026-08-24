@@ -19,7 +19,7 @@ The supported building block is the one-shot `siftwire config|brief` JSON
 process protocol. The skill, Prooflane adapter, and production eval harness all
 use this boundary. No production caller imports Rust modules.
 
-Keep `src/runner/`, `src/engine/`, and `src/storage/` private. A public Rust
+Keep `crates/siftwire/src/runner/`, `crates/siftwire/src/engine/`, and `crates/siftwire/src/storage/` private. A public Rust
 library, alternate store, fetch plugin, daemon, or generic client crate would
 add lifecycle and compatibility contracts without a real
 consumer. Reconsider an in-process API only when an integration cannot

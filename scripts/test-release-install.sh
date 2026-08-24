@@ -5,7 +5,7 @@ repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$repo_root"
 
 binary=${1:-target/release/siftwire}
-version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -n 1)"
+version="$(sed -n 's/^version = "\([^"]*\)"/\1/p' crates/siftwire/Cargo.toml | head -n 1)"
 root="$(mktemp -d "${TMPDIR:-/tmp}/siftwire-release-install.XXXXXX")"
 trap 'rm -rf "$root"' EXIT HUP INT TERM
 

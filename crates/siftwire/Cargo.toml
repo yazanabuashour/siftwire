@@ -1,0 +1,36 @@
+[package]
+name = "siftwire"
+version = "0.2.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "Local-first brief runtime for agents"
+license.workspace = true
+readme = "../../README.md"
+homepage = "https://github.com/yazanabuashour/siftwire"
+repository = "https://github.com/yazanabuashour/siftwire"
+publish = false
+autolib = false
+
+[dependencies]
+anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+feed-rs = "2.4"
+fs2 = "0.4"
+getrandom = "0.4"
+path-clean = "1"
+regex = "1"
+rusqlite = { version = "0.38", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "3.3", default-features = false, features = [
+  "gzip",
+  "platform-verifier",
+  "rustls",
+] }
+url = "2.5"
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

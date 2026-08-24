@@ -47,6 +47,10 @@ GitHub Releases and mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+- Adds an optional local web console (`siftwire-console`) with a React web
+  application under `apps/web`; see `docs/console.md`. It spawns the installed
+  runner per request, never reads SQLite directly, binds loopback by default,
+  and exposes no run execution.
 - Adds persisted per-run selection evidence (`brief_run_item`) so every finished
   run keeps its must-include items, candidates, and blocked-outlet drops.
 - Adds operator CLI commands `source list/add`, `runs list`, and

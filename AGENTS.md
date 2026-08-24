@@ -9,20 +9,28 @@ external SQLite database; they never belong in this repository.
 
 ## Code and architecture
 
-- `src/main.rs` and `src/runner/` own command parsing, strict JSON framing,
-  action orchestration, version output, and process exits.
-- `src/paths.rs` selects the database path; `src/domain.rs` normalizes and
-  validates sources and outlet policies.
-- `src/engine/` owns feed fetching, canonicalization, selection, suppression,
+- `crates/siftwire/src/main.rs` and `crates/siftwire/src/runner/` own command
+  parsing, strict JSON framing, operator CLI subcommands, action orchestration,
+  version output, and process exits.
+- `crates/siftwire/src/paths.rs` selects the database path;
+  `crates/siftwire/src/domain.rs` normalizes and validates sources and outlet
+  policies.
+- `crates/siftwire/src/engine/` owns feed fetching, canonicalization, selection, suppression,
   and health reporting.
-- `src/storage/` owns SQLite schema migration and durable configuration, run,
+- `crates/siftwire/src/storage/` owns SQLite schema migration and durable configuration, run,
   source, health, and delivery state.
 - `skills/siftwire/` defines the production agent policy; `docs/runner-contract.md`
   defines the public process contract.
-- `tests/` and colocated unit tests cover the process and implementation
+- `crates/siftwire/tests/` and colocated unit tests cover the process and implementation
   behavior. `scripts/ci.sh` is the main gate.
-- `src/bin/siftwire-agent-eval/` and `docs/agent-eval-results/` own agent
+- `crates/siftwire/src/bin/siftwire-agent-eval/` and `docs/agent-eval-results/` own agent
   evaluation; release, security, and architecture guidance lives under `docs/`.
+- `crates/siftwire-console/` is an optional local web console that spawns the
+  runner per request over the process protocol; it must never open SQLite or
+  import runner internals. Its TypeScript app lives in `apps/web`.
+- Frontend work follows `apps/web`: React 19, Vite, Tailwind v4, TanStack
+  Query, zod-decoded API contracts, oxlint/oxfmt through the shared policies in
+  `tools/`, and Bun as the package manager.
 
 ## Working contracts
 

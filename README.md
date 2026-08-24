@@ -84,6 +84,12 @@ Each successfully completed non-dry run persists selection evidence. `--json`
 switches to machine-readable output; `runs show --json` returns the complete
 run detail regardless of section flags.
 
+## Console
+
+An optional local web console views sources, outlet policies, runs, and
+deliveries, and edits configuration through the same runner process contract.
+See [`docs/console.md`](docs/console.md).
+
 ## Storage
 
 The default database is

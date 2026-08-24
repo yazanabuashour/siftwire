@@ -12,7 +12,7 @@ This runbook defines recurring security work for Siftwire maintainers. It comple
 ## High-Risk Surfaces
 
 - Local SQLite brief configuration, latest-seen state, health warnings, delivery records, and recent sent items.
-- Runner JSON operations in `src/runner/`, `src/engine/`, and `src/storage/`, especially configuration replacement, delivery recording, URL handling, and source validation.
+- Runner JSON operations in `crates/siftwire/src/runner/`, `crates/siftwire/src/engine/`, and `crates/siftwire/src/storage/`, especially configuration replacement, delivery recording, URL handling, and source validation.
 - Agent-facing task policy in `skills/siftwire/SKILL.md`, including direct-reject rules and instructions that prevent bypassing the runner.
 - Network fetch providers and URL processing for RSS, Atom, GitHub releases, feed redirects, Google News URL resolution, and outlet extraction.
 - Install and release pipeline files: `install.sh`, `.github/workflows/release.yml`, `docs/release-verification.md`, `CHANGELOG.md`, and `docs/release-notes`.

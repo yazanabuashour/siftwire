@@ -1,0 +1,35 @@
+{
+  "measuredAt": "2026-08-13",
+  "method": "Oxlint effective-line counts with blank lines and comments skipped and IIFEs included",
+  "sourceReceipts": [
+    {
+      "project": "bespoke",
+      "baselineCommit": "9dcef03402ff406296931c2478d2644737b2296e",
+      "fileP90": 236,
+      "functionP95": 62
+    },
+    {
+      "project": "salary-atlas",
+      "baselineCommit": "b7936b3484782138404ed14191f7efdebedea1c1",
+      "fileP90": 962,
+      "functionP95": 61
+    },
+    {
+      "project": "sourcebound",
+      "baselineCommit": "57e16b4019043590ff17714a614572ab70674d31",
+      "fileP90": 511,
+      "functionP95": 63
+    },
+    {
+      "project": "pi-agent",
+      "baselineCommit": "2bc95c08e6990c6fce6131311fdf3fcce824d80c",
+      "fileP90": 583,
+      "functionP95": 60
+    }
+  ],
+  "tripwires": {
+    "fileEffectiveLines": 300,
+    "functionEffectiveLines": 100
+  },
+  "decision": "Keep the existing common tripwires. The function limit remains beyond the 95th percentile in every measured project. File exemptions remain consumer-owned because static and generated data are project contracts, not policy defaults."
+}

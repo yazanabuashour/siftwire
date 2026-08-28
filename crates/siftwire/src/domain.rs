@@ -11,7 +11,10 @@ pub const SOURCE_KIND_GITHUB_RELEASE: &str = "github_release";
 pub const SOURCE_KIND_SCHEDULE: &str = "sports_schedule";
 pub const SCHEDULE_FORMAT_ESPN: &str = "espn";
 pub const SCHEDULE_FORMAT_ESPN_CORE: &str = "espn_core";
+pub const SCHEDULE_FORMAT_ESPN_SCOREBOARD: &str = "espn_scoreboard";
 pub const SCHEDULE_FORMAT_RIOT: &str = "riot";
+pub const SCHEDULE_FILTER_ALL: &str = "all";
+pub const SCHEDULE_FILTER_STANDINGS_TOP_TWO: &str = "standings_top_two";
 pub const THRESHOLD_ALWAYS: &str = "always";
 pub const THRESHOLD_MEDIUM: &str = "medium";
 pub const THRESHOLD_HIGH: &str = "high";
@@ -83,6 +86,8 @@ pub struct Source {
         skip_serializing_if = "String::is_empty"
     )]
     pub schedule_format: String,
+    #[serde(deserialize_with = "crate::serde_util::null_default")]
+    pub schedule_filter: String,
     #[serde(
         deserialize_with = "crate::serde_util::null_default",
         skip_serializing_if = "String::is_empty"
@@ -126,6 +131,7 @@ pub fn normalize_source(mut source: Source) -> Result<Source> {
     source.outlet_extraction = source.outlet_extraction.trim().to_lowercase();
     source.dedup_group = source.dedup_group.trim().to_lowercase();
     source.schedule_format = source.schedule_format.trim().to_lowercase();
+    source.schedule_filter = source.schedule_filter.trim().to_lowercase();
     // API keys are case-sensitive; trim only.
     source.api_key = source.api_key.trim().to_owned();
     validate_source_fields(&mut source)?;
@@ -219,6 +225,9 @@ fn set_source_defaults(source: &mut Source) {
     if source.kind == SOURCE_KIND_SCHEDULE && source.schedule_format.is_empty() {
         SCHEDULE_FORMAT_ESPN.clone_into(&mut source.schedule_format);
     }
+    if source.schedule_filter.is_empty() {
+        SCHEDULE_FILTER_ALL.clone_into(&mut source.schedule_filter);
+    }
 }
 
 fn validate_source_options(source: &Source) -> Result<()> {
@@ -254,11 +263,22 @@ fn validate_source_options(source: &Source) -> Result<()> {
             source.key
         );
     }
+    if !matches!(
+        source.schedule_filter.as_str(),
+        SCHEDULE_FILTER_ALL | SCHEDULE_FILTER_STANDINGS_TOP_TWO
+    ) {
+        bail!(
+            "source {:?} schedule_filter must be all or standings_top_two",
+            source.key
+        );
+    }
     if source.kind != SOURCE_KIND_SCHEDULE
-        && (!source.schedule_format.is_empty() || !source.api_key.is_empty())
+        && (!source.schedule_format.is_empty()
+            || source.schedule_filter != SCHEDULE_FILTER_ALL
+            || !source.api_key.is_empty())
     {
         bail!(
-            "source {:?} schedule_format and api_key apply only to sports_schedule sources",
+            "source {:?} schedule options apply only to sports_schedule sources",
             source.key
         );
     }
@@ -270,12 +290,24 @@ fn validate_schedule_source(source: &Source) -> Result<()> {
         .map_err(|error| anyhow::anyhow!("source {:?} url: {error}", source.key))?;
     if !matches!(
         source.schedule_format.as_str(),
-        SCHEDULE_FORMAT_ESPN | SCHEDULE_FORMAT_ESPN_CORE | SCHEDULE_FORMAT_RIOT
+        SCHEDULE_FORMAT_ESPN
+            | SCHEDULE_FORMAT_ESPN_CORE
+            | SCHEDULE_FORMAT_ESPN_SCOREBOARD
+            | SCHEDULE_FORMAT_RIOT
     ) {
         bail!(
-            "source {:?} schedule_format must be espn, espn_core, or riot",
+            "source {:?} schedule_format must be espn, espn_core, espn_scoreboard, or riot",
             source.key
         );
+    }
+    if source.schedule_filter == SCHEDULE_FILTER_STANDINGS_TOP_TWO {
+        if source.schedule_format != SCHEDULE_FORMAT_RIOT {
+            bail!(
+                "source {:?} standings_top_two schedule_filter applies only to the riot schedule format",
+                source.key
+            );
+        }
+        validate_riot_league_id(source)?;
     }
     if source.schedule_format == SCHEDULE_FORMAT_RIOT && source.api_key.is_empty() {
         bail!(
@@ -286,6 +318,34 @@ fn validate_schedule_source(source: &Source) -> Result<()> {
     if source.schedule_format != SCHEDULE_FORMAT_RIOT && !source.api_key.is_empty() {
         bail!(
             "source {:?} api_key applies only to the riot schedule format",
+            source.key
+        );
+    }
+    Ok(())
+}
+
+fn validate_riot_league_id(source: &Source) -> Result<()> {
+    let url = Url::parse(&source.url)?;
+    if !url.path().contains("/persisted/gw/") {
+        bail!(
+            "source {:?} standings_top_two URL must use Riot's persisted Gateway",
+            source.key
+        );
+    }
+    let league_ids = url
+        .query_pairs()
+        .filter(|(name, _value)| name == "leagueId")
+        .map(|(_name, value)| value)
+        .collect::<Vec<_>>();
+    let [league_id] = league_ids.as_slice() else {
+        bail!(
+            "source {:?} standings_top_two URL must contain exactly one leagueId",
+            source.key
+        );
+    };
+    if league_id.trim().is_empty() || league_id.contains(',') {
+        bail!(
+            "source {:?} standings_top_two URL must contain exactly one leagueId",
             source.key
         );
     }

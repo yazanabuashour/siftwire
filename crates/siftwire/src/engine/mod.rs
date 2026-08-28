@@ -21,6 +21,7 @@ pub use health::{
 pub use model::FetchOutput;
 pub use process::{collect_new_items, process_source_items};
 pub use recent::{RecentSuppression, suppress_recent_candidates};
+pub use schedule::{SportsOptions, prepare_sports_updates, render_sports_section};
 
 #[cfg(test)]
 mod tests;

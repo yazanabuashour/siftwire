@@ -128,15 +128,21 @@ pub fn add_recurring_failure_warnings(
 pub fn brief_summary(
     must_include: &[BriefItem],
     candidates: &[BriefItem],
+    sports_updates: usize,
     health_footnote: &str,
 ) -> String {
-    if must_include.is_empty() && candidates.is_empty() && health_footnote.is_empty() {
+    if must_include.is_empty()
+        && candidates.is_empty()
+        && sports_updates == 0
+        && health_footnote.is_empty()
+    {
         return "NO_REPLY".to_owned();
     }
     format!(
-        "must_include={} candidates={} health_footnote={}",
+        "must_include={} candidates={} sports_updates={} health_footnote={}",
         must_include.len(),
         candidates.len(),
+        sports_updates,
         !health_footnote.is_empty()
     )
 }

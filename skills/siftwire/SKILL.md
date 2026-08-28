@@ -65,13 +65,15 @@ Use `siftwire config` with one of these request shapes:
 {"action":"upsert_source","source":{"key":"tool-releases","label":"Tool Releases","kind":"github_release","repo":"owner/name","section":"releases","threshold":"always","enabled":true}}
 {"action":"delete_source","key":"example"}
 {"action":"replace_outlet_policies","outlets":[{"name":"Example Outlet","aliases":[],"policy":"watch","note":"Review coverage","enabled":true}]}
-{"action":"set_brief_options","max_delivery_items":7}
+{"action":"set_brief_options","max_delivery_items":7,"sports_pre_game_days":7,"sports_post_game_days":3,"sports_timezone":"America/Chicago"}
 ```
 
 Supported source kinds are `rss`, `atom`, `github_release`, and
 `sports_schedule` (schedule endpoints; `schedule_format` is `espn`,
-`espn_core`, or `riot`, and `riot` requires the public Riot frontend key in
-`api_key`). Supported
+`espn_scoreboard`, `espn_core`, or `riot`, and `riot` requires the public Riot
+frontend key in `api_key`). `schedule_filter` defaults to `all`; Riot also
+accepts `standings_top_two` for matches involving the first two standings
+positions, including boundary ties. Supported
 thresholds are `always`, `medium`, `high`, and `audit`. A fresh database has no
 sources. For `github_release`, include the user-provided `url` when present; it
 overrides the generated GitHub API endpoint while `repo` keeps the source
@@ -89,42 +91,60 @@ Optional feed-processing fields:
 Replacement actions replace the entire corresponding set; an empty array clears
 it. Feed URLs, thresholds, priorities, always-report choices, outlet policies,
 and brief options are durable operator configuration and require approval before
-write. `max_delivery_items` defaults to 7.
+write. `max_delivery_items` defaults to 7. Sports fixtures repeat for 7 days
+before kickoff and final results repeat for 3 days after kickoff by default.
+`sports_timezone` is an IANA time zone and defaults to `America/Chicago`.
 
 ## Brief Tasks
 
-Use `siftwire brief`:
+First invoke only the common actions:
 
 ```json
 {"action":"validate"}
 {"action":"run_brief","dry_run":false}
-{"action":"record_delivery","run_id":"run_id_from_run_brief","message":"- [Title](<https://example.com>)"}
 ```
 
-If a result has `rejected: true`, answer with `rejection_reason`. Runtime
-failures exit nonzero and write diagnostics to stderr.
+If either result has `rejected: true`, answer with `rejection_reason`. Runtime
+failures exit nonzero and write diagnostics to stderr. After `run_brief`, branch
+on its `capabilities`; never mix prepared and legacy delivery in one run.
 
-Build the current brief from `run_brief` as follows:
+When capabilities contain `prepared-delivery/v1`, choose optional candidates by
+zero-based index from `run_brief.candidates`. Select at most `candidate_slots`,
+use brief judgment appropriate to each `section` and `threshold`, then invoke:
 
-- Include every `must_include` item first.
-- Fill remaining slots up to `max_delivery_items` from `candidates` using brief
-  judgment appropriate to each `section` and `threshold`.
-- If `must_include` exceeds the limit, include all of it and no candidates.
-- Format bullets as `- [Title](<https://example.com>)`.
-- Append a non-empty `health_footnote` as plain text after the bullets.
-- If neither bullets nor a health footnote exist, use exactly `NO_REPLY`.
+```json
+{"action":"prepare_delivery","run_id":"run_id_from_run_brief","candidate_indexes":[0,3]}
+{"action":"confirm_delivery","run_id":"run_id_from_run_brief","delivery_plan_id":"plan_id_from_prepare_delivery"}
+```
 
-`run_brief.delivery_message_scope` is `current_brief_only`. Before answering,
-call `record_delivery` with the exact current brief body. When JSON string data
-contains backticks or other shell metacharacters, pipe it with a single-quoted
-heredoc so the shell cannot evaluate the data. Do not include `Current brief`,
-`Previous brief`, or any history in `message`. If the runner
-rejects a history wrapper, rebuild `message` from only the current run result and
-correct `record_delivery` with the same run ID; do not rerun `run_brief`.
+The runner keeps every required item, limits optional candidates, places sports
+outside those candidate slots, removes compatibility duplicates, and returns
+complete `message`, `text`, and `html` bodies. Deliver those bodies unchanged
+before calling `confirm_delivery`. If confirmation returns `final_answer`,
+answer with exactly that string; otherwise answer with exactly the prepared
+`message`.
 
-If `record_delivery.final_answer` exists, answer with exactly that string and
-ignore `run_brief.previous_briefs`. Otherwise, answer with only the current body
-when `previous_briefs` is empty. When it is not empty, render `Current brief`,
-the current body, then up to two `Previous brief (<delivered_at>)` sections in
-JSON order. Render each prior `message` exactly as recorded. Do not summarize,
-paraphrase, strip links, or alter `NO_REPLY` or health-footnote text.
+Without `prepared-delivery/v1`, build the legacy current body as follows:
+
+- When `sports_section` is non-empty, exclude `must_include` items whose `kind`
+  is `sports_schedule`. Otherwise retain them for compatibility.
+- Include every remaining `must_include` item. If they reach or exceed
+  `max_delivery_items`, include no candidates.
+- Fill remaining slots from `candidates` using their section, threshold, title,
+  summary, source, and recent brief context.
+- Format normal items as `- [Title](<https://example.com>)`, append a non-empty
+  `sports_section`, then append a non-empty `health_footnote`, with one blank
+  line between parts. Use exactly `NO_REPLY` when every part is empty.
+- Call `record_delivery` with only that exact current body:
+
+```json
+{"action":"record_delivery","run_id":"run_id_from_run_brief","message":"exact current brief"}
+```
+
+Do not include `Current brief`, `Previous brief`, or history in `message`. If
+`record_delivery.final_answer` exists, answer with exactly that string and
+ignore `run_brief.previous_briefs`. Otherwise answer with only the current body
+when no previous briefs exist; when they do, render `Current brief`, the current
+body, then up to two `Previous brief (<delivered_at>)` sections in JSON order.
+Render each prior `message` exactly as recorded. Never summarize, paraphrase,
+strip links, or alter `NO_REPLY` or health text.

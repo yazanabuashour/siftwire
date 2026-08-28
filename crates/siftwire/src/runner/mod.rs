@@ -1,5 +1,6 @@
 mod brief;
 mod delivery;
+mod email;
 mod format;
 mod runs_cli;
 mod source_cli;
@@ -9,12 +10,17 @@ use std::io::{self, Read, Write};
 use std::process::ExitCode;
 
 use anyhow::{Result, bail};
+use chrono::{TimeDelta, Utc};
+use chrono_tz::Tz;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::contract::{BriefRequest, BriefResult, ConfigRequest, ConfigResult, Paths};
 use crate::paths;
-use crate::storage::{RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, Store};
+use crate::storage::{
+    RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
+    RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS, RUNTIME_CONFIG_SPORTS_TIMEZONE, Store,
+};
 
 const EXIT_OK: ExitCode = ExitCode::SUCCESS;
 const EXIT_FAILURE: ExitCode = ExitCode::FAILURE;
@@ -200,7 +206,7 @@ fn run_config_action(paths: Paths, store: &Store, request: ConfigRequest) -> Res
         "upsert_source" => Ok(upsert_source(paths, store, request)),
         "delete_source" => delete_source(paths, store, &request.key),
         "replace_outlet_policies" => Ok(replace_outlets(paths, store, request)),
-        "set_brief_options" => set_brief_options(paths, store, request.max_delivery_items),
+        "set_brief_options" => set_brief_options(paths, store, &request),
         _ => Ok(rejected_config(
             paths,
             format!("unsupported config action {:?}", request.action),
@@ -265,15 +271,52 @@ fn replace_outlets(paths: Paths, store: &Store, request: ConfigRequest) -> Confi
     }
 }
 
-fn set_brief_options(paths: Paths, store: &Store, value: i64) -> Result<ConfigResult> {
-    if let Err(error) = validate_max_delivery_items(value) {
-        return Ok(rejected_config(paths, error.to_string()));
+fn set_brief_options(paths: Paths, store: &Store, request: &ConfigRequest) -> Result<ConfigResult> {
+    let mut values = Vec::new();
+    if let Some(value) = request.max_delivery_items {
+        if let Err(error) = validate_max_delivery_items(value) {
+            return Ok(rejected_config(paths, error.to_string()));
+        }
+        values.push((RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, value.to_string()));
     }
-    store.set_runtime_config(RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, &value.to_string())?;
+    for (key, value) in [
+        (
+            RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS,
+            request.sports_pre_game_days,
+        ),
+        (
+            RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
+            request.sports_post_game_days,
+        ),
+    ] {
+        if let Some(value) = value {
+            if let Err(error) = validate_sports_days(key, value) {
+                return Ok(rejected_config(paths, error.to_string()));
+            }
+            values.push((key, value.to_string()));
+        }
+    }
+    if let Some(value) = request.sports_timezone.as_deref() {
+        let value = value.trim();
+        if value.is_empty() || value.parse::<Tz>().is_err() {
+            return Ok(rejected_config(
+                paths,
+                format!("{RUNTIME_CONFIG_SPORTS_TIMEZONE} must be an IANA time zone"),
+            ));
+        }
+        values.push((RUNTIME_CONFIG_SPORTS_TIMEZONE, value.to_owned()));
+    }
+    if values.is_empty() {
+        return Ok(rejected_config(
+            paths,
+            "set_brief_options requires at least one option".to_owned(),
+        ));
+    }
+    store.set_runtime_config_values(&values)?;
     Ok(ConfigResult {
         paths,
         runtime_config: store.runtime_config()?,
-        summary: format!("stored max_delivery_items={value}"),
+        summary: format!("stored {} brief options", values.len()),
         ..ConfigResult::default()
     })
 }
@@ -316,6 +359,21 @@ fn validate_max_delivery_items(value: i64) -> Result<()> {
             RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
             crate::storage::MAX_DELIVERY_ITEMS_UPPER_BOUND
         );
+    }
+    Ok(())
+}
+
+fn validate_sports_days(key: &str, value: i64) -> Result<()> {
+    let window = (value >= 0).then(|| TimeDelta::try_days(value)).flatten();
+    let valid = window.is_some_and(|window| {
+        if key == RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS {
+            Utc::now().checked_add_signed(window).is_some()
+        } else {
+            Utc::now().checked_sub_signed(window).is_some()
+        }
+    });
+    if !valid {
+        bail!("{key} must be a non-negative whole number of days that fits the date range");
     }
     Ok(())
 }

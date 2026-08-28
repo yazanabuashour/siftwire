@@ -1,4 +1,4 @@
-# ADR: Schedule Sources For Fixture Awareness
+# ADR: Schedule sources for fixture awareness
 
 ## Status
 
@@ -6,52 +6,77 @@ Accepted. Fixture terminology lives in the repository glossary (`CONTEXT.md`).
 
 ## Context
 
-Briefs cover news but not upcoming fixtures for followed teams. Live scores and
-play-by-play stay with external services; SiftWire's twice-daily cadence cannot
-compete there, and per-league live integrations would be high-maintenance.
-Fixture lines (who plays whom, when) and morning-after result recaps are
-calendar and news facts that fit the brief format.
+Briefs cover news but scheduled sport needs different repetition rules. A normal
+item should disappear after delivery. A fixture should remain visible while it
+is approaching, and a final result should remain visible long enough to survive
+a missed brief.
 
-Structured schedule data comes from ESPN's keyless public API (UEFA Champions
-League, NFL, NBA, UFC — UFC via a two-step core-API fetch) and Riot's LoL
-esports API, which only works with Riot's public frontend key that Riot can
-rotate without notice. ESPN endpoints are undocumented and changeable.
-TheSportsDB's free tier offers too little lookahead (one event per call). The
-timing requirement — a fixture appears in the two runs before kickoff — needs
-schedule awareness (kickoff time relative to run time) that plain feed items
-cannot express.
+The first schedule implementation treated fixtures as must-include items during
+the 24 hours before kickoff. It used Central time and never parsed completed
+events. That design gave little notice and made fixtures consume the normal
+item limit.
+
+On 2026-08-25, the operator requested seven days of recurring pre-game notice,
+three days of recurring post-game results, and a sports section outside the
+normal item limit. This request is the receipt for those defaults. Both windows
+and the time zone need durable configuration because brief cadence and operator
+location can differ.
+
+Structured schedule data comes from ESPN's keyless public API and Riot's LoL
+esports API. Riot requires the public frontend key, which Riot can rotate
+without notice. ESPN endpoints are undocumented and changeable.
 
 ## Decision
 
-Add a `sports_schedule` source kind beside rss, atom, and github_release. One
-source per followed competition. Each source names its endpoint URL and a
-schedule format that selects the response parser; Riot sources carry Riot's
-public frontend key in an optional source API key field.
+Keep `sports_schedule` as a source kind beside `rss`, `atom`, and
+`github_release`. One source tracks one team, athlete event list, league, or
+competition. `schedule_format` selects the `espn`, `espn_scoreboard`,
+`espn_core`, or `riot` parser.
 
-A fixture becomes a must-include run item when kickoff falls within the next 24
-hours, so it appears in every brief run before kickoff; at the 12-hour run
-cadence that is usually the two preceding runs. Schedule items bypass
-latest-seen dedup, since the window, not dedup, governs repetition, and
-cross-source duplicates collapse on the provider fixture identity. Fixture
-lines show competition, teams, and kickoff time in Central time. Off-season
-gaps are normal, not errors.
+A schedule fetch returns recurring sports updates separately from normal brief
+items:
 
-Live scores, play-by-play, and structured stakes remain out of scope; preview
-and recap articles from team news feeds carry the narrative.
+- Upcoming fixtures appear during the `sports_pre_game_days` window before
+  kickoff. The default is 7 days.
+- Completed results appear from kickoff through `sports_post_game_days` after
+  kickoff. The default is 3 days.
+- `sports_timezone` controls rendered kickoff times. It stores an IANA time zone
+  and defaults to `America/Chicago` to preserve existing behavior.
 
-ESPN's edge answers 403 for unrecognized user agents while allowing recognized
-scripted-client agents (probed 2026-08-24: `siftwire/0.4` and a browser agent
--> 403; `curl/8.5.0` and `python-requests/2.31.0` -> 200). Schedule fetches
-identify as a scripted client for these endpoints.
+The runner returns `sports_section` and structured `sports_updates` for
+inspection. Its `prepare_delivery` action owns final composition: it places
+sports after normal brief bullets and before health, keeps sports outside
+`max_delivery_items`, and persists one immutable delivery plan.
+
+For compatibility, upcoming fixtures also remain in `must_include` for older
+consumers. Prepared delivery plans remove those compatibility entries when the
+same fixtures already appear in `sports_section`.
+
+ESPN and Riot completed states produce result lines. Scores render when the
+provider supplies them. A completed event without scores still renders as
+final. The post-game window uses kickoff time because neither provider offers a
+uniform completion timestamp.
+
+Use ESPN's public UFC scoreboard instead of exposing ESPN Core JSON links. One
+upcoming card is enough; completed cards show the individual bout results that
+the operator requested. All links go to FightCenter.
+
+Keep Riot standings policy on each league source. `standings_top_two` resolves
+the current leaders on every run and includes the full second-place tie. It
+fails closed when rankings cannot be verified instead of returning every match.
+The runner contract defines the stable parsing and fallback behavior.
+
+Live scores and play-by-play remain out of scope. Off-season gaps are normal,
+not errors.
 
 ## Consequences
 
-- The runner gains a third-party JSON fetch surface beyond GitHub's API;
-  undocumented endpoint changes surface as source health warnings, never as
-  broken briefs.
-- A Riot key rotation degrades only LoL fixture coverage, with a health
-  footnote.
-- Fixtures appear in two consecutive runs by window arithmetic rather than
-  dedup state.
-- Adding a league is configuration (a source), not code, when its schedule fits
-  an implemented format.
+- Sports reminders no longer displace news, blogs, or release items.
+- Fixture and result repetition follows time windows rather than latest-seen or
+  recent-delivery suppression.
+- Provider failures remain source health warnings and never break the rest of a
+  brief.
+- A Riot key rotation or standings response change degrades only Riot schedule
+  coverage.
+- Existing runner consumers keep their upcoming fixture behavior until they
+  adopt `prepared-delivery/v1` or handle `sports_section` themselves.

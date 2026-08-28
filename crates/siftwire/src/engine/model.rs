@@ -30,6 +30,7 @@ pub struct UnresolvedItem {
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FetchOutput {
     pub items: Vec<FetchedItem>,
+    pub sports_updates: Vec<crate::contract::SportsUpdate>,
     pub unresolved: Vec<UnresolvedItem>,
     pub truncated: bool,
 }

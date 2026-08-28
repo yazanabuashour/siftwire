@@ -142,7 +142,7 @@ printf '%s\n' "$required_contract" | while IFS= read -r required; do
   grep -Fq "$required" "$body" || fail "$skill_file missing required runner contract \"$required\""
 done
 
-for action in init inspect_config replace_sources upsert_source delete_source replace_outlet_policies set_brief_options validate run_brief record_delivery; do
+for action in init inspect_config replace_sources upsert_source delete_source replace_outlet_policies set_brief_options validate run_brief prepare_delivery confirm_delivery record_delivery; do
   required="\"action\":\"$action\""
   grep -Fq "$required" "$body" || fail "$skill_file missing required runner contract \"$required\""
 done

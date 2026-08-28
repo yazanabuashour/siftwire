@@ -1,8 +1,35 @@
 use std::collections::BTreeMap;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::domain::{OutletPolicy, Source};
+
+pub const RUNNER_PROTOCOL: &str = "siftwire-runner/v2";
+pub const CAPABILITY_PREPARED_DELIVERY: &str = "prepared-delivery/v1";
+pub const CAPABILITY_SPORTS_UPDATES: &str = "sports-updates/v1";
+
+fn capabilities() -> Vec<String> {
+    vec![
+        CAPABILITY_PREPARED_DELIVERY.to_owned(),
+        CAPABILITY_SPORTS_UPDATES.to_owned(),
+    ]
+}
+
+#[derive(Debug, Serialize)]
+pub struct RunnerMetadata {
+    pub runner_protocol: String,
+    pub capabilities: Vec<String>,
+}
+
+impl Default for RunnerMetadata {
+    fn default() -> Self {
+        Self {
+            runner_protocol: RUNNER_PROTOCOL.to_owned(),
+            capabilities: capabilities(),
+        }
+    }
+}
 
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct Paths {
@@ -23,12 +50,16 @@ pub struct ConfigRequest {
     pub key: String,
     #[serde(deserialize_with = "crate::serde_util::null_default")]
     pub outlets: Vec<OutletPolicy>,
-    #[serde(deserialize_with = "crate::serde_util::null_default")]
-    pub max_delivery_items: i64,
+    pub max_delivery_items: Option<i64>,
+    pub sports_pre_game_days: Option<i64>,
+    pub sports_post_game_days: Option<i64>,
+    pub sports_timezone: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize)]
 pub struct ConfigResult {
+    #[serde(flatten)]
+    pub runner: RunnerMetadata,
     pub rejected: bool,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub rejection_reason: String,
@@ -53,10 +84,16 @@ pub struct BriefRequest {
     pub run_id: String,
     #[serde(deserialize_with = "crate::serde_util::null_default")]
     pub message: String,
+    #[serde(deserialize_with = "crate::serde_util::null_default")]
+    pub candidate_indexes: Vec<usize>,
+    #[serde(deserialize_with = "crate::serde_util::null_default")]
+    pub delivery_plan_id: String,
 }
 
 #[derive(Debug, Default, Serialize)]
 pub struct BriefResult {
+    #[serde(flatten)]
+    pub runner: RunnerMetadata,
     pub rejected: bool,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub rejection_reason: String,
@@ -84,10 +121,25 @@ pub struct BriefResult {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fetch_status: Vec<FetchStatus>,
     #[serde(skip_serializing_if = "String::is_empty")]
+    pub sports_section: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub sports_updates: Vec<SportsUpdate>,
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub health_footnote: String,
     pub health_delta: HealthDelta,
     #[serde(skip_serializing_if = "is_default")]
     pub max_delivery_items: i64,
+    pub candidate_slots: usize,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub delivery_plan_id: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub message: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub text: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub html: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub prepared_items: Vec<DeliveryItem>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub sent_items: Vec<SentItem>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -116,6 +168,27 @@ pub struct BriefItem {
     pub outlet: String,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SportsUpdate {
+    #[serde(skip)]
+    pub fixture_identity: String,
+    pub source_key: String,
+    pub source_label: String,
+    pub status: String,
+    pub title: String,
+    pub competition: String,
+    pub url: String,
+    pub starts_at: DateTime<Utc>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<SportsImage>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct SportsImage {
+    pub url: String,
+    pub alt: String,
+}
+
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct PreviousBrief {
     pub run_id: String,
@@ -128,6 +201,14 @@ pub struct DeliveryRecord {
     pub run_id: String,
     pub delivered_at: String,
     pub message: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct DeliveryItem {
+    pub title: String,
+    pub url: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub kind: String,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -195,4 +276,23 @@ pub struct HealthDelta {
 
 fn is_default<T: Default + PartialEq>(value: &T) -> bool {
     value == &T::default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BriefResult;
+
+    #[test]
+    fn zero_candidate_slots_remain_explicit() {
+        let result = serde_json::to_value(BriefResult::default());
+        assert_eq!(
+            result
+                .as_ref()
+                .ok()
+                .and_then(|value| value.get("candidate_slots"))
+                .and_then(serde_json::Value::as_u64),
+            Some(0),
+            "zero candidate capacity disappeared from the wire contract"
+        );
+    }
 }

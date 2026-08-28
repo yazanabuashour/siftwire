@@ -89,6 +89,57 @@ async fn rejected_results_map_to_400() {
 }
 
 #[tokio::test]
+async fn options_forward_sports_settings_to_the_runner() {
+    let temp = TempDir::new().expect("temp dir");
+    let input = temp.path().join("input.json");
+    let script = temp.path().join("options-runner.sh");
+    std::fs::write(
+        &script,
+        format!(
+            "#!/usr/bin/env bash\ncat >'{}'\nprintf '%s\\n' '{{\"rejected\":false,\"summary\":\"stored\"}}'\n",
+            input.display()
+        ),
+    )
+    .expect("write runner");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
+        .expect("chmod runner");
+    let app = crate::router(state_with_runner(
+        &script.to_string_lossy(),
+        temp.path().to_str().expect("utf8"),
+    ));
+    let request = json!({
+        "max_delivery_items": 7,
+        "sports_pre_game_days": 7,
+        "sports_post_game_days": 3,
+        "sports_timezone": "America/Chicago"
+    });
+    let (status, _body) = call(
+        app,
+        Request::builder()
+            .method("PUT")
+            .uri("/api/v1/options")
+            .header("content-type", "application/json")
+            .body(Body::from(request.to_string()))
+            .expect("request"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let forwarded: Value =
+        serde_json::from_slice(&std::fs::read(input).expect("read runner input"))
+            .expect("decode runner input");
+    assert_eq!(
+        forwarded.get("sports_timezone").and_then(Value::as_str),
+        Some("America/Chicago")
+    );
+    assert_eq!(
+        forwarded
+            .get("sports_pre_game_days")
+            .and_then(Value::as_i64),
+        Some(7)
+    );
+}
+
+#[tokio::test]
 async fn unknown_run_maps_to_404() {
     let temp = TempDir::new().expect("temp dir");
     // The CLI prints the not-found diagnostic on stderr and exits 1.

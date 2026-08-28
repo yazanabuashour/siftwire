@@ -1,4 +1,5 @@
 mod delivery;
+mod delivery_plans;
 mod outlets;
 mod run_items;
 mod runs_health;
@@ -24,14 +25,23 @@ use rusqlite::Connection;
 
 pub use crate::domain::{OutletPolicy, Source, normalize_source};
 pub use delivery::normalize_title_key;
+pub use delivery_plans::{DeliveryPlan, RunDeliveryContext};
 pub use run_items::{
     RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RunDetail, RunItemRow, RunSummary,
 };
 
 pub const RUNTIME_CONFIG_CONFIGURATION_VERSION: &str = "configuration_version";
 pub const RUNTIME_CONFIG_MAX_DELIVERY_ITEMS: &str = "max_delivery_items";
+pub const RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS: &str = "sports_post_game_days";
+pub const RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS: &str = "sports_pre_game_days";
+pub const RUNTIME_CONFIG_SPORTS_TIMEZONE: &str = "sports_timezone";
 pub const CONFIGURATION_VERSION_V2: &str = "v2";
 pub const DEFAULT_MAX_DELIVERY_ITEMS: i64 = 7;
+// Receipt: `docs/architecture/schedule-source-adr.md` records the operator's
+// requested recurring windows and the retained Central-time default.
+pub const DEFAULT_SPORTS_POST_GAME_DAYS: i64 = 3;
+pub const DEFAULT_SPORTS_PRE_GAME_DAYS: i64 = 7;
+pub const DEFAULT_SPORTS_TIMEZONE: chrono_tz::Tz = chrono_tz::America::Chicago;
 pub const MAX_DELIVERY_ITEMS_UPPER_BOUND: i64 = 25;
 pub const DELIVERY_MESSAGE_CONFLICT: &str = "run_id was already delivered with a different message";
 
@@ -68,6 +78,7 @@ pub struct Delivery {
 pub struct StoredSentItem {
     pub title: String,
     pub url: String,
+    pub kind: String,
     pub sent_at: DateTime<Utc>,
 }
 
@@ -114,6 +125,7 @@ impl Default for StoredSentItem {
         Self {
             title: String::new(),
             url: String::new(),
+            kind: String::new(),
             sent_at: go_zero_time(),
         }
     }

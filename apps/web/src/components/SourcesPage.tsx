@@ -24,6 +24,7 @@ const EMPTY_SOURCE: Source = {
   priority_rank: 0,
   always_report: false,
   schedule_format: "",
+  schedule_filter: "all",
   api_key: "",
 }
 

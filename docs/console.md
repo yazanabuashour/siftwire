@@ -10,9 +10,12 @@ SQLite directly.
 
 - View configured sources and outlet policies.
 - Add, edit, and delete sources (writes through `upsert_source` and
-  `delete_source`).
+  `delete_source`). The source editor supports ESPN UFC scoreboards and Riot's
+  optional top-two standings filter.
 - Edit outlet policies and save them as one replacement write.
-- Set `max_delivery_items`.
+- Set `max_delivery_items`, recurring sports windows, and the IANA sports time
+  zone. The time-zone control can fill the browser's detected value before an
+  explicit save.
 - Browse runs with per-run must-include, candidate, dropped, fetch, and
   delivery evidence.
 

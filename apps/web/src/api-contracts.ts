@@ -15,6 +15,7 @@ export const SourceSchema = z.object({
   priority_rank: z.number().optional().default(0),
   always_report: z.boolean().optional().default(false),
   schedule_format: z.string().optional().default(""),
+  schedule_filter: z.string().optional().default("all"),
   api_key: z.string().optional().default(""),
 })
 export type Source = z.infer<typeof SourceSchema>

@@ -8,7 +8,7 @@ use super::{Source, Store, bool_i64, format_timestamp, normalize_source};
 
 const SOURCE_COLUMNS: &str = "key, label, kind, url, repo, section, threshold, enabled, \
     url_canonicalization, outlet_extraction, dedup_group, priority_rank, always_report, \
-    schedule_format, api_key";
+    schedule_format, schedule_filter, api_key";
 
 impl Store {
     /// Lists sources ordered by key.
@@ -105,7 +105,8 @@ fn source_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Source> {
         priority_rank: row.get(11)?,
         always_report: always_report == 1,
         schedule_format: row.get(13)?,
-        api_key: row.get(14)?,
+        schedule_filter: row.get(14)?,
+        api_key: row.get(15)?,
     })
 }
 
@@ -119,16 +120,16 @@ fn upsert_source_tx(
         .execute(
             "INSERT INTO brief_source (key, label, kind, url, repo, section, threshold, enabled, \
              url_canonicalization, outlet_extraction, dedup_group, priority_rank, always_report, \
-             schedule_format, api_key, created_at, updated_at) VALUES \
-             (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17) \
+             schedule_format, schedule_filter, api_key, created_at, updated_at) VALUES \
+             (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18) \
              ON CONFLICT(key) DO UPDATE SET label = excluded.label, kind = excluded.kind, \
              url = excluded.url, repo = excluded.repo, section = excluded.section, \
              threshold = excluded.threshold, enabled = excluded.enabled, \
              url_canonicalization = excluded.url_canonicalization, \
              outlet_extraction = excluded.outlet_extraction, dedup_group = excluded.dedup_group, \
              priority_rank = excluded.priority_rank, always_report = excluded.always_report, \
-             schedule_format = excluded.schedule_format, api_key = excluded.api_key, \
-             updated_at = excluded.updated_at",
+             schedule_format = excluded.schedule_format, schedule_filter = excluded.schedule_filter, \
+             api_key = excluded.api_key, updated_at = excluded.updated_at",
             params![
                 source.key,
                 source.label,
@@ -144,6 +145,7 @@ fn upsert_source_tx(
                 source.priority_rank,
                 bool_i64(source.always_report),
                 source.schedule_format,
+                source.schedule_filter,
                 source.api_key,
                 timestamp,
                 timestamp,

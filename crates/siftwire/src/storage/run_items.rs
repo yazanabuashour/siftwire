@@ -212,7 +212,7 @@ fn query_fetch_logs_for_run(connection: &Connection, run_id: &str) -> Result<Vec
 
 fn query_sent_items_for_run(connection: &Connection, run_id: &str) -> Result<Vec<StoredSentItem>> {
     let mut statement = connection
-        .prepare("SELECT title, url, sent_at FROM sent_item WHERE run_id = ?1 ORDER BY id")
+        .prepare("SELECT title, url, kind, sent_at FROM sent_item WHERE run_id = ?1 ORDER BY id")
         .context("prepare run sent item query")?;
     let rows = statement
         .query_map([run_id], |row| {
@@ -220,14 +220,16 @@ fn query_sent_items_for_run(connection: &Connection, run_id: &str) -> Result<Vec
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
             ))
         })
         .context("query run sent items")?;
     rows.map(|row| {
-        let (title, url, sent_at) = row.context("read run sent item row")?;
+        let (title, url, kind, sent_at) = row.context("read run sent item row")?;
         Ok(StoredSentItem {
             title,
             url,
+            kind,
             sent_at: super::parse_timestamp_compat(&sent_at),
         })
     })

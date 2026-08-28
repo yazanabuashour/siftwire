@@ -140,10 +140,13 @@ pub async fn delete_source(State(state): State<AppState>, Path(key): Path<String
 
 #[derive(Deserialize)]
 pub struct OptionsRequest {
-    max_delivery_items: i64,
+    max_delivery_items: Option<i64>,
+    sports_pre_game_days: Option<i64>,
+    sports_post_game_days: Option<i64>,
+    sports_timezone: Option<String>,
 }
 
-/// Sets `max_delivery_items` through `set_brief_options`.
+/// Sets brief and sports options through `set_brief_options`.
 ///
 /// # Errors
 ///
@@ -158,6 +161,9 @@ pub async fn set_options(
         Some(json!({
             "action": "set_brief_options",
             "max_delivery_items": body.max_delivery_items,
+            "sports_pre_game_days": body.sports_pre_game_days,
+            "sports_post_game_days": body.sports_post_game_days,
+            "sports_timezone": body.sports_timezone,
         })),
     )
     .await?;

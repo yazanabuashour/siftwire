@@ -4,22 +4,26 @@ use std::thread;
 
 use anyhow::{Context, Result};
 use chrono::{SecondsFormat, TimeDelta, Utc};
+use chrono_tz::Tz;
 
 use crate::contract::{
-    BriefItem, BriefRequest, BriefResult, FetchStatus, Paths, PreviousBrief, SuppressedItem,
-    SuppressedPolicyItem, SuppressedUnresolvedItem,
+    BriefItem, BriefRequest, BriefResult, FetchStatus, HealthDelta, Paths, PreviousBrief,
+    SportsUpdate, SuppressedItem, SuppressedPolicyItem, SuppressedUnresolvedItem,
 };
-use crate::domain::{OUTLET_POLICY_BLOCK, Source};
+use crate::domain::{OUTLET_POLICY_BLOCK, SOURCE_KIND_SCHEDULE, Source};
 use crate::engine::{
-    FetchOutput, Fetcher, RecentSuppression, add_fetch_failure_warning,
+    FetchOutput, Fetcher, RecentSuppression, SportsOptions, add_fetch_failure_warning,
     add_recurring_failure_warnings, add_stale_heartbeat_warning, brief_summary,
     build_health_footnote, classify_and_dedupe, collect_new_items, enabled_source_keys,
-    process_source_items, sort_brief_items, suppress_recent_candidates,
+    prepare_sports_updates, process_source_items, render_sports_section, sort_brief_items,
+    suppress_recent_candidates,
 };
 use crate::storage::{
-    DEFAULT_MAX_DELIVERY_ITEMS, Delivery, FetchLog, MAX_DELIVERY_ITEMS_UPPER_BOUND,
+    DEFAULT_MAX_DELIVERY_ITEMS, DEFAULT_SPORTS_POST_GAME_DAYS, DEFAULT_SPORTS_PRE_GAME_DAYS,
+    DEFAULT_SPORTS_TIMEZONE, Delivery, FetchLog, MAX_DELIVERY_ITEMS_UPPER_BOUND,
     RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
-    RunItemRow, SourceState, Store,
+    RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS, RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS,
+    RUNTIME_CONFIG_SPORTS_TIMEZONE, RunDeliveryContext, RunItemRow, SourceState, Store,
 };
 
 use super::delivery;
@@ -38,6 +42,8 @@ pub(super) fn run_action(
             ..BriefResult::default()
         }),
         "run_brief" => run(paths, store, request.dry_run),
+        "prepare_delivery" => delivery::prepare(paths, store, request),
+        "confirm_delivery" => delivery::confirm(paths, store, request),
         "record_delivery" => delivery::record(paths, store, request),
         _ => Ok(delivery::rejected(
             paths,
@@ -58,24 +64,11 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
         store.start_run(false)?
     };
     let now = Utc::now();
-    let recent_since = now
-        .checked_sub_signed(TimeDelta::hours(24))
-        .context("calculate recent delivery window")?;
-    let recent = store.recent_sent_items(recent_since)?;
-    let policies = store.list_outlet_policies()?;
-    let fetched = fetch_sources(&sources);
-    let source_run = SourceRun {
-        store,
-        policies: &policies,
-        run_id: &run_id,
-        dry_run,
-        now,
-    };
-    let mut accumulator = Accumulator::default();
-    for (source, output) in sources.iter().zip(fetched) {
-        process_source(source, output, &source_run, &mut accumulator)?;
-    }
-    let mut classified = classify_and_dedupe(accumulator.collected);
+    let runtime_config = store.runtime_config()?;
+    let options = brief_options(&runtime_config);
+    let recent = recent_sent_items(store, now)?;
+    let mut accumulator = collect_sources(store, &sources, &run_id, dry_run, now, &options.sports)?;
+    let mut classified = classify_and_dedupe(std::mem::take(&mut accumulator.collected));
     let recent_result = suppress_recent_candidates(classified.candidates, &recent);
     let run_rows = if dry_run {
         Vec::new()
@@ -90,42 +83,40 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
         )
     };
     classified.suppressed.extend(recent_result.suppressed);
-    let runtime_config = store.runtime_config()?;
-    let options = brief_options(&runtime_config);
-    if let Some(warning) = options.warning {
-        let _previous = accumulator.warnings.insert(
-            format!("runtime:{RUNTIME_CONFIG_MAX_DELIVERY_ITEMS}"),
-            warning,
-        );
-    }
-    add_stale_heartbeat_warning(&runtime_config, &mut accumulator.warnings, now);
-    if !dry_run {
-        let logs = store.recent_fetch_logs(500)?;
-        add_recurring_failure_warnings(
-            &logs,
-            &enabled_source_keys(&sources),
-            &mut accumulator.warnings,
-        );
-    }
-    let health_delta = store.health_delta(&accumulator.warnings, !dry_run)?;
-    if !dry_run {
-        store.set_runtime_config(
-            "last_check",
-            &now.to_rfc3339_opts(SecondsFormat::AutoSi, true),
-        )?;
-    }
+    let health_delta = finish_health(
+        store,
+        &sources,
+        &runtime_config,
+        &options,
+        &mut accumulator,
+        now,
+        dry_run,
+    )?;
     let health_footnote = build_health_footnote(&health_delta);
+    let sports_updates = prepare_sports_updates(std::mem::take(&mut accumulator.sports_updates));
+    let sports_section = render_sports_section(&sports_updates, options.sports.timezone);
     sort_brief_items(&mut classified.must_include);
     let mut candidates = recent_result.candidates;
     sort_brief_items(&mut candidates);
     accumulator
         .statuses
         .sort_by(|left, right| left.source_key.cmp(&right.source_key));
-    let summary = brief_summary(&classified.must_include, &candidates, &health_footnote);
+    let summary = brief_summary(
+        &classified.must_include,
+        &candidates,
+        sports_updates.len(),
+        &health_footnote,
+    );
     if !dry_run {
         store.insert_run_items(&run_id, &run_rows)?;
+        persist_delivery_context(store, &run_id, &options, &sports_updates, &health_footnote)?;
         store.finish_run(&run_id, "ok", &summary)?;
     }
+    let candidate_slots = candidate_slots(
+        &classified.must_include,
+        !sports_updates.is_empty(),
+        options.max_delivery_items,
+    );
     Ok(BriefResult {
         paths,
         run_id,
@@ -139,21 +130,90 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
         suppressed_policy: accumulator.suppressed_policy,
         suppressed_unresolved: accumulator.suppressed_unresolved,
         fetch_status: accumulator.statuses,
+        sports_section,
+        sports_updates,
         health_footnote,
         health_delta,
         max_delivery_items: options.max_delivery_items,
+        candidate_slots,
         summary,
         ..BriefResult::default()
     })
 }
 
+fn recent_sent_items(
+    store: &Store,
+    now: chrono::DateTime<Utc>,
+) -> Result<Vec<crate::storage::StoredSentItem>> {
+    let since = now
+        .checked_sub_signed(TimeDelta::hours(24))
+        .context("calculate recent delivery window")?;
+    store.recent_sent_items(since)
+}
+
 #[derive(Default)]
 struct Accumulator {
     collected: Vec<crate::engine::CollectedItem>,
+    sports_updates: Vec<SportsUpdate>,
     suppressed_policy: Vec<crate::contract::SuppressedPolicyItem>,
     suppressed_unresolved: Vec<crate::contract::SuppressedUnresolvedItem>,
     statuses: Vec<FetchStatus>,
     warnings: BTreeMap<String, String>,
+}
+
+fn finish_health(
+    store: &Store,
+    sources: &[Source],
+    runtime_config: &BTreeMap<String, String>,
+    options: &BriefOptions,
+    accumulator: &mut Accumulator,
+    now: chrono::DateTime<Utc>,
+    dry_run: bool,
+) -> Result<HealthDelta> {
+    add_runtime_option_warnings(options, &mut accumulator.warnings);
+    add_stale_heartbeat_warning(runtime_config, &mut accumulator.warnings, now);
+    if !dry_run {
+        let logs = store.recent_fetch_logs(500)?;
+        add_recurring_failure_warnings(
+            &logs,
+            &enabled_source_keys(sources),
+            &mut accumulator.warnings,
+        );
+    }
+    let delta = store.health_delta(&accumulator.warnings, !dry_run)?;
+    if !dry_run {
+        store.set_runtime_config(
+            "last_check",
+            &now.to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        )?;
+    }
+    Ok(delta)
+}
+
+fn collect_sources(
+    store: &Store,
+    sources: &[Source],
+    run_id: &str,
+    dry_run: bool,
+    now: chrono::DateTime<Utc>,
+    sports_options: &SportsOptions,
+) -> Result<Accumulator> {
+    let policies = store.list_outlet_policies()?;
+    let run = SourceRun {
+        store,
+        policies: &policies,
+        run_id,
+        dry_run,
+        now,
+    };
+    let mut accumulator = Accumulator::default();
+    for (source, output) in sources
+        .iter()
+        .zip(fetch_sources(sources, now, sports_options))
+    {
+        process_source(source, output, &run, &mut accumulator)?;
+    }
+    Ok(accumulator)
 }
 
 struct SourceRun<'a> {
@@ -194,14 +254,23 @@ fn process_source(
             return Ok(());
         }
     };
-    let item_count = output.items.len();
+    let item_count = if source.kind == SOURCE_KIND_SCHEDULE {
+        output.sports_updates.len()
+    } else {
+        output.items.len()
+    };
     let unresolved_count = output.unresolved.len();
     let processed = process_source_items(source, output, run.policies, state.as_ref());
-    let new_count = processed.new_items.len();
+    let new_count = if source.kind == SOURCE_KIND_SCHEDULE {
+        processed.sports_updates.len()
+    } else {
+        processed.new_items.len()
+    };
     let policy_count = processed.suppressed_policy.len();
     accumulator
         .collected
         .extend(collect_new_items(source, &processed.new_items));
+    accumulator.sports_updates.extend(processed.sports_updates);
     accumulator
         .suppressed_policy
         .extend(processed.suppressed_policy);
@@ -241,10 +310,14 @@ fn process_source(
     Ok(())
 }
 
-fn fetch_sources(sources: &[Source]) -> Vec<Result<FetchOutput>> {
+fn fetch_sources(
+    sources: &[Source],
+    now: chrono::DateTime<Utc>,
+    sports_options: &SportsOptions,
+) -> Vec<Result<FetchOutput>> {
     let fetcher = Fetcher::new();
     run_bounded_ordered(sources, SOURCE_FETCH_CONCURRENCY, |source| {
-        fetcher.fetch(source)
+        fetcher.fetch(source, now, sports_options)
     })
 }
 
@@ -304,7 +377,8 @@ where
 
 struct BriefOptions {
     max_delivery_items: i64,
-    warning: Option<String>,
+    sports: SportsOptions,
+    warnings: Vec<(String, String)>,
 }
 
 /// Converts one finished run's outcome into persisted selection evidence.
@@ -399,30 +473,130 @@ fn item_row(category: &str, item: &BriefItem, reason: &str, detail: &str) -> Run
 }
 
 fn brief_options(config: &BTreeMap<String, String>) -> BriefOptions {
-    let Some(raw) = config
+    let mut warnings = Vec::new();
+    let max_delivery_items = config
         .get(RUNTIME_CONFIG_MAX_DELIVERY_ITEMS)
         .map(|value| value.trim())
         .filter(|value| !value.is_empty())
+        .and_then(|raw| {
+            raw.parse::<i64>()
+                .ok()
+                .filter(|value| (1..=MAX_DELIVERY_ITEMS_UPPER_BOUND).contains(value))
+                .or_else(|| {
+                    warnings.push((
+                        RUNTIME_CONFIG_MAX_DELIVERY_ITEMS.to_owned(),
+                        format!(
+                            "`{RUNTIME_CONFIG_MAX_DELIVERY_ITEMS}` config value {raw:?} is invalid; using default {DEFAULT_MAX_DELIVERY_ITEMS}"
+                        ),
+                    ));
+                    None
+                })
+        })
+        .unwrap_or(DEFAULT_MAX_DELIVERY_ITEMS);
+    let pre_game_window = sports_window(
+        config,
+        RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS,
+        DEFAULT_SPORTS_PRE_GAME_DAYS,
+        &mut warnings,
+    );
+    let post_game_window = sports_window(
+        config,
+        RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
+        DEFAULT_SPORTS_POST_GAME_DAYS,
+        &mut warnings,
+    );
+    let timezone = config
+        .get(RUNTIME_CONFIG_SPORTS_TIMEZONE)
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
+        .and_then(|raw| {
+            raw.parse::<Tz>().ok().or_else(|| {
+                warnings.push((
+                    RUNTIME_CONFIG_SPORTS_TIMEZONE.to_owned(),
+                    format!(
+                        "`{RUNTIME_CONFIG_SPORTS_TIMEZONE}` config value {raw:?} is invalid; using default {DEFAULT_SPORTS_TIMEZONE}"
+                    ),
+                ));
+                None
+            })
+        })
+        .unwrap_or(DEFAULT_SPORTS_TIMEZONE);
+    BriefOptions {
+        max_delivery_items,
+        sports: SportsOptions {
+            pre_game_window,
+            post_game_window,
+            timezone,
+        },
+        warnings,
+    }
+}
+
+fn add_runtime_option_warnings(options: &BriefOptions, warnings: &mut BTreeMap<String, String>) {
+    for (key, warning) in &options.warnings {
+        let _previous = warnings.insert(format!("runtime:{key}"), warning.clone());
+    }
+}
+
+fn sports_window(
+    config: &BTreeMap<String, String>,
+    key: &str,
+    default: i64,
+    warnings: &mut Vec<(String, String)>,
+) -> TimeDelta {
+    let default_window = TimeDelta::days(default);
+    let Some(raw) = config
+        .get(key)
+        .map(|value| value.trim())
+        .filter(|value| !value.is_empty())
     else {
-        return BriefOptions {
-            max_delivery_items: DEFAULT_MAX_DELIVERY_ITEMS,
-            warning: None,
-        };
+        return default_window;
     };
     if let Ok(value) = raw.parse::<i64>()
-        && (1..=MAX_DELIVERY_ITEMS_UPPER_BOUND).contains(&value)
+        && value >= 0
+        && TimeDelta::try_days(value).is_some_and(|window| {
+            if key == RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS {
+                Utc::now().checked_add_signed(window).is_some()
+            } else {
+                Utc::now().checked_sub_signed(window).is_some()
+            }
+        })
     {
-        return BriefOptions {
-            max_delivery_items: value,
-            warning: None,
-        };
+        return TimeDelta::days(value);
     }
-    BriefOptions {
-        max_delivery_items: DEFAULT_MAX_DELIVERY_ITEMS,
-        warning: Some(format!(
-            "`{RUNTIME_CONFIG_MAX_DELIVERY_ITEMS}` config value {raw:?} is invalid; using default {DEFAULT_MAX_DELIVERY_ITEMS}"
-        )),
-    }
+    warnings.push((
+        key.to_owned(),
+        format!("`{key}` config value {raw:?} is invalid; using default {default}"),
+    ));
+    default_window
+}
+
+fn persist_delivery_context(
+    store: &Store,
+    run_id: &str,
+    options: &BriefOptions,
+    sports_updates: &[SportsUpdate],
+    health_footnote: &str,
+) -> Result<()> {
+    store.insert_run_delivery_context(
+        run_id,
+        &RunDeliveryContext {
+            max_delivery_items: options.max_delivery_items,
+            sports_updates: sports_updates.to_vec(),
+            sports_timezone: options.sports.timezone.to_string(),
+            health_footnote: health_footnote.to_owned(),
+        },
+    )
+}
+
+fn candidate_slots(must_include: &[BriefItem], has_sports: bool, max_items: i64) -> usize {
+    let normal_required = must_include
+        .iter()
+        .filter(|item| !(has_sports && item.kind == SOURCE_KIND_SCHEDULE))
+        .count();
+    usize::try_from(max_items)
+        .unwrap_or_default()
+        .saturating_sub(normal_required)
 }
 
 fn previous_brief(delivery: Delivery) -> PreviousBrief {

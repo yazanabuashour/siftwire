@@ -58,7 +58,8 @@ impl Store {
         let mut statement = self
             .connection
             .prepare(
-                "SELECT title, url, sent_at FROM sent_item WHERE sent_at >= ?1 \
+                "SELECT title, url, kind, sent_at FROM sent_item \
+                 WHERE sent_at >= ?1 AND kind != 'sports_schedule' \
                  ORDER BY sent_at DESC, id DESC",
             )
             .context("prepare recent sent item query")?;
@@ -68,14 +69,16 @@ impl Store {
                     row.get::<_, String>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
                 ))
             })
             .context("query recent sent items")?;
         rows.map(|row| {
-            let (title, url, sent_at) = row.context("read sent item row")?;
+            let (title, url, kind, sent_at) = row.context("read sent item row")?;
             Ok(StoredSentItem {
                 title,
                 url,
+                kind,
                 sent_at: parse_timestamp_compat(&sent_at),
             })
         })
@@ -175,13 +178,14 @@ fn insert_sent_item(
     transaction
         .execute(
             "INSERT INTO sent_item \
-             (delivery_id, run_id, title, url, title_key, sent_at) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+             (delivery_id, run_id, title, url, kind, title_key, sent_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 delivery_id,
                 run_id,
                 item.title,
                 item.url,
+                item.kind,
                 super::normalize_title_key(&item.title),
                 format_timestamp(item.sent_at),
             ],
@@ -195,7 +199,9 @@ fn sent_items_for_delivery(
     delivery_id: i64,
 ) -> Result<Vec<StoredSentItem>> {
     let mut statement = transaction
-        .prepare("SELECT title, url, sent_at FROM sent_item WHERE delivery_id = ?1 ORDER BY id")
+        .prepare(
+            "SELECT title, url, kind, sent_at FROM sent_item WHERE delivery_id = ?1 ORDER BY id",
+        )
         .context("prepare idempotent delivery item query")?;
     let rows = statement
         .query_map([delivery_id], |row| {
@@ -203,14 +209,16 @@ fn sent_items_for_delivery(
                 row.get::<_, String>(0)?,
                 row.get::<_, String>(1)?,
                 row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
             ))
         })
         .context("query idempotent delivery items")?;
     rows.map(|row| {
-        let (title, url, sent_at) = row.context("read idempotent delivery item")?;
+        let (title, url, kind, sent_at) = row.context("read idempotent delivery item")?;
         Ok(StoredSentItem {
             title,
             url,
+            kind,
             sent_at: parse_timestamp_compat(&sent_at),
         })
     })

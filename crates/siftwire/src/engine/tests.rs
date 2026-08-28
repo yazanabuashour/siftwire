@@ -317,6 +317,7 @@ fn same_run_preference_flows_into_recent_topic_suppression() -> Result<()> {
     let recent = [StoredSentItem {
         title: title.to_owned(),
         url: "https://previous.test/story".to_owned(),
+        kind: String::new(),
         sent_at,
     }];
     let suppressed = suppress_recent_candidates(classified.candidates, &recent);

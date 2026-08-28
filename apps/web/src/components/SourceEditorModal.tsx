@@ -99,7 +99,12 @@ function IdentityFields({
             update(
               kind === "sports_schedule"
                 ? { kind }
-                : { kind, schedule_format: "", api_key: "" },
+                : {
+                    kind,
+                    schedule_format: "",
+                    schedule_filter: "all",
+                    api_key: "",
+                  },
             )
           }}
         >
@@ -148,7 +153,7 @@ function ScheduleFields({
     <>
       <Field
         label="Schedule format"
-        hint="espn: team/scoreboard schedules. espn_core: UFC event lists. riot: LoL esports (needs an API key)."
+        hint="Use ESPN for team schedules, ESPN scoreboard for UFC fight cards, ESPN core for UFC event lists, or Riot for League of Legends esports."
       >
         <select
           className={inputClass}
@@ -158,28 +163,48 @@ function ScheduleFields({
             update(
               schedule_format === "riot"
                 ? { schedule_format }
-                : { schedule_format, api_key: "" },
+                : { schedule_format, schedule_filter: "all", api_key: "" },
             )
           }}
         >
           <option value="espn">espn</option>
+          <option value="espn_scoreboard">espn_scoreboard</option>
           <option value="espn_core">espn_core</option>
           <option value="riot">riot</option>
         </select>
       </Field>
       {form.schedule_format === "riot" ? (
-        <div className="col-span-2">
+        <>
           <Field
-            label="API key"
-            hint="Riot's public lolesports.com frontend key; sent as x-api-key."
+            label="Matches"
+            hint="Choose every match or only matches involving teams in the top two standings positions. Ties are included."
           >
-            <input
-              className={`${inputClass} font-mono`}
-              value={form.api_key}
-              onChange={(event) => update({ api_key: event.target.value })}
-            />
+            <select
+              className={inputClass}
+              value={form.schedule_filter}
+              onChange={(event) =>
+                update({ schedule_filter: event.target.value })
+              }
+            >
+              <option value="all">All matches</option>
+              <option value="standings_top_two">
+                Top two standings positions
+              </option>
+            </select>
           </Field>
-        </div>
+          <div className="col-span-2">
+            <Field
+              label="API key"
+              hint="The public key used by the League of Legends esports website."
+            >
+              <input
+                className={`${inputClass} font-mono`}
+                value={form.api_key}
+                onChange={(event) => update({ api_key: event.target.value })}
+              />
+            </Field>
+          </div>
+        </>
       ) : null}
     </>
   )
@@ -190,7 +215,7 @@ function urlHint(kind: string): string | undefined {
     return "Optional. SiftWire derives it from the repository when empty."
   }
   if (kind === "sports_schedule") {
-    return "Schedule API endpoint. ESPN example: https://site.api.espn.com/apis/site/v2/sports/soccer/uefa.champions/teams/382/schedule"
+    return "Public schedule endpoint. SiftWire adds the configured date window for ESPN scoreboard sources."
   }
   return undefined
 }

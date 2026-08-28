@@ -8,6 +8,7 @@ use super::feed::parse_feed;
 use super::google::GoogleResolver;
 use super::http::HttpClient;
 use super::model::{FetchOutput, FetchedItem};
+use super::schedule::SportsOptions;
 
 pub struct Fetcher {
     client: HttpClient,
@@ -41,12 +42,17 @@ impl Fetcher {
     ///
     /// Returns an error when the source kind is unsupported or its response cannot be fetched or
     /// parsed. Per-item canonicalization failures stay in [`FetchOutput::unresolved`].
-    pub fn fetch(&self, source: &Source) -> Result<FetchOutput> {
+    pub fn fetch(
+        &self,
+        source: &Source,
+        now: chrono::DateTime<chrono::Utc>,
+        sports_options: &SportsOptions,
+    ) -> Result<FetchOutput> {
         match source.kind.as_str() {
             "rss" | "atom" => self.fetch_feed(source),
             "github_release" => self.fetch_github_releases(source),
             SOURCE_KIND_SCHEDULE => {
-                super::schedule::fetch_schedule(&self.client, source, chrono::Utc::now())
+                super::schedule::fetch_schedule(&self.client, source, now, sports_options)
             }
             unsupported => bail!("unsupported source kind {unsupported:?}"),
         }
@@ -61,6 +67,7 @@ impl Fetcher {
             items,
             unresolved,
             truncated,
+            ..FetchOutput::default()
         })
     }
 
@@ -81,8 +88,7 @@ impl Fetcher {
                 .into_iter()
                 .filter_map(|release| release_item(source, release))
                 .collect(),
-            unresolved: Vec::new(),
-            truncated: false,
+            ..FetchOutput::default()
         })
     }
 }

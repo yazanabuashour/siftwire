@@ -16,17 +16,31 @@ const BINARY: &str = env!("CARGO_BIN_EXE_siftwire");
 
 #[derive(Deserialize)]
 struct ConfigStatus {
+    runner_protocol: String,
+    capabilities: Vec<String>,
     rejected: bool,
+    #[serde(default)]
+    runtime_config: BTreeMap<String, String>,
 }
 
 #[derive(Deserialize)]
 struct RunResult {
+    runner_protocol: String,
+    capabilities: Vec<String>,
     rejected: bool,
     run_id: String,
     #[serde(default)]
     delivery_message_scope: String,
     #[serde(default)]
+    must_include: Vec<Item>,
+    #[serde(default)]
     candidates: Vec<Item>,
+    #[serde(default)]
+    sports_section: String,
+    #[serde(default)]
+    sports_updates: Vec<serde_json::Value>,
+    #[serde(default)]
+    candidate_slots: usize,
     #[serde(default)]
     suppressed_recent: Vec<serde_json::Value>,
 }
@@ -41,9 +55,21 @@ struct Item {
 struct DeliveryResult {
     rejected: bool,
     #[serde(default)]
+    delivery_plan_id: String,
+    #[serde(default)]
+    message: String,
+    #[serde(default)]
+    text: String,
+    #[serde(default)]
+    html: String,
+    #[serde(default)]
+    prepared_items: Vec<Item>,
+    #[serde(default)]
     rejection_reason: String,
     #[serde(default)]
     final_answer: String,
+    #[serde(default)]
+    sent_items: Vec<Item>,
 }
 
 #[test]
@@ -126,6 +152,14 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         &environment,
     )?)?;
     assert!(!configured.rejected, "source configuration was rejected");
+    assert_eq!(configured.runner_protocol, "siftwire-runner/v2");
+    assert!(
+        configured
+            .capabilities
+            .iter()
+            .any(|capability| capability == "prepared-delivery/v1"),
+        "prepared delivery capability is missing"
+    );
 
     let run: RunResult = decode(invoke_json(
         &["brief", "--db", &database_text],
@@ -133,6 +167,13 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         &environment,
     )?)?;
     assert!(!run.rejected, "run was rejected");
+    assert_eq!(run.runner_protocol, "siftwire-runner/v2");
+    assert!(
+        run.capabilities
+            .iter()
+            .any(|capability| capability == "prepared-delivery/v1"),
+        "run omitted prepared delivery capability"
+    );
     assert_eq!(run.candidates.len(), 1, "candidate count differs");
     assert_eq!(
         run.delivery_message_scope, "current_brief_only",
@@ -144,8 +185,13 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         .context("run did not return a candidate")?;
     let message = format!("- [{}](<{}>)", item.title, item.url);
     assert_history_wrapper_rejected(&database_text, &run.run_id, &message, &environment)?;
-    let request =
-        json!({"action": "record_delivery", "run_id": run.run_id.clone(), "message": message});
+    let delivery_plan_id =
+        assert_normal_prepared_plan(&database_text, &run.run_id, &message, &environment)?;
+    let request = json!({
+        "action": "confirm_delivery",
+        "run_id": run.run_id.clone(),
+        "delivery_plan_id": delivery_plan_id
+    });
     let delivery: DeliveryResult = decode(invoke_json(
         &["brief", "--db", &database_text],
         &request,
@@ -164,42 +210,81 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
     )?)?;
     assert!(!retry.rejected, "identical retry was rejected");
 
-    let conflict_request =
-        json!({"action": "record_delivery", "run_id": run.run_id, "message": "different"});
+    assert_delivery_conflict_and_followup_runs(&database_text, &run.run_id, &environment)?;
+    assert_runs_report_selection_evidence(&database_text, &run.run_id, &message)?;
+    Ok(())
+}
+
+fn assert_delivery_conflict_and_followup_runs(
+    database: &str,
+    run_id: &str,
+    environment: &BTreeMap<&str, &str>,
+) -> Result<()> {
     let conflict: DeliveryResult = decode(invoke_json(
-        &["brief", "--db", &database_text],
-        &conflict_request,
-        &environment,
+        &["brief", "--db", database],
+        &json!({"action": "record_delivery", "run_id": run_id, "message": "different"}),
+        environment,
     )?)?;
     assert!(conflict.rejected, "changed delivery was accepted");
     assert!(
-        conflict.rejection_reason.contains("different message"),
+        conflict.rejection_reason.contains("use confirm_delivery"),
         "conflict reason differs: {}",
         conflict.rejection_reason
     );
-
-    let repeat: RunResult = decode(invoke_json(
-        &["brief", "--db", &database_text],
-        &json!({"action": "run_brief", "dry_run": false}),
-        &environment,
+    let prepare_after_delivery: DeliveryResult = decode(invoke_json(
+        &["brief", "--db", database],
+        &json!({"action": "prepare_delivery", "run_id": run_id, "candidate_indexes": [0]}),
+        environment,
     )?)?;
     assert!(
-        repeat.candidates.is_empty(),
-        "repeat candidate was returned"
+        prepare_after_delivery.rejected
+            && prepare_after_delivery
+                .rejection_reason
+                .contains("already delivered"),
+        "delivered run accepted another preparation"
     );
+    let repeat: RunResult = decode(invoke_json(
+        &["brief", "--db", database],
+        &json!({"action": "run_brief", "dry_run": false}),
+        environment,
+    )?)?;
+    assert!(repeat.candidates.is_empty(), "repeat candidate returned");
     assert!(
         repeat.suppressed_recent.is_empty(),
         "latest-seen repeat reached recent suppression"
     );
-
     let dry: RunResult = decode(invoke_json(
-        &["brief", "--db", &database_text],
+        &["brief", "--db", database],
         &json!({"action": "run_brief", "dry_run": true}),
-        &environment,
+        environment,
     )?)?;
     assert!(!dry.rejected, "dry run was rejected");
-    assert_runs_report_selection_evidence(&database_text, &run.run_id, &message)?;
     Ok(())
+}
+
+fn assert_normal_prepared_plan(
+    database: &str,
+    run_id: &str,
+    message: &str,
+    environment: &BTreeMap<&str, &str>,
+) -> Result<String> {
+    let prepared: DeliveryResult = decode(invoke_json(
+        &["brief", "--db", database],
+        &json!({"action": "prepare_delivery", "run_id": run_id, "candidate_indexes": [0]}),
+        environment,
+    )?)?;
+    assert!(!prepared.rejected, "normal delivery plan was rejected");
+    assert_eq!(prepared.message, message, "prepared normal message differs");
+    let changed: DeliveryResult = decode(invoke_json(
+        &["brief", "--db", database],
+        &json!({"action": "prepare_delivery", "run_id": run_id, "candidate_indexes": []}),
+        environment,
+    )?)?;
+    assert!(
+        changed.rejected,
+        "run accepted a second delivery plan with different candidates"
+    );
+    Ok(prepared.delivery_plan_id)
 }
 
 fn assert_runs_report_selection_evidence(
@@ -252,6 +337,170 @@ fn assert_runs_report_selection_evidence(
         &BTreeMap::new(),
     )?;
     assert_eq!(missing.status.code(), Some(1), "unknown run: {missing:?}");
+    Ok(())
+}
+
+fn write_sports_schedule(temp: &TempDir) -> Result<url::Url> {
+    let now = chrono::Utc::now();
+    let upcoming = now
+        .checked_add_signed(chrono::TimeDelta::days(6))
+        .context("calculate upcoming fixture")?;
+    let completed = now
+        .checked_sub_signed(chrono::TimeDelta::days(1))
+        .context("calculate completed fixture")?;
+    let schedule = temp.path().join("schedule.json");
+    fs::write(
+        &schedule,
+        serde_json::to_vec(&json!({
+            "events": [
+                {
+                    "id": "upcoming-1",
+                    "date": upcoming.to_rfc3339(),
+                    "name": "Team Beta at Team Alpha",
+                    "links": [{"href": "https://example.test/events/upcoming-1", "rel": ["web"]}],
+                    "competitions": [{"competitors": [
+                        {"homeAway": "home", "team": {"displayName": "Team Alpha"}},
+                        {"homeAway": "away", "team": {"displayName": "Team Beta"}}
+                    ]}]
+                },
+                {
+                    "id": "final-1",
+                    "date": completed.to_rfc3339(),
+                    "name": "Team Gamma at Team Alpha",
+                    "links": [{"href": "https://example.test/events/final-1", "rel": ["web"]}],
+                    "status": {"type": {"completed": true}},
+                    "competitions": [{"competitors": [
+                        {"homeAway": "home", "score": "2", "winner": true, "team": {"displayName": "Team Alpha"}},
+                        {"homeAway": "away", "score": "0", "winner": false, "team": {"displayName": "Team Gamma"}}
+                    ]}]
+                }
+            ],
+            "season": {"displayName": "Example League"}
+        }))?,
+    )?;
+    url::Url::from_file_path(&schedule)
+        .map_err(|()| anyhow::anyhow!("fixture path is not an absolute file URL"))
+}
+
+#[test]
+fn sports_updates_use_their_own_recurring_section() -> Result<()> {
+    let temp = TempDir::new()?;
+    let schedule_url = write_sports_schedule(&temp)?;
+    let database_text = temp
+        .path()
+        .join("sports.sqlite")
+        .to_string_lossy()
+        .into_owned();
+    let mut environment = BTreeMap::new();
+    environment.insert("SIFTWIRE_EVAL_ALLOW_FILE_URLS", "1");
+
+    let configured: ConfigStatus = decode(invoke_json(
+        &["config", "--db", &database_text],
+        &json!({
+            "action": "set_brief_options",
+            "max_delivery_items": 5,
+            "sports_pre_game_days": 7,
+            "sports_post_game_days": 3,
+            "sports_timezone": "UTC"
+        }),
+        &environment,
+    )?)?;
+    assert!(!configured.rejected, "sports options were rejected");
+    assert_eq!(
+        configured
+            .runtime_config
+            .get("sports_timezone")
+            .map(String::as_str),
+        Some("UTC"),
+        "sports timezone was not stored"
+    );
+
+    let source: ConfigStatus = decode(invoke_json(
+        &["config", "--db", &database_text],
+        &json!({
+            "action": "upsert_source",
+            "source": {
+                "key": "team_alpha", "label": "Team Alpha", "kind": "sports_schedule",
+                "url": schedule_url, "section": "sports", "threshold": "medium",
+                "schedule_format": "espn", "enabled": true
+            }
+        }),
+        &environment,
+    )?)?;
+    assert!(!source.rejected, "sports source was rejected");
+
+    let run: RunResult = decode(invoke_json(
+        &["brief", "--db", &database_text],
+        &json!({"action": "run_brief", "dry_run": false}),
+        &environment,
+    )?)?;
+    assert_eq!(
+        run.must_include.len(),
+        1,
+        "legacy upcoming fixture compatibility changed"
+    );
+    assert!(
+        run.candidates.is_empty(),
+        "sports entered candidate selection"
+    );
+    assert_eq!(
+        run.candidate_slots, 5,
+        "sports consumed normal candidate capacity"
+    );
+    assert_eq!(run.sports_updates.len(), 2, "sports updates are incomplete");
+    assert!(run.sports_section.contains("### Upcoming fixtures"));
+    assert!(run.sports_section.contains("### Recent results"));
+    assert_sports_prepared_plan(&database_text, &run, &environment)?;
+    Ok(())
+}
+
+fn assert_sports_prepared_plan(
+    database: &str,
+    run: &RunResult,
+    environment: &BTreeMap<&str, &str>,
+) -> Result<()> {
+    let prepared: DeliveryResult = decode(invoke_json(
+        &["brief", "--db", database],
+        &json!({"action": "prepare_delivery", "run_id": run.run_id, "candidate_indexes": []}),
+        environment,
+    )?)?;
+    assert!(!prepared.rejected, "sports delivery plan was rejected");
+    assert_eq!(
+        prepared.message, run.sports_section,
+        "prepared message duplicated or omitted sports"
+    );
+    assert!(
+        prepared.text.contains("Upcoming fixtures"),
+        "plain text omitted upcoming fixtures"
+    );
+    assert!(
+        prepared.text.contains("Recent results"),
+        "plain text omitted recent results"
+    );
+    assert!(
+        prepared.html.contains(">Sports</h2>"),
+        "HTML omitted sports section"
+    );
+    assert_eq!(
+        prepared.prepared_items.len(),
+        2,
+        "prepared sports item evidence differs"
+    );
+    let delivery: DeliveryResult = decode(invoke_json(
+        &["brief", "--db", database],
+        &json!({
+            "action": "confirm_delivery",
+            "run_id": run.run_id,
+            "delivery_plan_id": prepared.delivery_plan_id
+        }),
+        environment,
+    )?)?;
+    assert!(!delivery.rejected, "sports delivery was rejected");
+    assert_eq!(
+        delivery.sent_items.len(),
+        2,
+        "confirmed sports item evidence differs"
+    );
     Ok(())
 }
 

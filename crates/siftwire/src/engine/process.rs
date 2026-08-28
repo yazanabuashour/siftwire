@@ -1,4 +1,4 @@
-use crate::contract::{SuppressedPolicyItem, SuppressedUnresolvedItem};
+use crate::contract::{SportsUpdate, SuppressedPolicyItem, SuppressedUnresolvedItem};
 use crate::domain::{OutletPolicy, SOURCE_KIND_SCHEDULE, Source};
 use crate::storage::SourceState;
 
@@ -11,6 +11,7 @@ use super::selection::{item_to_brief_item, select_new_items};
 pub struct ProcessedSource {
     pub items: Vec<FetchedItem>,
     pub new_items: Vec<FetchedItem>,
+    pub sports_updates: Vec<SportsUpdate>,
     pub suppressed_policy: Vec<SuppressedPolicyItem>,
     pub suppressed_unresolved: Vec<SuppressedUnresolvedItem>,
 }
@@ -22,6 +23,7 @@ pub fn process_source_items(
     policies: &[OutletPolicy],
     state: Option<&SourceState>,
 ) -> ProcessedSource {
+    let sports_updates = output.sports_updates;
     let suppressed_unresolved = output
         .unresolved
         .into_iter()
@@ -33,8 +35,8 @@ pub fn process_source_items(
         })
         .collect();
     let policy_result = apply_outlet_policies(source, output.items, policies);
-    // Schedule items repeat by window arithmetic (the two runs before kickoff),
-    // so latest-seen suppression would drop their second appearance.
+    // Legacy consumers still receive upcoming fixtures through `must_include`.
+    // The dedicated sports section governs repetition for updated consumers.
     let new_items = if source.kind == SOURCE_KIND_SCHEDULE {
         policy_result.items.clone()
     } else {
@@ -43,6 +45,7 @@ pub fn process_source_items(
     ProcessedSource {
         items: policy_result.items,
         new_items,
+        sports_updates,
         suppressed_policy: policy_result.audit,
         suppressed_unresolved,
     }

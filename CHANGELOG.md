@@ -47,6 +47,17 @@ GitHub Releases and mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+- Add immutable prepared delivery plans so the runner, rather than each
+  consumer, owns normal-item limits, sports placement, health placement, and
+  Markdown, text, and HTML rendering.
+- Add explicit runner protocol capabilities and recurring sports fixtures and
+  results with configurable windows and time zone.
+- Add UFC bout updates from ESPN scoreboards and an optional Riot standings
+  filter that keeps matches involving teams in the top two positions, including
+  boundary ties.
+- Render a compact light email that blends with webmail message canvases and add
+  provider team logos, UFC branding, and fighter headshots to sports rows.
+
 ## Releases
 
 - [v0.3.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.3.0)

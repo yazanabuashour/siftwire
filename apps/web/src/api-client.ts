@@ -57,13 +57,25 @@ const AckSchema = z.object({
 
 type Ack = z.infer<typeof AckSchema>
 
+export type BriefOptionsInput = {
+  maxDeliveryItems: number
+  sportsPreGameDays: number
+  sportsPostGameDays: number
+  sportsTimezone: string
+}
+
 export function setOptions(
-  maxDeliveryItems: number,
+  options: BriefOptionsInput,
   signal?: AbortSignal | undefined,
 ): Promise<Ack> {
   return request("/options", {
     method: "PUT",
-    body: { max_delivery_items: maxDeliveryItems },
+    body: {
+      max_delivery_items: options.maxDeliveryItems,
+      sports_pre_game_days: options.sportsPreGameDays,
+      sports_post_game_days: options.sportsPostGameDays,
+      sports_timezone: options.sportsTimezone,
+    },
     schema: AckSchema,
     signal,
   })

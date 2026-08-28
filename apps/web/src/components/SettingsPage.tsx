@@ -1,22 +1,53 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 
-import { setOptions } from "../api-client"
-import { Button, inputClass } from "./controls"
+import { setOptions, type BriefOptionsInput } from "../api-client"
+import BriefOptionsCard from "./BriefOptionsCard"
 import { Card, ErrorNote, formatWhen, PageHeader, useConfig } from "./shared"
 
 export default function SettingsPage() {
   const config = useConfig()
   const client = useQueryClient()
-  const [maxItems, setMaxItems] = useState<number | null>(null)
-  const configuredMax = readMaxItems(
-    config.data?.runtime_config["max_delivery_items"],
+  const values = config.data?.runtime_config
+  const configuredMaxItems = readPositiveNumber(
+    values?.["max_delivery_items"],
+    7,
   )
+  const configuredPreGameDays = readNonNegativeNumber(
+    values?.["sports_pre_game_days"],
+    7,
+  )
+  const configuredPostGameDays = readNonNegativeNumber(
+    values?.["sports_post_game_days"],
+    3,
+  )
+  const configuredTimezone = values?.["sports_timezone"] ?? "America/Chicago"
+  const [options, setOptionsState] = useState<BriefOptionsInput | null>(null)
   useEffect(() => {
-    if (config.data && maxItems === null) setMaxItems(configuredMax)
-  }, [config.data, configuredMax, maxItems])
+    if (config.data && options === null) {
+      setOptionsState({
+        maxDeliveryItems: configuredMaxItems,
+        sportsPreGameDays: configuredPreGameDays,
+        sportsPostGameDays: configuredPostGameDays,
+        sportsTimezone: configuredTimezone,
+      })
+    }
+  }, [
+    config.data,
+    configuredMaxItems,
+    configuredPostGameDays,
+    configuredPreGameDays,
+    configuredTimezone,
+    options,
+  ])
+  const dirty =
+    options !== null &&
+    (options.maxDeliveryItems !== configuredMaxItems ||
+      options.sportsPreGameDays !== configuredPreGameDays ||
+      options.sportsPostGameDays !== configuredPostGameDays ||
+      options.sportsTimezone !== configuredTimezone)
   const save = useMutation({
-    mutationFn: (value: number) => setOptions(value),
+    mutationFn: (next: BriefOptionsInput) => setOptions(next),
     onSuccess: () => void client.invalidateQueries({ queryKey: ["config"] }),
   })
 
@@ -30,17 +61,24 @@ export default function SettingsPage() {
         <ErrorNote error={config.error} />
       ) : (
         <div className="flex max-w-2xl flex-col gap-4">
-          <OptionsCard
-            value={maxItems}
-            dirty={maxItems !== null && maxItems !== configuredMax}
+          <BriefOptionsCard
+            value={options}
+            dirty={dirty}
             saving={save.isPending}
             error={save.error}
-            onChange={setMaxItems}
+            onChange={setOptionsState}
             onSave={() => {
-              if (maxItems !== null) save.mutate(maxItems)
+              if (options) {
+                const normalized = {
+                  ...options,
+                  sportsTimezone: options.sportsTimezone.trim(),
+                }
+                setOptionsState(normalized)
+                save.mutate(normalized)
+              }
             }}
           />
-          <RuntimeCard values={config.data?.runtime_config ?? {}} />
+          <RuntimeCard values={values ?? {}} />
           <StorageCard
             database={config.data?.paths.database_path}
             directory={config.data?.paths.data_dir}
@@ -51,67 +89,22 @@ export default function SettingsPage() {
   )
 }
 
-function readMaxItems(raw: string | undefined): number {
+function readPositiveNumber(raw: string | undefined, fallback: number): number {
   const value = Number(raw)
-  return Number.isFinite(value) && value > 0 ? value : 7
+  return Number.isFinite(value) && value > 0 ? value : fallback
+}
+
+function readNonNegativeNumber(
+  raw: string | undefined,
+  fallback: number,
+): number {
+  const value = Number(raw)
+  return Number.isFinite(value) && value >= 0 ? value : fallback
 }
 
 function configLabel(key: string): string {
   const words = key.replaceAll("_", " ")
   return words.charAt(0).toUpperCase() + words.slice(1)
-}
-
-function OptionsCard({
-  value,
-  dirty,
-  saving,
-  error,
-  onChange,
-  onSave,
-}: {
-  value: number | null
-  dirty: boolean
-  saving: boolean
-  error: unknown
-  onChange: (value: number) => void
-  onSave: () => void
-}) {
-  return (
-    <Card title="Brief options">
-      <form
-        className="flex items-end gap-3 px-4 py-4"
-        onSubmit={(event) => {
-          event.preventDefault()
-          onSave()
-        }}
-      >
-        <label className="block">
-          <span className="text-muted mb-1 block text-xs font-medium">
-            Max delivery items
-          </span>
-          <input
-            type="number"
-            min={1}
-            max={25}
-            className={`${inputClass} w-24`}
-            value={value ?? ""}
-            onChange={(event) => onChange(Number(event.target.value))}
-          />
-        </label>
-        <Button variant="primary" type="submit" disabled={saving || !dirty}>
-          {saving ? "Saving…" : "Save"}
-        </Button>
-      </form>
-      {error ? (
-        <div className="px-4 pb-3">
-          <ErrorNote error={error} />
-        </div>
-      ) : null}
-      <p className="border-edge text-muted border-t px-4 py-2.5 text-xs">
-        Between 1 and 25. Applied to future brief runs.
-      </p>
-    </Card>
-  )
 }
 
 function RuntimeCard({ values }: { values: Record<string, string> }) {

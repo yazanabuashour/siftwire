@@ -2,8 +2,10 @@ use anyhow::{Context, Result};
 use rusqlite::{Connection, Transaction, TransactionBehavior, params};
 
 use super::{
-    CONFIGURATION_VERSION_V2, DEFAULT_MAX_DELIVERY_ITEMS, RUNTIME_CONFIG_CONFIGURATION_VERSION,
-    RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, Store, format_timestamp,
+    CONFIGURATION_VERSION_V2, DEFAULT_MAX_DELIVERY_ITEMS, DEFAULT_SPORTS_POST_GAME_DAYS,
+    DEFAULT_SPORTS_PRE_GAME_DAYS, DEFAULT_SPORTS_TIMEZONE, RUNTIME_CONFIG_CONFIGURATION_VERSION,
+    RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
+    RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS, RUNTIME_CONFIG_SPORTS_TIMEZONE, Store, format_timestamp,
 };
 
 const SCHEMA: &[&str] = &[
@@ -90,6 +92,7 @@ const SCHEMA: &[&str] = &[
         run_id TEXT NOT NULL,\
         title TEXT NOT NULL,\
         url TEXT NOT NULL,\
+        kind TEXT NOT NULL DEFAULT '',\
         title_key TEXT NOT NULL,\
         sent_at TEXT NOT NULL\
     );",
@@ -114,6 +117,19 @@ const SCHEMA: &[&str] = &[
         detail TEXT NOT NULL DEFAULT ''\
     );",
     "CREATE INDEX IF NOT EXISTS idx_brief_run_item_run ON brief_run_item(run_id, category);",
+    "CREATE TABLE IF NOT EXISTS brief_run_delivery_context(\
+        run_id TEXT PRIMARY KEY REFERENCES brief_run(id) ON DELETE CASCADE,\
+        context_json TEXT NOT NULL\
+    );",
+    "CREATE TABLE IF NOT EXISTS delivery_plan(\
+        id TEXT PRIMARY KEY,\
+        run_id TEXT NOT NULL UNIQUE REFERENCES brief_run(id) ON DELETE CASCADE,\
+        candidate_indexes_json TEXT NOT NULL,\
+        message TEXT NOT NULL,\
+        text_body TEXT NOT NULL,\
+        html_body TEXT NOT NULL,\
+        items_json TEXT NOT NULL\
+    );",
 ];
 
 impl Store {
@@ -163,6 +179,7 @@ impl Store {
             ("priority_rank", "INTEGER NOT NULL DEFAULT 0"),
             ("always_report", "INTEGER NOT NULL DEFAULT 0"),
             ("schedule_format", "TEXT NOT NULL DEFAULT ''"),
+            ("schedule_filter", "TEXT NOT NULL DEFAULT 'all'"),
             ("api_key", "TEXT NOT NULL DEFAULT ''"),
         ] {
             ensure_column(&transaction, "brief_source", name, definition)?;
@@ -173,12 +190,36 @@ impl Store {
             "latest_feed_identity",
             "TEXT NOT NULL DEFAULT ''",
         )?;
+        ensure_column(
+            &transaction,
+            "sent_item",
+            "kind",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+        backfill_sports_delivery_kinds(&transaction)?;
         backfill_delivery_idempotency(&transaction)?;
         seed_runtime_config(&transaction, &format_timestamp(self.timestamp()))?;
         transaction
             .commit()
             .context("commit sqlite schema migration")
     }
+}
+
+fn backfill_sports_delivery_kinds(connection: &Connection) -> Result<()> {
+    connection
+        .execute(
+            "UPDATE sent_item SET kind = 'sports_schedule' \
+             WHERE kind = '' AND EXISTS (\
+                 SELECT 1 FROM brief_run_delivery_context AS context, \
+                 json_each(context.context_json, '$.sports_updates') AS sports_update \
+                 WHERE context.run_id = sent_item.run_id \
+                   AND json_extract(sports_update.value, '$.title') = sent_item.title \
+                   AND json_extract(sports_update.value, '$.url') = sent_item.url\
+             )",
+            [],
+        )
+        .context("backfill sports delivery kinds")?;
+    Ok(())
 }
 
 fn backfill_delivery_idempotency(connection: &Connection) -> Result<()> {
@@ -207,17 +248,32 @@ fn seed_runtime_config(connection: &Connection, now: &str) -> Result<()> {
             ],
         )
         .context("migrate runtime config")?;
-    connection
-        .execute(
-            "INSERT INTO runtime_config (key_name, value_text, updated_at) \
-             VALUES (?1, ?2, ?3) ON CONFLICT(key_name) DO NOTHING",
-            params![
-                RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
-                DEFAULT_MAX_DELIVERY_ITEMS.to_string(),
-                now
-            ],
-        )
-        .context("seed brief runtime config")?;
+    for (key, value) in [
+        (
+            RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
+            DEFAULT_MAX_DELIVERY_ITEMS.to_string(),
+        ),
+        (
+            RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS,
+            DEFAULT_SPORTS_PRE_GAME_DAYS.to_string(),
+        ),
+        (
+            RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
+            DEFAULT_SPORTS_POST_GAME_DAYS.to_string(),
+        ),
+        (
+            RUNTIME_CONFIG_SPORTS_TIMEZONE,
+            DEFAULT_SPORTS_TIMEZONE.to_string(),
+        ),
+    ] {
+        connection
+            .execute(
+                "INSERT INTO runtime_config (key_name, value_text, updated_at) \
+                 VALUES (?1, ?2, ?3) ON CONFLICT(key_name) DO NOTHING",
+                params![key, value, now],
+            )
+            .with_context(|| format!("seed runtime config {key}"))?;
+    }
     Ok(())
 }
 

@@ -12,12 +12,18 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 
 use anyhow::{Context, Result, bail};
+use chrono::Utc;
 use rusqlite::Connection;
 use tempfile::TempDir;
 
+use crate::contract::SportsUpdate;
+use crate::domain::{
+    SCHEDULE_FILTER_STANDINGS_TOP_TWO, SCHEDULE_FORMAT_RIOT, SOURCE_KIND_SCHEDULE, Source,
+};
+
 use super::{
     CONFIGURATION_VERSION_V2, RUNTIME_CONFIG_CONFIGURATION_VERSION,
-    RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, Store, StoredSentItem,
+    RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, RunDeliveryContext, Store, StoredSentItem,
 };
 
 fn test_store() -> Result<(TempDir, Store)> {
@@ -80,6 +86,10 @@ fn opening_an_old_schema_migrates_fields_and_latest_delivery_claims() -> Result<
     assert_eq!(source.dedup_group, "", "dedup group default changed");
     assert_eq!(source.priority_rank, 0, "priority default changed");
     assert!(!source.always_report, "always-report default changed");
+    assert_eq!(
+        source.schedule_filter, "all",
+        "schedule filter migration default changed"
+    );
 
     let state = store
         .source_state("legacy")?
@@ -120,6 +130,31 @@ fn opening_an_old_schema_migrates_fields_and_latest_delivery_claims() -> Result<
     assert!(
         conflict.is_conflict(),
         "stale delivery returned the wrong error: {conflict}"
+    );
+    Ok(())
+}
+
+#[test]
+fn riot_schedule_filter_round_trips_through_storage() -> Result<()> {
+    let (_temp, store) = test_store()?;
+    store.upsert_source(Source {
+        key: "lol_example".to_owned(),
+        label: "Example League".to_owned(),
+        kind: SOURCE_KIND_SCHEDULE.to_owned(),
+        url: "https://esports.example/persisted/gw/getSchedule?leagueId=fixture".to_owned(),
+        section: "sports".to_owned(),
+        enabled: true,
+        schedule_format: SCHEDULE_FORMAT_RIOT.to_owned(),
+        schedule_filter: SCHEDULE_FILTER_STANDINGS_TOP_TWO.to_owned(),
+        api_key: "public-key".to_owned(),
+        ..Source::default()
+    })?;
+    let sources = store.list_sources(false)?;
+    assert_eq!(
+        sources
+            .first()
+            .map(|source| source.schedule_filter.as_str()),
+        Some(SCHEDULE_FILTER_STANDINGS_TOP_TWO)
     );
     Ok(())
 }
@@ -252,6 +287,53 @@ fn delivery_replay_returns_original_items_and_changed_messages_conflict() -> Res
         deliveries.len(),
         1,
         "idempotent replay inserted another delivery"
+    );
+    Ok(())
+}
+
+#[test]
+fn sports_delivery_evidence_does_not_enter_normal_recent_suppression() -> Result<()> {
+    let (temp, store) = test_store()?;
+    let run_id = store.start_run(false)?;
+    let sports_title = "Team Alpha defeated Team Beta";
+    let sports_url = "https://example.test/result";
+    store.insert_run_delivery_context(
+        &run_id,
+        &RunDeliveryContext {
+            max_delivery_items: 7,
+            sports_updates: vec![SportsUpdate {
+                title: sports_title.to_owned(),
+                url: sports_url.to_owned(),
+                ..SportsUpdate::default()
+            }],
+            sports_timezone: "America/Chicago".to_owned(),
+            health_footnote: String::new(),
+        },
+    )?;
+    store.insert_delivery(
+        &run_id,
+        "message",
+        vec![
+            StoredSentItem {
+                title: "Normal story".to_owned(),
+                url: "https://example.test/story".to_owned(),
+                kind: "rss".to_owned(),
+                ..StoredSentItem::default()
+            },
+            StoredSentItem {
+                title: sports_title.to_owned(),
+                url: sports_url.to_owned(),
+                ..StoredSentItem::default()
+            },
+        ],
+    )?;
+    drop(store);
+    let store = Store::open(temp.path().join("siftwire.sqlite"))?;
+    let recent = store.recent_sent_items(chrono::DateTime::<Utc>::default())?;
+    assert_eq!(recent.len(), 1);
+    assert_eq!(
+        recent.first().map(|item| item.title.as_str()),
+        Some("Normal story")
     );
     Ok(())
 }

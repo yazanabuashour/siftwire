@@ -29,6 +29,12 @@ fn markdown(name: &str, report: &RunResult) -> Result<String> {
         output,
         "Harness: one checkout-built runner plus `codex exec --json --approve-for-me` from isolated workspaces. Single-turn scenarios use `--ephemeral`; multi-turn scenarios resume an isolated eval session.\n"
     )?;
+    writeln!(
+        output,
+        "- Model: `{}` via `model-role fast --codex`",
+        report.model
+    )?;
+    writeln!(output, "- Reasoning effort: `{}`", report.reasoning_effort)?;
     writeln!(output, "- Run root: `{}`", report.run_root)?;
     writeln!(output, "- Isolated Codex home: `{}`", report.codex_home)?;
     writeln!(output, "- Scenarios: `{}`", report.scenario_count)?;

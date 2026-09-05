@@ -13,8 +13,34 @@ use crate::scenarios::RUNNER_ONLY_INSTRUCTION;
 use crate::types::{Scenario, Turn};
 
 const CODEX_HOME_ENV: &str = "SIFTWIRE_EVAL_CODEX_HOME";
-const MODEL_NAME: &str = "gpt-5.4-mini";
-const REASONING_EFFORT: &str = "medium";
+pub const REASONING_EFFORT: &str = "medium";
+
+pub fn resolve_fast_model(helper: &Path) -> Result<String> {
+    let guidance = "resolve eval model with `model-role fast --codex`; install model-role on PATH and check the fast role in AI_MODEL_ROLES_FILE or ${XDG_CONFIG_HOME:-$HOME/.config}/ai/model-roles.json";
+    let output = Command::new(helper)
+        .args(["fast", "--codex"])
+        .stdin(Stdio::null())
+        .output()
+        .context(guidance)?;
+    if !output.status.success() {
+        bail!(
+            "{guidance}: {}\n{}",
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    let stdout = String::from_utf8(output.stdout).context(guidance)?;
+    let model = stdout.strip_suffix('\n').unwrap_or_default();
+    if model.is_empty()
+        || model.starts_with('-')
+        || model
+            .chars()
+            .any(|value| value.is_whitespace() || value.is_control())
+    {
+        bail!("{guidance}: expected a bare model slug followed by a newline");
+    }
+    Ok(model.to_owned())
+}
 
 pub struct CodexRun {
     pub output: Vec<u8>,
@@ -28,6 +54,7 @@ pub fn args_for_turn(
     turn: &Turn,
     turn_number: usize,
     session_id: &str,
+    model: &str,
 ) -> Vec<String> {
     let mut arguments = if scenario.turns.len() == 1 {
         initial_args(workspace, run_dir, true)
@@ -36,7 +63,7 @@ pub fn args_for_turn(
     } else {
         resume_args(workspace, run_dir)
     };
-    arguments.extend(config(run_dir));
+    arguments.extend(config(run_dir, model));
     if turn_number > 1 {
         arguments.push(session_id.to_owned());
     }
@@ -81,7 +108,7 @@ fn common_args(workspace: &Path, run_dir: &Path) -> Vec<String> {
     ]
 }
 
-fn config(run_dir: &Path) -> Vec<String> {
+fn config(run_dir: &Path, model: &str) -> Vec<String> {
     let run_root = run_dir.parent().unwrap_or(run_dir);
     let path = format!(
         "{}{}{}",
@@ -97,7 +124,7 @@ fn config(run_dir: &Path) -> Vec<String> {
     );
     vec![
         "-m".to_owned(),
-        MODEL_NAME.to_owned(),
+        model.to_owned(),
         "-c".to_owned(),
         format!("model_reasoning_effort={REASONING_EFFORT:?}"),
         "-c".to_owned(),

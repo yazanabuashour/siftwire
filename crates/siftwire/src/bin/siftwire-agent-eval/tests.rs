@@ -55,6 +55,7 @@ fn codex_arguments_preserve_isolation_and_resume() -> Result<()> {
         single_turn,
         1,
         "",
+        "synthetic-fast",
     );
     ensure!(
         arguments.iter().any(|value| value == "--ephemeral"),
@@ -84,6 +85,7 @@ fn codex_arguments_preserve_isolation_and_resume() -> Result<()> {
         second_turn,
         2,
         "session-123",
+        "synthetic-fast",
     );
     ensure!(
         !resumed.iter().any(|value| value == "--ephemeral"),
@@ -103,7 +105,12 @@ fn eval_environment_excludes_maintainer_state() {
         .iter()
         .map(|(key, _)| key.to_string_lossy().into_owned())
         .collect::<Vec<_>>();
-    for forbidden in ["SIFTWIRE_DATABASE_PATH", "AWS_SECRET_ACCESS_KEY"] {
+    for forbidden in [
+        "SIFTWIRE_DATABASE_PATH",
+        "AWS_SECRET_ACCESS_KEY",
+        "AI_MODEL_ROLES_FILE",
+        "XDG_CONFIG_HOME",
+    ] {
         assert!(
             !keys.iter().any(|key| key == forbidden),
             "forbidden environment key exposed: {keys:?}"

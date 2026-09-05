@@ -47,17 +47,20 @@ impl Drop for RunRoot {
 pub fn command(arguments: &[String], stdout: &mut impl Write) -> Result<()> {
     let options = parse_options(arguments)?;
     let repository = repo_root()?;
+    let selected = select_scenarios(&options.scenario)?;
+    let model = codex::resolve_fast_model(Path::new("model-role"))?;
     let run_root = prepare_run_root(&options, &repository)?;
     codex::setup_home(run_root.path()).context("prepare eval Codex home")?;
-    let selected = select_scenarios(&options.scenario)?;
     codex::build_binary(&repository, run_root.path())?;
 
     let started = Instant::now();
     let results = selected
         .into_iter()
-        .map(|scenario| run_scenario(&repository, run_root.path(), scenario))
+        .map(|scenario| run_scenario(&repository, run_root.path(), scenario, &model))
         .collect::<Vec<_>>();
     let report = RunResult {
+        model,
+        reasoning_effort: codex::REASONING_EFFORT.to_owned(),
         run_root: "<run-root>".to_owned(),
         codex_home: Path::new("<run-root>")
             .join("codex-home")
@@ -266,7 +269,7 @@ fn select_scenarios(id: &str) -> Result<Vec<Scenario>> {
         .ok_or_else(|| anyhow!("unknown scenario {id:?}"))
 }
 
-fn run_scenario(repository: &Path, run_root: &Path, scenario: Scenario) -> JobResult {
+fn run_scenario(repository: &Path, run_root: &Path, scenario: Scenario, model: &str) -> JobResult {
     let started = Instant::now();
     let run_dir = run_root.join(scenario.id);
     let workspace = run_dir.join("workspace");
@@ -292,7 +295,9 @@ fn run_scenario(repository: &Path, run_root: &Path, scenario: Scenario) -> JobRe
         .iter()
         .map(|turn| turn.prompt.clone())
         .collect();
-    execute_turns(result, started, run_root, &run_dir, &workspace, &scenario)
+    execute_turns(
+        result, started, run_root, &run_dir, &workspace, &scenario, model,
+    )
 }
 
 fn execute_turns(
@@ -302,14 +307,22 @@ fn execute_turns(
     run_dir: &Path,
     workspace: &Path,
     scenario: &Scenario,
+    model: &str,
 ) -> JobResult {
     let mut session_id = String::new();
     let mut metrics = Metrics::default();
     let mut final_message = String::new();
     for (index, turn) in scenario.turns.iter().enumerate() {
         let turn_number = index.saturating_add(1);
-        let arguments =
-            codex::args_for_turn(workspace, run_dir, scenario, turn, turn_number, &session_id);
+        let arguments = codex::args_for_turn(
+            workspace,
+            run_dir,
+            scenario,
+            turn,
+            turn_number,
+            &session_id,
+            model,
+        );
         let execution = match codex::run(run_root, run_dir, &arguments) {
             Ok(value) => value,
             Err(error) => {

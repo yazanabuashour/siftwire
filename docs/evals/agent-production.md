@@ -48,6 +48,27 @@ database, synthetic fixtures, raw logs, and an isolated temporary directory.
 The harness installs the shipped skill once in each isolated scenario
 workspace, matching Codex's native project-skill path.
 
+Install the shared `model-role` helper on `PATH`. At run admission, the harness
+invokes `model-role fast --codex` once in the caller's environment. The helper
+validates that `fast.provider` is `openai-codex` and prints the resolved model
+slug followed by a newline. It reads `AI_MODEL_ROLES_FILE` when set, otherwise
+`${XDG_CONFIG_HOME:-$HOME/.config}/ai/model-roles.json`, with this shared shape:
+
+```json
+{
+  "fast": { "provider": "openai-codex", "model": "<fast-model-slug>" },
+  "deep": { "provider": "<deep-provider>", "model": "<deep-model-slug>" }
+}
+```
+
+The shared configuration owns model selection. The eval has no default model or
+fallback. A missing helper, missing or invalid configuration, provider mismatch,
+or malformed helper output stops admission before workspace setup or agent
+launch. The resolved model stays fixed for every scenario and resumed turn in
+that run, with reasoning effort `medium`. Isolated child homes need neither the
+shared role configuration nor the helper. Changes to the shared role take effect
+on the next run.
+
 Provision a dedicated, least-privilege Codex home once, then select it explicitly:
 
 ```bash
@@ -82,3 +103,5 @@ mise exec -- ./scripts/run-agent-eval.sh run \
 
 Raw logs, workspaces, databases, caches, and Codex state stay under `<run-root>`
 and are not committed. Reduced reports scrub local paths to `<run-root>`.
+The JSON output and reduced JSON and Markdown reports snapshot the resolved
+`model` and `reasoning_effort`. Historical evidence remains unchanged.

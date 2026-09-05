@@ -1,8 +1,132 @@
-use anyhow::{Result, ensure};
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+use std::path::Path;
+
+use anyhow::{Context, Result, ensure};
 use rusqlite::Connection;
 
-use crate::run;
+use crate::types::{RunResult, Scenario, Turn};
 use crate::verify_checks::Checker;
+use crate::{codex, report, run};
+
+#[test]
+fn fast_model_snapshot_reaches_every_turn_and_report() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let helper = root.path().join("model-role");
+    fs::write(
+        &helper,
+        "#!/bin/sh\n[ \"$*\" = 'fast --codex' ] || exit 1\nprintf '%s\\n' synthetic-fast\n",
+    )?;
+    fs::set_permissions(&helper, fs::Permissions::from_mode(0o700))?;
+    let model = codex::resolve_fast_model(&helper)?;
+
+    for prompts in [vec!["single"], vec!["first", "second"]] {
+        let scenario = Scenario {
+            id: "synthetic",
+            turns: prompts
+                .into_iter()
+                .map(|prompt| Turn {
+                    prompt: prompt.to_owned(),
+                })
+                .collect(),
+        };
+        for (index, turn) in scenario.turns.iter().enumerate() {
+            let arguments = codex::args_for_turn(
+                Path::new("run-root/workspace"),
+                Path::new("run-root"),
+                &scenario,
+                turn,
+                index.saturating_add(1),
+                "session-123",
+                &model,
+            );
+            ensure!(
+                arguments
+                    .windows(2)
+                    .any(|pair| pair == ["-m", "synthetic-fast"]),
+                "model snapshot missing: {arguments:?}"
+            );
+            ensure!(
+                arguments
+                    .windows(2)
+                    .any(|pair| pair == ["-c", "model_reasoning_effort=\"medium\""]),
+                "effort changed: {arguments:?}"
+            );
+        }
+    }
+
+    let receipt = RunResult {
+        model,
+        reasoning_effort: codex::REASONING_EFFORT.to_owned(),
+        run_root: "<run-root>".to_owned(),
+        codex_home: "<run-root>/codex-home".to_owned(),
+        scenario_count: 0,
+        results: Vec::new(),
+        elapsed_seconds: 0.0,
+    };
+    report::write_reduced(root.path(), "receipt", &receipt)?;
+    let json: serde_json::Value =
+        serde_json::from_slice(&fs::read(root.path().join("receipt.json"))?)?;
+    ensure!(
+        json.get("model").and_then(serde_json::Value::as_str) == Some("synthetic-fast")
+            && json
+                .get("reasoning_effort")
+                .and_then(serde_json::Value::as_str)
+                == Some("medium"),
+        "JSON model receipt differs"
+    );
+    let markdown = fs::read_to_string(root.path().join("receipt.md"))?;
+    ensure!(
+        markdown.contains("`synthetic-fast` via `model-role fast --codex`")
+            && markdown.contains("Reasoning effort: `medium`"),
+        "Markdown model receipt differs"
+    );
+    Ok(())
+}
+
+#[test]
+fn fast_model_resolution_fails_without_fallback() -> Result<()> {
+    let root = tempfile::tempdir()?;
+    let helper = root.path().join("model-role");
+    let missing = codex::resolve_fast_model(&helper)
+        .err()
+        .context("missing helper was accepted")?;
+    ensure!(
+        missing.to_string().contains("install model-role on PATH"),
+        "missing-helper guidance absent"
+    );
+    fs::write(
+        &helper,
+        "#!/bin/sh\nprintf '%s\\n' synthetic-fast\nprintf '%s\\n' 'fast provider must be openai-codex' >&2\nexit 1\n",
+    )?;
+    fs::set_permissions(&helper, fs::Permissions::from_mode(0o700))?;
+    let rejected = codex::resolve_fast_model(&helper)
+        .err()
+        .context("failed helper was accepted")?;
+    ensure!(
+        rejected
+            .to_string()
+            .contains("fast provider must be openai-codex")
+            && rejected.to_string().contains("AI_MODEL_ROLES_FILE"),
+        "helper diagnostic absent: {rejected}"
+    );
+    for output in [
+        "",
+        "\\n",
+        "synthetic-fast",
+        "synthetic-fast\\nextra\\n",
+        " synthetic-fast\\n",
+        "-option\\n",
+        "\\0377\\n",
+    ] {
+        fs::write(&helper, format!("#!/bin/sh\nprintf '%b' '{output}'\n"))?;
+        ensure!(
+            codex::resolve_fast_model(&helper).is_err(),
+            "malformed helper output accepted: {output}"
+        );
+    }
+    Ok(())
+}
 
 #[test]
 fn run_options_preserve_report_contract() -> Result<()> {

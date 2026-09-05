@@ -21,6 +21,8 @@ pub struct RunOptions {
 
 #[derive(Serialize)]
 pub struct RunResult {
+    pub model: String,
+    pub reasoning_effort: String,
     pub run_root: String,
     pub codex_home: String,
     pub scenario_count: usize,

@@ -278,6 +278,7 @@ fn render_selected(detail: &RunDetail) {
 fn detail_json(detail: &RunDetail) -> serde_json::Value {
     serde_json::json!({
         "run": detail.summary,
+        "delivery_html": detail.delivery_html,
         "must_include": items_json(
             detail.items.iter().filter(|item| item.category == RUN_ITEM_MUST_INCLUDE),
             &detail.sent_items,

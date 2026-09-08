@@ -2,6 +2,7 @@ import { createContext, useContext, type ReactNode } from "react"
 import Markdown from "react-markdown"
 
 import type { RunDetail, RunItem } from "../api-contracts"
+import EmailBrief from "./EmailBrief"
 import { useRun } from "./run-queries"
 import { dateLabel, ErrorNote } from "./ui"
 
@@ -64,10 +65,15 @@ export function SentBrief({ runId }: { runId: string }) {
 }
 
 export function RecordedBrief({ detail }: { detail: RunDetail }) {
+  if (detail.delivery_html?.trim())
+    return <EmailBrief key={detail.run.run_id} html={detail.delivery_html} />
   const evidence = [...detail.must_include, ...detail.candidates]
   if (detail.run.message?.trim()) {
     return (
       <div className="folio-markdown folio-recorded-brief">
+        <p className="folio-muted">
+          No saved email HTML for this brief. Showing the recorded text.
+        </p>
         <RunContext.Provider value={detail}>
           <Markdown components={markdownComponents}>
             {detail.run.message}

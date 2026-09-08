@@ -82,7 +82,9 @@ exactly one JSON source object from stdin and stores it with the same validation
 as the `upsert_source` config action; it is a durable configuration write.
 Each successfully completed non-dry run persists selection evidence. `--json`
 switches to machine-readable output; `runs show --json` returns the complete
-run detail regardless of section flags.
+run detail regardless of section flags. Its nullable `delivery_html` field
+contains the exact saved HTML for a confirmed delivery, or `null` when no
+confirmed HTML is available. Reading history never regenerates an email.
 
 ## Console
 

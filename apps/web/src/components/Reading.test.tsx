@@ -30,11 +30,29 @@ function recorded(message: string | null) {
 }
 
 describe("recorded brief", () => {
+  it("prefers the saved email in a script-disabled frame over reconstructed content", () => {
+    const detail = recorded("Plain text fallback")
+    detail.delivery_html =
+      '<!doctype html><html><body><img src="https://images.example/club.png" alt=""><p>Saved sports card</p></body></html>'
+    const html = renderToStaticMarkup(<RecordedBrief detail={detail} />)
+    expect(html).toContain("<iframe")
+    expect(html).toContain('title="Recorded email brief"')
+    expect(html).toContain("Saved sports card")
+    expect(html).toContain("https://images.example/club.png")
+    expect(html).toContain(
+      'sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"',
+    )
+    expect(html).not.toContain("allow-scripts")
+    expect(html).not.toContain("Plain text fallback")
+    expect(html).not.toContain("Stored fallback")
+  })
+
   it("keeps the complete recorded message, including sports and health notes", () => {
     const detail = recorded(
       "- [Recorded headline](https://example.test/news)\n\n## Sports\n\nFinal score: 2 to 1.\n\nOne source could not be checked.",
     )
     const html = renderToStaticMarkup(<RecordedBrief detail={detail} />)
+    expect(html).toContain("No saved email HTML")
     expect(html).toContain("Recorded headline")
     expect(html).toContain("Final score: 2 to 1.")
     expect(html).toContain("One source could not be checked.")

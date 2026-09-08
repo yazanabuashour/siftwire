@@ -185,12 +185,12 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         .context("run did not return a candidate")?;
     let message = format!("- [{}](<{}>)", item.title, item.url);
     assert_history_wrapper_rejected(&database_text, &run.run_id, &message, &environment)?;
-    let delivery_plan_id =
+    let prepared =
         assert_normal_prepared_plan(&database_text, &run.run_id, &message, &environment)?;
     let request = json!({
         "action": "confirm_delivery",
         "run_id": run.run_id.clone(),
-        "delivery_plan_id": delivery_plan_id
+        "delivery_plan_id": prepared.delivery_plan_id
     });
     let delivery: DeliveryResult = decode(invoke_json(
         &["brief", "--db", &database_text],
@@ -211,7 +211,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
     assert!(!retry.rejected, "identical retry was rejected");
 
     assert_delivery_conflict_and_followup_runs(&database_text, &run.run_id, &environment)?;
-    assert_runs_report_selection_evidence(&database_text, &run.run_id, &message)?;
+    assert_runs_report_selection_evidence(&database_text, &run.run_id, &message, &prepared.html)?;
     Ok(())
 }
 
@@ -253,6 +253,21 @@ fn assert_delivery_conflict_and_followup_runs(
         repeat.suppressed_recent.is_empty(),
         "latest-seen repeat reached recent suppression"
     );
+    let legacy: DeliveryResult = decode(invoke_json(
+        &["brief", "--db", database],
+        &json!({"action": "record_delivery", "run_id": repeat.run_id, "message": "NO_REPLY"}),
+        environment,
+    )?)?;
+    assert!(!legacy.rejected, "legacy delivery was rejected");
+    let detail = invoke_cli_json(
+        &["runs", "show", &repeat.run_id, "--json", "--db", database],
+        environment,
+    )?;
+    assert_eq!(
+        detail.get("delivery_html"),
+        Some(&serde_json::Value::Null),
+        "legacy delivery without a plan must expose null HTML"
+    );
     let dry: RunResult = decode(invoke_json(
         &["brief", "--db", database],
         &json!({"action": "run_brief", "dry_run": true}),
@@ -267,7 +282,16 @@ fn assert_normal_prepared_plan(
     run_id: &str,
     message: &str,
     environment: &BTreeMap<&str, &str>,
-) -> Result<String> {
+) -> Result<DeliveryResult> {
+    let unprepared = invoke_cli_json(
+        &["runs", "show", run_id, "--json", "--db", database],
+        environment,
+    )?;
+    assert_eq!(
+        unprepared.get("delivery_html"),
+        Some(&serde_json::Value::Null),
+        "undelivered run must expose null HTML"
+    );
     let prepared: DeliveryResult = decode(invoke_json(
         &["brief", "--db", database],
         &json!({"action": "prepare_delivery", "run_id": run_id, "candidate_indexes": [0]}),
@@ -275,6 +299,16 @@ fn assert_normal_prepared_plan(
     )?)?;
     assert!(!prepared.rejected, "normal delivery plan was rejected");
     assert_eq!(prepared.message, message, "prepared normal message differs");
+    assert!(!prepared.html.is_empty(), "fixture must prepare rich HTML");
+    let unconfirmed = invoke_cli_json(
+        &["runs", "show", run_id, "--json", "--db", database],
+        environment,
+    )?;
+    assert_eq!(
+        unconfirmed.get("delivery_html"),
+        Some(&serde_json::Value::Null),
+        "prepared HTML must stay hidden until confirmation"
+    );
     let changed: DeliveryResult = decode(invoke_json(
         &["brief", "--db", database],
         &json!({"action": "prepare_delivery", "run_id": run_id, "candidate_indexes": []}),
@@ -284,14 +318,21 @@ fn assert_normal_prepared_plan(
         changed.rejected,
         "run accepted a second delivery plan with different candidates"
     );
-    Ok(prepared.delivery_plan_id)
+    Ok(prepared)
 }
 
 fn assert_runs_report_selection_evidence(
     database_text: &str,
     run_id: &str,
     message: &str,
+    html: &str,
 ) -> Result<()> {
+    let configured: ConfigStatus = decode(invoke_json(
+        &["config", "--db", database_text],
+        &json!({"action": "set_brief_options", "sports_timezone": "Pacific/Auckland"}),
+        &BTreeMap::new(),
+    )?)?;
+    assert!(!configured.rejected, "updated timezone was rejected");
     let listing = invoke_cli_json(
         &["runs", "list", "--json", "--db", database_text],
         &BTreeMap::new(),
@@ -301,11 +342,20 @@ fn assert_runs_report_selection_evidence(
         .and_then(|runs| runs.as_array())
         .context("runs list payload differs")?;
     assert_eq!(runs.len(), 2, "dry runs must not persist run rows");
+    assert!(
+        runs.iter().all(|run| run.get("delivery_html").is_none()),
+        "runs list must not expose delivery HTML"
+    );
 
     let detail = invoke_cli_json(
         &["runs", "show", run_id, "--json", "--db", database_text],
         &BTreeMap::new(),
     )?;
+    assert_eq!(
+        detail.get("delivery_html").and_then(|value| value.as_str()),
+        Some(html),
+        "confirmed HTML must exactly match the immutable prepared body"
+    );
     let stored_message = detail
         .pointer("/run/message")
         .and_then(|message| message.as_str())

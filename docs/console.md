@@ -32,11 +32,23 @@ The existing routes and runner-backed save operations are unchanged. The labels
 Publishers, History, and Sent briefs correspond to `/outlets`, `/runs`, and
 `/deliveries`.
 
-The brief view renders the recorded message, including sports updates and health
-notes. It uses saved story links only when the message is missing. Images in
-recorded Markdown appear as links instead of loading remote content automatically.
-Configuration and storage paths remain readable in Settings under Technical
-details.
+The latest and sent brief views display the immutable HTML saved for a confirmed
+email delivery. This preserves the email's sports cards, team and event logos,
+date columns, story layout, and health notes. The console reads the nullable
+`delivery_html` field from `siftwire runs show --json`; it never regenerates a
+historical email from current configuration. Update the runner as well as the
+console to enable this view. No database migration is needed.
+
+Email HTML appears in a sandboxed frame whose height follows its content, so the
+page scrolls as one document. Scripts, forms, embedded pages, and external
+stylesheets are blocked. Logos load from their original HTTP or HTTPS image
+hosts without a referrer. Story links open in new tabs without opener access.
+
+Legacy deliveries without saved HTML show a labelled recorded-text fallback,
+including sports updates and health notes. Saved story links appear only when
+the message is also missing. Images in the Markdown fallback remain opt-in
+links. Configuration and storage paths remain readable in Settings under
+Technical details.
 
 `apps/web/src/styles/globals.css` owns the app styling.
 `crates/siftwire/src/runner/email.rs` owns the matching email styling. Email
@@ -86,8 +98,8 @@ The server binds loopback only by default. Sharing beyond loopback is an
 explicit operator decision; there is no authentication, so expose it only on a
 trusted network. A Host-header check rejects requests addressed through foreign
 domain names, which blocks browser-based DNS rebinding against both loopback
-and LAN bindings. On this machine the LAN exposure is the systemd user unit
-plus one UFW rule scoped to `192.168.0.0/24`.
+and LAN bindings. For LAN access, explicitly configure both the bind address
+and host firewall for the trusted network.
 
 ## Configuration
 

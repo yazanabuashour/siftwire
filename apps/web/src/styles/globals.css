@@ -260,6 +260,14 @@ textarea {
   font-size: 12px;
 }
 
+.folio-email {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: white;
+  color-scheme: light;
+}
+
 .folio-brief-section {
   margin-top: 17px;
 }

@@ -45,6 +45,7 @@ pub struct RunSummary {
 #[derive(Clone, Debug)]
 pub struct RunDetail {
     pub summary: RunSummary,
+    pub delivery_html: Option<String>,
     pub items: Vec<RunItemRow>,
     pub fetch_logs: Vec<FetchLog>,
     pub sent_items: Vec<StoredSentItem>,
@@ -140,7 +141,15 @@ impl Store {
         let Some(summary) = summary else {
             return Ok(None);
         };
+        let delivery_html = if summary.delivered_at.is_some() {
+            self.delivery_plan_for_run(run_id)?
+                .map(|plan| plan.html)
+                .filter(|html| !html.is_empty())
+        } else {
+            None
+        };
         Ok(Some(RunDetail {
+            delivery_html,
             items: query_run_items(&self.connection, run_id)?,
             fetch_logs: query_fetch_logs_for_run(&self.connection, run_id)?,
             sent_items: query_sent_items_for_run(&self.connection, run_id)?,

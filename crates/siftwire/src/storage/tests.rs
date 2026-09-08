@@ -22,7 +22,7 @@ use crate::domain::{
 };
 
 use super::{
-    CONFIGURATION_VERSION_V2, RUNTIME_CONFIG_CONFIGURATION_VERSION,
+    CONFIGURATION_VERSION_V2, DeliveryPlan, RUNTIME_CONFIG_CONFIGURATION_VERSION,
     RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, RunDeliveryContext, Store, StoredSentItem,
 };
 
@@ -288,6 +288,32 @@ fn delivery_replay_returns_original_items_and_changed_messages_conflict() -> Res
         1,
         "idempotent replay inserted another delivery"
     );
+    Ok(())
+}
+
+#[test]
+fn delivered_run_with_empty_plan_html_has_no_delivery_html() -> Result<()> {
+    let (temp, store) = test_store()?;
+    let run_id = store.start_run(false)?;
+    store.finish_run(&run_id, "ok", "no items")?;
+    let _plan = store.insert_delivery_plan(&DeliveryPlan {
+        id: format!("plan-{run_id}"),
+        run_id: run_id.clone(),
+        candidate_indexes: Vec::new(),
+        message: "NO_REPLY".to_owned(),
+        text: "NO_REPLY".to_owned(),
+        html: String::new(),
+        items: Vec::new(),
+    })?;
+    store.insert_delivery(&run_id, "NO_REPLY", Vec::new())?;
+    drop(store);
+    let store = Store::open(temp.path().join("siftwire.sqlite"))?;
+    let detail = store.run_detail(&run_id)?.context("delivered run")?;
+    assert!(
+        detail.summary.delivered_at.is_some(),
+        "run was not delivered"
+    );
+    assert_eq!(detail.delivery_html, None, "empty HTML must be absent");
     Ok(())
 }
 

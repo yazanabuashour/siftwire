@@ -100,6 +100,7 @@ export type RunsList = z.infer<typeof RunsListSchema>
 
 export const RunDetailSchema = z.object({
   run: RunSummarySchema,
+  delivery_html: z.string().nullable().optional().default(null),
   must_include: z.array(ItemSchema),
   candidates: z.array(ItemSchema),
   dropped: z.array(DroppedSchema),

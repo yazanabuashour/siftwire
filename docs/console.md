@@ -1,4 +1,4 @@
-# Operator Console
+# Operator console
 
 `siftwire-console` is a local web application for viewing and configuring a
 SiftWire database. It is an operator tool, not part of the runner protocol:
@@ -8,11 +8,12 @@ SQLite directly.
 
 ## Capabilities
 
-- View configured sources and outlet policies.
+- Read the latest sent brief and browse recent sent messages.
+- View configured sources and publisher rules.
 - Add, edit, and delete sources (writes through `upsert_source` and
   `delete_source`). The source editor supports ESPN UFC scoreboards and Riot's
   optional top-two standings filter.
-- Edit outlet policies and save them as one replacement write.
+- Edit publisher rules and save them as one replacement write.
 - Set `max_delivery_items`, recurring sports windows, and the IANA sports time
   zone. The time-zone control can fill the browser's detected value before an
   explicit save.
@@ -22,6 +23,26 @@ SQLite directly.
 The console intentionally cannot trigger `run_brief`. A brief run mutates
 latest-seen state and is not retry-safe; exposing it behind a dashboard button
 would invite accidental duplicate-suppressed runs.
+
+## App and email design
+
+The console uses Folio's white reading column, serif headings, violet accent,
+and flat lists. Less common configuration fields remain under disclosures.
+The existing routes and runner-backed save operations are unchanged. The labels
+Publishers, History, and Sent briefs correspond to `/outlets`, `/runs`, and
+`/deliveries`.
+
+The brief view renders the recorded message, including sports updates and health
+notes. It uses saved story links only when the message is missing. Images in
+recorded Markdown appear as links instead of loading remote content automatically.
+Configuration and storage paths remain readable in Settings under Technical
+details.
+
+`apps/web/src/styles/globals.css` owns the app styling.
+`crates/siftwire/src/runner/email.rs` owns the matching email styling. Email
+changes affect newly prepared messages, not already stored delivery plans.
+The production app contains no comparison gallery, alternate designs, or sample
+configuration.
 
 ## Running
 

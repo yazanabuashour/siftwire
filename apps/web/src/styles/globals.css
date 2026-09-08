@@ -1,47 +1,639 @@
 @import "tailwindcss";
 
-@theme {
-  --color-canvas: #0f1115;
-  --color-sidebar: #12141a;
-  --color-surface: #171a21;
-  --color-raised: #1d222b;
-  --color-edge: rgba(255, 255, 255, 0.08);
-  --color-edge-strong: rgba(255, 255, 255, 0.16);
-  --color-ink: #e7eaf0;
-  --color-muted: #8b93a3;
-  --color-accent: #34d399;
-  --color-accent-dim: rgba(52, 211, 153, 0.12);
-  --color-danger: #f87171;
-  --color-danger-dim: rgba(248, 113, 113, 0.12);
-  --color-warn: #fbbf24;
-  --color-warn-dim: rgba(251, 191, 36, 0.12);
-  --font-mono:
-    ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+:root {
+  color-scheme: light;
+  --folio-paper: #fff;
+  --folio-group: #f7f5f1;
+  --folio-ink: #202124;
+  --folio-muted: #5f6368;
+  --folio-violet: #6d4aff;
+  --folio-link: #5634d4;
+  --folio-source: #a14200;
+  --folio-line: #dadce0;
+  --folio-control: #fafafa;
+  --folio-control-line: #85878b;
+  --folio-danger: #a12622;
+  --folio-error-paper: #fff3f1;
+  --folio-serif: Georgia, "Times New Roman", serif;
+  --folio-sans: Arial, Helvetica, sans-serif;
+  font-family: var(--folio-sans);
+  color: var(--folio-ink);
+  background: var(--folio-paper);
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
 }
 
-@layer base {
-  html {
-    background: var(--color-canvas);
-    color: var(--color-ink);
-    font-family:
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      "Segoe UI",
-      sans-serif;
-    font-size: 14px;
-  }
-
-  body {
-    margin: 0;
-  }
-
-  ::selection {
-    background: rgba(52, 211, 153, 0.3);
-  }
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+.folio-app {
+  max-width: 680px;
+  margin: 0 auto;
+  border-top: 3px solid var(--folio-violet);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.folio-app :where(h1, h2, h3, h4, p, dl, dd) {
+  margin: 0;
+}
+.folio-app :where(h1, h2, h3, h4) {
+  font-weight: normal;
+}
+.folio-app
+  :where(
+    a,
+    button,
+    input,
+    select,
+    textarea,
+    summary,
+    [tabindex]
+  ):focus-visible {
+  outline: 2px solid var(--folio-violet);
+  outline-offset: 3px;
+}
+.folio-app a {
+  color: var(--folio-ink);
+  text-decoration-line: underline;
+  text-decoration-color: var(--folio-violet);
+  text-underline-offset: 3px;
+}
+.folio-app a:hover {
+  color: var(--folio-link);
+}
+.folio-app a:active {
+  color: var(--folio-source);
+}
+.folio-app button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--folio-control-line);
+  border-radius: 3px;
+  color: var(--folio-ink);
+  background: var(--folio-paper);
+  font-size: 13px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+.folio-app button:hover {
+  background: var(--folio-group);
+}
+.folio-app button:active {
+  border-color: var(--folio-violet);
+}
+.folio-app button:disabled {
+  color: var(--folio-muted);
+  border-color: var(--folio-line);
+  background: var(--folio-control);
+  cursor: not-allowed;
+}
+.folio-app .folio-primary {
+  background: var(--folio-ink);
+  border-color: var(--folio-ink);
+  color: var(--folio-paper);
+}
+.folio-app .folio-primary:hover {
+  background: var(--folio-link);
+}
+.folio-app .folio-primary:disabled {
+  background: var(--folio-control);
+  color: var(--folio-muted);
+  border-color: var(--folio-line);
+}
+.folio-app .folio-danger {
+  color: var(--folio-paper);
+  background: var(--folio-danger);
+  border-color: var(--folio-danger);
+}
+.folio-app .folio-quiet-danger {
+  color: var(--folio-danger);
+  border-color: transparent;
+}
+.folio-app :is(.folio-danger, .folio-quiet-danger):hover {
+  color: var(--folio-danger);
+  background: var(--folio-error-paper);
+}
+.folio-app input:not([type="checkbox"]),
+.folio-app select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--folio-control-line);
+  border-radius: 3px;
+  color: var(--folio-ink);
+  background: var(--folio-control);
+  font-size: 14px;
+}
+.folio-app input::placeholder {
+  color: var(--folio-muted);
+}
+.folio-app input[readonly] {
+  color: var(--folio-muted);
+}
+.folio-app input[type="checkbox"] {
+  accent-color: var(--folio-link);
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+}
+.folio-app summary {
+  min-height: 44px;
+  padding: 12px 0;
+  cursor: pointer;
+  color: var(--folio-muted);
+  font-size: 13px;
+}
+.folio-app summary:hover {
+  color: var(--folio-link);
+}
+.folio-app details[open] > summary {
+  color: var(--folio-ink);
+}
+.folio-app fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.folio-app legend {
+  font: 21px/26px var(--folio-serif);
+  padding: 0;
+}
+.folio-sr-only,
+.folio-skip:not(:focus) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.folio-skip:focus {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  background: var(--folio-paper);
+  padding: 12px;
+  z-index: 10;
 }
 
-@utility console-scroll {
-  scrollbar-color: var(--color-edge-strong) transparent;
-  scrollbar-width: thin;
+.folio-masthead {
+  padding: 8px 20px 0;
+  border-bottom: 1px solid var(--folio-line);
+}
+.folio-brand-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.folio-app .folio-brand {
+  font: bold 21px/25px var(--folio-serif);
+  text-decoration: none;
+  padding: 8px 0;
+}
+.folio-masthead nav {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 16px;
+}
+.folio-masthead nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 13px;
+  color: var(--folio-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.folio-masthead nav a:hover {
+  color: var(--folio-link);
+}
+.folio-masthead nav a[aria-current="page"] {
+  color: var(--folio-ink);
+  border-color: var(--folio-violet);
+}
+.folio-app main {
+  min-width: 0;
+  padding: 20px;
+}
+.folio-page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.folio-page-heading h1 {
+  font: 21px/26px var(--folio-serif);
+}
+.folio-page-heading p {
+  margin-top: 4px;
+  color: var(--folio-source);
+  font-size: 11px;
+}
+.folio-page-heading > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 12px;
+}
+.folio-page-heading > :is(button, a) {
+  flex-shrink: 0;
+}
+.folio-muted {
+  color: var(--folio-muted);
+  font-size: 12px;
+}
+
+.folio-brief-section {
+  margin-top: 17px;
+}
+.folio-brief-section > h2 {
+  font: 21px/26px var(--folio-serif);
+  margin-bottom: 9px;
+}
+.folio-story {
+  padding: 10px 0 11px;
+  border-bottom: 1px solid var(--folio-line);
+}
+.folio-story-source {
+  color: var(--folio-source);
+  font-size: 11px;
+  line-height: 15px;
+  margin-bottom: 4px !important;
+}
+.folio-story h3 {
+  font: 17px/23px var(--folio-serif);
+}
+.folio-delivery-picker {
+  margin-bottom: 16px;
+}
+.folio-markdown :is(h1, h2) {
+  font: 21px/26px var(--folio-serif);
+  margin: 17px 0 9px;
+}
+.folio-markdown h3 {
+  font: 17px/23px var(--folio-serif);
+  margin-top: 16px;
+}
+.folio-markdown p {
+  margin: 8px 0;
+}
+.folio-markdown ul {
+  list-style: none;
+  padding: 0;
+}
+.folio-markdown li {
+  padding: 10px 0 11px;
+  border-bottom: 1px solid var(--folio-line);
+}
+.folio-markdown li:has(.folio-release) {
+  padding: 10px 12px;
+  background: var(--folio-group);
+  border: 1px solid var(--folio-line);
+}
+.folio-markdown li > a,
+.folio-markdown li > p > a,
+.folio-story h2 {
+  font: 17px/23px var(--folio-serif);
+}
+.folio-markdown .folio-story-source {
+  display: block;
+  font-family: var(--folio-sans);
+}
+.folio-markdown :is(pre, code) {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.folio-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+.folio-field small {
+  font-size: 12px;
+  color: var(--folio-muted);
+}
+.folio-wide {
+  grid-column: 1 / -1;
+}
+.folio-form-grid,
+.folio-outlet-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.folio-form-actions,
+.folio-checks,
+.folio-save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+.folio-check {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+.folio-app .folio-form-group {
+  margin: 20px 0;
+}
+.folio-form-group > legend {
+  margin-bottom: 16px;
+}
+.folio-form-group > button {
+  margin-top: 12px;
+}
+.folio-advanced {
+  margin-top: 16px;
+}
+.folio-advanced > .folio-form-grid + .folio-form-grid {
+  margin-top: 16px;
+}
+.folio-dialog {
+  width: min(640px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 20px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--folio-line);
+  border-top: 3px solid var(--folio-violet);
+  border-radius: 3px;
+  background: var(--folio-paper);
+  color: var(--folio-ink);
+}
+.folio-dialog::backdrop {
+  background: rgb(32 33 36 / 35%);
+}
+.folio-dialog-heading {
+  margin-bottom: 20px;
+}
+.folio-dialog-heading h2 {
+  font: 21px/26px var(--folio-serif);
+}
+.folio-source-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.folio-list-note {
+  padding: 16px 0 4px;
+  color: var(--folio-muted);
+  font-size: 12px;
+}
+.folio-notice {
+  display: block;
+  margin-bottom: 16px;
+  color: var(--folio-link);
+  font-size: 13px;
+}
+.folio-notice:empty {
+  margin: 0;
+}
+.folio-source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--folio-line);
+}
+.folio-source-identity {
+  min-width: 0;
+}
+.folio-source-identity h2 {
+  font: 17px/23px var(--folio-serif);
+  margin: 4px 0;
+}
+.folio-source-address {
+  font-size: 12px;
+  color: var(--folio-muted);
+}
+.folio-source-actions {
+  flex-shrink: 0;
+}
+.folio-button-pair {
+  display: flex;
+  gap: 4px;
+}
+.folio-empty {
+  display: block;
+  padding: 20px 0;
+  color: var(--folio-muted);
+}
+.folio-empty h2 {
+  font: 21px/26px var(--folio-serif);
+  color: var(--folio-ink);
+}
+.folio-empty p,
+.folio-empty button {
+  margin-top: 12px;
+}
+.folio-policy-guide {
+  color: var(--folio-muted);
+  margin-bottom: 20px !important;
+  font-size: 13px;
+}
+.folio-outlet-list {
+  display: grid;
+  gap: 24px;
+}
+.folio-app .folio-outlet {
+  border-bottom: 1px solid var(--folio-line);
+  padding-bottom: 16px;
+}
+.folio-outlet legend {
+  margin-bottom: 12px;
+  font-size: 17px;
+}
+.folio-save-bar output {
+  color: var(--folio-muted);
+  font-size: 13px;
+}
+.folio-error {
+  padding: 12px;
+  color: var(--folio-danger);
+  background: var(--folio-error-paper);
+  margin-top: 16px !important;
+  font-size: 13px;
+}
+.folio-settings-form > fieldset:first-child {
+  margin-top: 0;
+}
+
+.folio-evidence-heading {
+  padding: 16px 0 0;
+}
+.folio-evidence-heading > p {
+  font-size: 12px;
+  color: var(--folio-muted);
+}
+.folio-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--folio-line);
+}
+.folio-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+}
+.folio-tabs button[aria-selected="true"] {
+  border-color: var(--folio-violet);
+}
+.folio-tabs span {
+  margin-left: 4px;
+  font-variant-numeric: tabular-nums;
+  color: var(--folio-muted);
+}
+.folio-evidence-body {
+  padding: 16px 0;
+}
+.folio-candidate-group + .folio-candidate-group {
+  margin-top: 16px;
+}
+.folio-candidate-group > h3 {
+  font-size: 13px;
+  font-weight: bold;
+}
+.folio-candidate-group > h3 span {
+  font-weight: normal;
+  margin-left: 8px;
+  color: var(--folio-muted);
+}
+.folio-candidate,
+.folio-drop {
+  padding: 12px 0 0;
+  border-bottom: 1px solid var(--folio-line);
+}
+.folio-candidate h4,
+.folio-drop h3 {
+  font: 17px/23px var(--folio-serif);
+  margin-top: 4px;
+}
+.folio-receipt {
+  display: grid;
+  gap: 8px;
+  padding: 4px 0 12px;
+  font-size: 12px;
+}
+.folio-receipt > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 12px;
+}
+.folio-receipt dt {
+  color: var(--folio-muted);
+}
+.folio-receipt dd {
+  font-variant-numeric: tabular-nums;
+}
+.folio-drop pre {
+  font: 12px/1.6 var(--folio-sans);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.folio-fetch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.folio-fetch-list li {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--folio-line);
+}
+.folio-fetch-list li > div {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+.folio-status {
+  color: var(--folio-muted);
+  font-size: 12px;
+}
+.folio-fetch-list p:not(.folio-error) {
+  font-size: 12px;
+  color: var(--folio-muted);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 540px) {
+  .folio-source-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .folio-source-filters > :first-child {
+    grid-column: 1 / -1;
+  }
+  .folio-source-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .folio-source-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
+  }
+}
+@media (max-width: 440px) {
+  .folio-masthead {
+    padding-inline: 16px;
+  }
+  .folio-masthead nav {
+    column-gap: 14px;
+  }
+  .folio-app main {
+    padding: 16px;
+  }
+  .folio-form-grid,
+  .folio-outlet-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .folio-page-heading {
+    gap: 8px;
+  }
+  .folio-tabs button {
+    padding-inline: 8px;
+  }
+  .folio-story h3 {
+    font-size: 16px;
+    line-height: 21px;
+  }
+  .folio-receipt > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  .folio-dialog {
+    padding: 16px;
+  }
 }

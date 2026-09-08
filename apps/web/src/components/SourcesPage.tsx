@@ -1,200 +1,204 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query"
 import { useState } from "react"
 
-import { deleteSource, saveSource } from "../api-client"
-import type { Source } from "../api-contracts"
-import { Button, inputClass, Modal } from "./controls"
-import { IconPlus, IconSearch } from "./icons"
-import { ErrorNote, PageHeader, useConfig } from "./shared"
-import { SourceEditorModal } from "./SourceEditorModal"
-import { SourcesTable } from "./SourcesTable"
-
-const EMPTY_SOURCE: Source = {
-  key: "",
-  label: "",
-  kind: "rss",
-  url: "",
-  repo: "",
-  section: "",
-  threshold: "medium",
-  enabled: true,
-  url_canonicalization: "none",
-  outlet_extraction: "none",
-  dedup_group: "",
-  priority_rank: 0,
-  always_report: false,
-  schedule_format: "",
-  schedule_filter: "all",
-  api_key: "",
-}
+import { deleteSource, fetchConfig, saveSource } from "../api-client"
+import type { ConfigResult, Source } from "../api-contracts"
+import SourceCollection from "./SourceCollection"
+import SourceEditor, { emptySource } from "./SourceEditor"
+import { Dialog, PageHeading } from "./ui"
 
 export default function SourcesPage() {
-  const config = useConfig()
+  const [editor, setEditor] = useState<{
+    source: Source
+    editing: boolean
+  } | null>(null)
+  const [removing, setRemoving] = useState<Source | null>(null)
+  const [notice, setNotice] = useState("")
+  const { config, save, remove } = useSources((message) => {
+    setNotice(message)
+    setEditor(null)
+    setRemoving(null)
+  })
+  const busy = save.isPending || remove.isPending
+  const ready = config.isSuccess && !config.data.rejected
+  const sources = config.data?.sources ?? []
+  const startEditing = (source: Source, editing: boolean): void => {
+    save.reset()
+    remove.reset()
+    setNotice("")
+    setEditor({ source, editing })
+  }
+  return (
+    <>
+      <PageHeading
+        title="Sources"
+        action={
+          <button
+            className="folio-primary"
+            type="button"
+            disabled={!ready || busy}
+            onClick={() => startEditing({ ...emptySource }, false)}
+          >
+            Add source
+          </button>
+        }
+      />
+      <output className="folio-notice">
+        {busy ? "Saving changes…" : notice}
+      </output>
+      <SourceLoadState config={config} />
+      {!editor && save.error && (
+        <p className="folio-error" role="alert">
+          {save.error.message}
+        </p>
+      )}
+      {ready && (
+        <SourceCollection
+          sources={sources}
+          busy={busy}
+          savingKey={save.isPending ? save.variables.key : undefined}
+          onEdit={(source) => startEditing(source, true)}
+          onRemove={(source) => {
+            remove.reset()
+            save.reset()
+            setNotice("")
+            setRemoving(source)
+          }}
+          onToggle={(source, enabled) => {
+            setNotice("")
+            save.mutate({ ...source, enabled })
+          }}
+        />
+      )}
+      {editor && (
+        <SourceEditor
+          source={editor.source}
+          sources={sources}
+          editing={editor.editing}
+          busy={save.isPending}
+          saveError={save.error}
+          onClose={() => setEditor(null)}
+          onSave={save.mutate}
+        />
+      )}
+      {removing && (
+        <DeleteSourceDialog
+          source={removing}
+          busy={remove.isPending}
+          error={remove.error}
+          onClose={() => setRemoving(null)}
+          onRemove={() => remove.mutate(removing.key)}
+        />
+      )}
+    </>
+  )
+}
+
+function useSources(onSaved: (message: string) => void) {
   const client = useQueryClient()
-  const [draft, setDraft] = useState<Source | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<Source | null>(null)
-  const [query, setQuery] = useState("")
+  const config = useQuery({
+    queryKey: ["config"],
+    queryFn: async ({ signal }) => {
+      const result = await fetchConfig(signal)
+      if (result.rejected)
+        throw new Error("The runner rejected loading sources.")
+      return result
+    },
+  })
   const save = useMutation({
-    mutationFn: (source: Source) => saveSource(source),
-    onSuccess: () => {
-      setDraft(null)
-      void client.invalidateQueries({ queryKey: ["config"] })
+    mutationFn: async (source: Source) => {
+      const result = await saveSource(source)
+      if (result.rejected)
+        throw new Error("The runner rejected saving this source.")
+      return result
+    },
+    onSuccess: async (_result, source) => {
+      await client.invalidateQueries({ queryKey: ["config"] })
+      onSaved(`${source.label} saved.`)
     },
   })
   const remove = useMutation({
-    mutationFn: (key: string) => deleteSource(key),
-    onSuccess: () => {
-      setPendingDelete(null)
-      void client.invalidateQueries({ queryKey: ["config"] })
+    mutationFn: async (key: string) => {
+      const result = await deleteSource(key)
+      if (result.rejected)
+        throw new Error(
+          result.summary || "The runner rejected removing this source.",
+        )
+      return result
+    },
+    onSuccess: async (_result, key) => {
+      await client.invalidateQueries({ queryKey: ["config"] })
+      onSaved(`${key} removed.`)
     },
   })
-  const sources = filteredSources(config.data?.sources ?? [], query)
-  const existing = draft
-    ? (config.data?.sources.some((source) => source.key === draft.key) ?? false)
-    : false
+  return { config, save, remove }
+}
 
+function SourceLoadState({ config }: { config: UseQueryResult<ConfigResult> }) {
+  if (config.isPending) return <output>Loading sources…</output>
+  if (!config.isError && !config.data?.rejected) return null
   return (
-    <>
-      <SourcesScreen
-        count={config.data?.sources.length}
-        sources={sources}
-        query={query}
-        pending={config.isPending}
-        error={config.isError ? config.error : null}
-        mutationError={save.error ?? remove.error ?? null}
-        onQuery={setQuery}
-        onAdd={() => setDraft({ ...EMPTY_SOURCE })}
-        onEdit={setDraft}
-        onDelete={setPendingDelete}
-      />
-      {draft ? (
-        <SourceEditorModal
-          draft={draft}
-          editingExisting={existing}
-          busy={save.isPending}
-          onClose={() => setDraft(null)}
-          onSave={save.mutate}
-        />
-      ) : null}
-      {pendingDelete ? (
-        <DeleteSourceModal
-          source={pendingDelete}
-          busy={remove.isPending}
-          onClose={() => setPendingDelete(null)}
-          onDelete={() => remove.mutate(pendingDelete.key)}
-        />
-      ) : null}
-    </>
+    <div className="folio-error" role="alert">
+      <p>{config.error?.message || "The runner rejected loading sources."}</p>
+      <button
+        type="button"
+        onClick={() => {
+          void config.refetch()
+        }}
+      >
+        Retry
+      </button>
+    </div>
   )
 }
 
-function filteredSources(sources: Source[], query: string): Source[] {
-  const sorted = [...sources].sort((a, b) => a.key.localeCompare(b.key))
-  const needle = query.trim().toLowerCase()
-  if (!needle) return sorted
-  return sorted.filter((source) =>
-    [source.key, source.label, source.section, source.kind]
-      .join(" ")
-      .toLowerCase()
-      .includes(needle),
-  )
-}
-
-function SourcesScreen({
-  count,
-  sources,
-  query,
-  pending,
-  error,
-  mutationError,
-  onQuery,
-  onAdd,
-  onEdit,
-  onDelete,
-}: {
-  count: number | undefined
-  sources: Source[]
-  query: string
-  pending: boolean
-  error: unknown | null
-  mutationError: unknown | null
-  onQuery: (value: string) => void
-  onAdd: () => void
-  onEdit: (source: Source) => void
-  onDelete: (source: Source) => void
-}) {
-  return (
-    <>
-      <PageHeader
-        title="Sources"
-        subtitle={count === undefined ? undefined : `${count} configured feeds`}
-        actions={
-          <Button variant="primary" onClick={onAdd}>
-            <IconPlus className="h-4 w-4" />
-            Add source
-          </Button>
-        }
-      />
-      {mutationError ? (
-        <div className="mb-4">
-          <ErrorNote error={mutationError} />
-        </div>
-      ) : null}
-      <div className="border-edge bg-surface overflow-hidden rounded-xl border">
-        <div className="border-edge border-b px-4 py-3">
-          <label className="relative block max-w-sm">
-            <span className="sr-only">Search sources</span>
-            <IconSearch className="text-muted pointer-events-none absolute top-1/2 left-2.5 h-4 w-4 -translate-y-1/2" />
-            <input
-              value={query}
-              onChange={(event) => onQuery(event.target.value)}
-              placeholder="Search key, label, section…"
-              className={`${inputClass} pl-8`}
-            />
-          </label>
-        </div>
-        <SourcesTable
-          sources={sources}
-          pending={pending}
-          error={error}
-          filtered={query.trim().length > 0}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
-      </div>
-    </>
-  )
-}
-
-function DeleteSourceModal({
+function DeleteSourceDialog({
   source,
   busy,
+  error,
   onClose,
-  onDelete,
+  onRemove,
 }: {
   source: Source
   busy: boolean
+  error: Error | null
   onClose: () => void
-  onDelete: () => void
+  onRemove: () => void
 }) {
   return (
-    <Modal
-      title="Delete source"
-      subtitle={source.key}
-      onClose={onClose}
-      footer={
-        <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button variant="danger" disabled={busy} onClick={onDelete}>
-            {busy ? "Deleting…" : "Delete source"}
-          </Button>
-        </>
-      }
+    <Dialog
+      title={`Remove ${source.label}?`}
+      onClose={() => {
+        if (!busy) onClose()
+      }}
     >
-      <p className="text-muted text-sm">
-        This removes <span className="text-ink font-mono">{source.key}</span>{" "}
-        and its latest-seen state. Future briefs will no longer include it.
+      <p>
+        This removes {source.key} and its latest-seen state. Future briefs will
+        no longer include it. Past briefs will stay unchanged.
       </p>
-    </Modal>
+      {error && (
+        <p className="folio-error" role="alert">
+          {error.message}
+        </p>
+      )}
+      <div className="folio-form-actions">
+        <button type="button" disabled={busy} onClick={onClose}>
+          Keep source
+        </button>
+        <button
+          type="button"
+          className="folio-danger"
+          disabled={busy}
+          onClick={onRemove}
+        >
+          {busy ? "Removing…" : "Remove source"}
+        </button>
+      </div>
+    </Dialog>
   )
 }

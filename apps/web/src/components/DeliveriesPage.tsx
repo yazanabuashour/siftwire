@@ -1,80 +1,43 @@
-import { useQuery } from "@tanstack/react-query"
-import Markdown from "react-markdown"
+import { useState } from "react"
 
-import { listRuns } from "../api-client"
-import {
-  Card,
-  EmptyState,
-  ErrorNote,
-  formatWhen,
-  PageHeader,
-  Skeleton,
-} from "./shared"
+import { SentBrief } from "./Reading"
+import { useRecentRuns } from "./run-queries"
+import { dateLabel, ErrorNote, Field, PageHeading } from "./ui"
 
 export default function DeliveriesPage() {
-  const runs = useQuery({
-    queryKey: ["deliveries"],
-    queryFn: ({ signal }) => listRuns(100, signal),
-  })
-
-  if (runs.isPending) {
-    return (
-      <>
-        <PageHeader
-          title="Deliveries"
-          subtitle="Every brief that shipped, newest first."
-        />
-        <div className="space-y-4">
-          {[1, 2, 3].map((key) => (
-            <Skeleton key={key} className="h-36" />
-          ))}
-        </div>
-      </>
-    )
-  }
-  if (runs.isError) return <ErrorNote error={runs.error} />
-
-  const delivered = runs.data.runs.filter((run) => run.delivered_at !== null)
+  const runs = useRecentRuns()
+  const [selected, setSelected] = useState("")
+  const delivered =
+    runs.data?.runs.filter((run) => run.delivered_at !== null) ?? []
+  const active =
+    delivered.find((run) => run.run_id === selected) ?? delivered[0]
   return (
     <>
-      <PageHeader
-        title="Deliveries"
-        subtitle={
-          delivered.length > 0
-            ? `${delivered.length} briefs shipped, newest first.`
-            : undefined
-        }
-      />
-      {delivered.length === 0 ? (
-        <Card>
-          <EmptyState
-            title="No deliveries recorded yet"
-            hint="Briefs appear here after the first scheduled run delivers."
-          />
-        </Card>
+      <PageHeading title="Sent briefs" />
+      {runs.isPending ? (
+        <output className="folio-empty">Loading briefs…</output>
+      ) : runs.isError ? (
+        <ErrorNote error={runs.error} />
+      ) : active ? (
+        <>
+          <div className="folio-delivery-picker">
+            <Field label="Choose a brief">
+              <select
+                value={active.run_id}
+                onChange={(event) => setSelected(event.target.value)}
+              >
+                {delivered.map((run) => (
+                  <option key={run.run_id} value={run.run_id}>
+                    {dateLabel(run.delivered_at ?? run.started_at, true)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <SentBrief runId={active.run_id} />
+        </>
       ) : (
-        <div className="flex flex-col gap-4">
-          {delivered.map((run) => (
-            <Card key={run.run_id} className="overflow-hidden">
-              <header className="border-edge flex items-center justify-between gap-3 border-b px-4 py-3">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-ink text-sm font-medium">
-                    {formatWhen(run.delivered_at)}
-                  </span>
-                  <span className="bg-raised text-muted rounded-full px-2 py-0.5 font-mono text-[11px]">
-                    {run.run_id.slice(0, 8)}
-                  </span>
-                </div>
-                <span className="text-muted text-xs">
-                  {run.message?.match(/^-/gm)?.length ?? 0} stories
-                </span>
-              </header>
-              <div className="[&_a]:text-accent px-4 py-3 text-sm [&_a:hover]:underline [&_li]:my-1 [&_p]:my-2 [&_ul]:list-disc [&_ul]:space-y-1 [&_ul]:pl-5">
-                <Markdown>{run.message ?? ""}</Markdown>
-              </div>
-            </Card>
-          ))}
-        </div>
+        <p className="folio-empty">No sent briefs in recent history.</p>
       )}
     </>
   )

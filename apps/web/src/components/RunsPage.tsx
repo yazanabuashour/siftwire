@@ -1,126 +1,194 @@
-import { useQuery } from "@tanstack/react-query"
 import { useState } from "react"
 
-import { listRuns } from "../api-client"
-import type { RunSummary } from "../api-contracts"
-import { RunDetailPanel } from "./RunDetailPanel"
-import { RunStatusPill } from "./RunStatusPill"
-import {
-  Card,
-  EmptyState,
-  ErrorNote,
-  formatWhen,
-  PageHeader,
-  parseSummary,
-  Skeleton,
-} from "./shared"
+import type { RunDetail } from "../api-contracts"
+import { useRecentRuns, useRun } from "./run-queries"
+import { Candidates, Dropped, Fetch } from "./RunEvidence"
+import { dateLabel, ErrorNote, Field, PageHeading } from "./ui"
+
+const tabs = ["candidates", "dropped", "fetch"] as const
+type Tab = (typeof tabs)[number]
 
 export default function RunsPage() {
-  const runs = useQuery({
-    queryKey: ["runs"],
-    queryFn: ({ signal }) => listRuns(50, signal),
-  })
-  const [selected, setSelected] = useState<string | null>(null)
-  const activeId = selected ?? runs.data?.runs[0]?.run_id ?? null
-
+  const history = useRecentRuns()
+  const runs = history.data?.runs ?? []
+  const [selected, setSelected] = useState("")
+  const [tab, setTab] = useState<Tab>("candidates")
+  const active = runs.find((run) => run.run_id === selected) ?? runs[0]
+  const result = useRun(active?.run_id)
+  const detail = result.data
+  if (history.isPending)
+    return (
+      <>
+        <PageHeading title="History" />
+        <output className="folio-empty">Loading history…</output>
+      </>
+    )
+  if (history.isError)
+    return (
+      <>
+        <PageHeading title="History" />
+        <ErrorNote error={history.error} />
+      </>
+    )
+  if (!runs.length)
+    return (
+      <>
+        <PageHeading title="History" />
+        <p className="folio-empty">No runs in recent history.</p>
+      </>
+    )
   return (
     <>
-      <PageHeader
-        title="Runs"
-        subtitle="Each scheduled pass, including selected, delivered, and dropped items."
-      />
-      {runs.isPending ? (
-        <RunsSkeleton />
-      ) : runs.isError ? (
-        <ErrorNote error={runs.error} />
-      ) : runs.data.runs.length === 0 ? (
-        <Card>
-          <EmptyState
-            title="No runs yet"
-            hint="Runs appear after the first scheduled brief."
-          />
-        </Card>
-      ) : (
-        <div className="grid items-start gap-4 xl:grid-cols-[380px_1fr]">
-          <RunHistory
-            runs={runs.data.runs}
-            activeId={activeId}
-            onSelect={setSelected}
-          />
-          {activeId ? <RunDetailPanel runId={activeId} /> : null}
-        </div>
-      )}
+      <PageHeading title="History" />
+      <div className="folio-runs-layout">
+        <Field label="Choose a brief">
+          <select
+            value={active?.run_id ?? ""}
+            onChange={(event) => setSelected(event.target.value)}
+          >
+            {runs.map((run) => (
+              <option key={run.run_id} value={run.run_id}>
+                {dateLabel(run.started_at, true)} ·{" "}
+                {run.dry_run
+                  ? "Preview only"
+                  : run.delivered_at
+                    ? "Sent"
+                    : run.status === "ok"
+                      ? "Not sent"
+                      : run.status}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {result.isPending ? (
+          <output className="folio-empty">Loading run…</output>
+        ) : result.isError ? (
+          <ErrorNote error={result.error} />
+        ) : detail ? (
+          <section className="folio-evidence" aria-label="Brief history">
+            <RunHeader detail={detail} />
+            <EvidenceTabs detail={detail} tab={tab} onSelect={setTab} />
+            <div
+              role="tabpanel"
+              id="folio-evidence-panel"
+              aria-labelledby={`folio-tab-${tab}`}
+              tabIndex={0}
+              className="folio-evidence-body"
+              key={`${selected}-${tab}`}
+            >
+              {tab === "candidates" && <Candidates detail={detail} />}
+              {tab === "dropped" && <Dropped detail={detail} />}
+              {tab === "fetch" && <Fetch detail={detail} />}
+            </div>
+          </section>
+        ) : (
+          <p className="folio-empty">No history yet.</p>
+        )}
+      </div>
     </>
   )
 }
 
-function RunsSkeleton() {
+function RunHeader({ detail }: { detail: RunDetail }) {
   return (
-    <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
-      <div className="space-y-px">
-        {[1, 2, 3, 4, 5].map((key) => (
-          <Skeleton key={key} className="h-14" />
-        ))}
-      </div>
-      <Skeleton className="h-72" />
-    </div>
+    <header className="folio-evidence-heading">
+      <p>
+        {detail.run.dry_run
+          ? "Preview only. Nothing sent."
+          : detail.run.delivered_at
+            ? "Sent"
+            : `Not sent · ${detail.run.status}`}
+      </p>
+      <details>
+        <summary>Run details</summary>
+        <dl className="folio-receipt">
+          <div>
+            <dt>Run ID</dt>
+            <dd>{detail.run.run_id}</dd>
+          </div>
+          <div>
+            <dt>Summary</dt>
+            <dd>{detail.run.summary}</dd>
+          </div>
+          <div>
+            <dt>Status</dt>
+            <dd>{detail.run.status}</dd>
+          </div>
+          <div>
+            <dt>Started</dt>
+            <dd>{dateLabel(detail.run.started_at, true)}</dd>
+          </div>
+          <div>
+            <dt>Finished</dt>
+            <dd>
+              {detail.run.finished_at
+                ? dateLabel(detail.run.finished_at, true)
+                : "Not recorded"}
+            </dd>
+          </div>
+          <div>
+            <dt>Delivered</dt>
+            <dd>
+              {detail.run.delivered_at
+                ? dateLabel(detail.run.delivered_at, true)
+                : "Not delivered"}
+            </dd>
+          </div>
+        </dl>
+      </details>
+    </header>
   )
 }
 
-function RunHistory({
-  runs,
-  activeId,
+function EvidenceTabs({
+  detail,
+  tab,
   onSelect,
 }: {
-  runs: RunSummary[]
-  activeId: string | null
-  onSelect: (runId: string) => void
+  detail: RunDetail
+  tab: Tab
+  onSelect: (tab: Tab) => void
 }) {
   return (
-    <Card className="console-scroll max-h-80 overflow-y-auto xl:sticky xl:top-7 xl:max-h-[calc(100vh-7rem)]">
-      <ul className="divide-edge divide-y">
-        {runs.map((run) => (
-          <li key={run.run_id}>
-            <button
-              type="button"
-              onClick={() => onSelect(run.run_id)}
-              aria-current={run.run_id === activeId ? "true" : undefined}
-              className={`relative w-full px-4 py-3 text-left transition-colors ${
-                run.run_id === activeId ? "bg-accent-dim" : "hover:bg-raised/60"
-              }`}
-            >
-              {run.run_id === activeId ? (
-                <span className="bg-accent absolute top-1/2 left-0 h-8 w-0.5 -translate-y-1/2 rounded-full" />
-              ) : null}
-              <div className="flex items-center justify-between gap-2">
-                <span
-                  className={`text-sm font-medium ${
-                    run.run_id === activeId ? "text-accent" : "text-ink"
-                  }`}
-                >
-                  {formatWhen(run.started_at)}
-                </span>
-                <RunStatusPill
-                  status={run.status}
-                  delivered={run.delivered_at !== null}
-                />
-              </div>
-              <RunCounts summary={run.summary} />
-            </button>
-          </li>
-        ))}
-      </ul>
-    </Card>
-  )
-}
-
-function RunCounts({ summary }: { summary: string }) {
-  const counts = parseSummary(summary)
-  if (!counts)
-    return <p className="text-muted mt-0.5 truncate text-xs">{summary}</p>
-  return (
-    <p className="text-muted mt-0.5 text-xs">
-      {counts.mustInclude} must-include · {counts.candidates} candidates
-    </p>
+    <div className="folio-tabs" role="tablist" aria-label="Story history">
+      {tabs.map((name, index) => (
+        <button
+          type="button"
+          role="tab"
+          id={`folio-tab-${name}`}
+          aria-controls="folio-evidence-panel"
+          aria-selected={tab === name}
+          tabIndex={tab === name ? 0 : -1}
+          key={name}
+          onClick={() => onSelect(name)}
+          onKeyDown={(event) => {
+            let next: Tab | undefined
+            if (event.key === "ArrowRight")
+              next = tabs[(index + 1) % tabs.length]
+            if (event.key === "ArrowLeft")
+              next = tabs[(index + tabs.length - 1) % tabs.length]
+            if (event.key === "Home") next = tabs[0]
+            if (event.key === "End") next = tabs[tabs.length - 1]
+            if (next) {
+              event.preventDefault()
+              onSelect(next)
+              document.getElementById(`folio-tab-${next}`)?.focus()
+            }
+          }}
+        >
+          {
+            {
+              candidates: "Stories",
+              dropped: "Skipped",
+              fetch: "Source checks",
+            }[name]
+          }{" "}
+          <span>
+            {detail[name].length +
+              (name === "candidates" ? detail.must_include.length : 0)}
+          </span>
+        </button>
+      ))}
+    </div>
   )
 }

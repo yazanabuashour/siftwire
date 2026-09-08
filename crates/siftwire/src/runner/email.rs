@@ -12,7 +12,6 @@ const TEXT: &str = "#202124";
 const MUTED: &str = "#5f6368";
 const ACCENT: &str = "#6d4aff";
 const SECONDARY: &str = "#a14200";
-const SUCCESS: &str = "#137333";
 const PANEL: &str = "#f7f5f1";
 const BORDER: &str = "#dadce0";
 
@@ -41,11 +40,18 @@ pub fn render(
         .copied()
         .filter(|item| item.kind != SOURCE_KIND_GITHUB_RELEASE)
         .collect::<Vec<_>>();
+    let count_label = |count: usize, singular: &str, plural: &str| {
+        format!("{count} {}", if count == 1 { singular } else { plural })
+    };
     let preheader = format!(
-        "{} stories, {} releases, {} sports updates.",
-        news.len(),
-        releases.len(),
-        context.sports_updates.len()
+        "{}, {}, {}.",
+        count_label(news.len(), "story", "stories"),
+        count_label(releases.len(), "release", "releases"),
+        count_label(
+            context.sports_updates.len(),
+            "sports update",
+            "sports updates"
+        )
     );
     let mut output = document_start(edition, &started_at, &preheader);
     if !releases.is_empty() {
@@ -93,7 +99,7 @@ fn document_start(edition: &str, started_at: &DateTime<Tz>, preheader: &str) -> 
 <tr><td class="mobile-pad" style="padding:13px 20px 12px;border-bottom:1px solid {BORDER};">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
 <td valign="top"><div style="font-family:Georgia,'Times New Roman',serif;font-size:21px;line-height:25px;font-weight:bold;color:{TEXT};">SiftWire</div><div style="margin-top:3px;font-size:11px;line-height:15px;color:{MUTED};">{preheader}</div></td>
-<td align="right" valign="top" style="font-size:10px;line-height:15px;letter-spacing:1.2px;text-transform:uppercase;color:{SECONDARY};">{edition}<br><span style="color:{MUTED};">{date}</span></td>
+<td align="right" valign="top" style="font-size:11px;line-height:15px;color:{SECONDARY};">{edition}<br><span style="color:{MUTED};">{date}</span></td>
 </tr></table>
 </td></tr>"#,
         preheader = html_escape(preheader),
@@ -116,7 +122,7 @@ fn append_releases(output: &mut String, releases: &[&RunItemRow]) {
         let _result = write!(
             output,
             r#"<tr><td style="padding:10px 12px;border-bottom:1px solid {BORDER};">
-<div style="font-size:9px;line-height:13px;letter-spacing:.8px;text-transform:uppercase;color:{SECONDARY};margin-bottom:3px;">{source}</div>
+<div style="font-size:11px;line-height:15px;color:{SECONDARY};margin-bottom:3px;">{source}</div>
 {title}
 </td></tr>"#,
             source = html_escape(&item.source_label),
@@ -146,7 +152,7 @@ fn append_news(output: &mut String, news: &[&RunItemRow]) {
         let _result = write!(
             output,
             r#"<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-bottom:1px solid {BORDER};"><tr><td style="padding:10px 0 11px;">
-<div style="font-size:9px;line-height:13px;letter-spacing:.7px;text-transform:uppercase;color:{SECONDARY};margin-bottom:4px;">{section} · {outlet}</div>
+<div style="font-size:11px;line-height:15px;color:{SECONDARY};margin-bottom:4px;">{section} · {outlet}</div>
 {title}
 </td></tr></table>"#,
             section = html_escape(&section),
@@ -183,27 +189,22 @@ fn append_sports_group(
     let _result = write!(
         output,
         r#"<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:12px;background:{PANEL};border:1px solid {BORDER};">
-<tr><td colspan="3" style="padding:8px 10px;border-bottom:1px solid {BORDER};font-size:10px;line-height:14px;font-weight:bold;letter-spacing:.8px;text-transform:uppercase;color:{ACCENT};">{heading}</td></tr>"#,
+<tr><td colspan="3" style="padding:8px 10px;border-bottom:1px solid {BORDER};font-size:12px;line-height:16px;color:#5634d4;">{heading}</td></tr>"#,
     );
     for update in matching {
-        append_sports_update(output, update, timezone, status);
+        append_sports_update(output, update, timezone);
     }
     output.push_str("</table>");
 }
 
-fn append_sports_update(output: &mut String, update: &SportsUpdate, timezone: Tz, status: &str) {
+fn append_sports_update(output: &mut String, update: &SportsUpdate, timezone: Tz) {
     let when = update.starts_at.with_timezone(&timezone);
-    let date_color = if status == "final" {
-        SUCCESS
-    } else {
-        SECONDARY
-    };
     let _result = write!(
         output,
         r#"<tr><td class="date-cell" width="52" valign="middle" style="width:52px;padding:9px 6px 9px 10px;border-bottom:1px solid {BORDER};">
-<div style="font-size:9px;line-height:12px;text-transform:uppercase;color:{date_color};">{weekday}</div>
+<div style="font-size:10px;line-height:13px;color:{SECONDARY};">{weekday}</div>
 <div style="font-size:19px;line-height:21px;font-weight:bold;color:{TEXT};">{day}</div>
-<div style="font-size:9px;line-height:12px;text-transform:uppercase;color:{MUTED};">{month}</div>
+<div style="font-size:10px;line-height:13px;color:{MUTED};">{month}</div>
 </td>"#,
         weekday = when.format("%a"),
         day = when.format("%-d"),
@@ -219,7 +220,7 @@ fn append_sports_update(output: &mut String, update: &SportsUpdate, timezone: Tz
         output,
         r#"<td valign="middle" style="padding:9px 10px;border-bottom:1px solid {BORDER};">
 {title}
-<div style="margin-top:3px;font-size:10px;line-height:15px;color:{MUTED};">{competition} · {time}</div>
+<div style="margin-top:3px;font-size:11px;line-height:15px;color:{MUTED};">{competition} · {time}</div>
 </td></tr>"#,
         competition = html_escape(&update.competition),
         time = when.format("%-I:%M %p %Z"),
@@ -300,7 +301,7 @@ mod tests {
     use crate::storage::{RunDeliveryContext, RunItemRow};
 
     #[test]
-    fn compact_light_brief_preserves_edition_and_escaping() -> anyhow::Result<()> {
+    fn folio_brief_preserves_content_and_readable_metadata() -> anyhow::Result<()> {
         let item = RunItemRow {
             title: "Release <one>".to_owned(),
             url: "https://example.test/?a=1&b=2".to_owned(),
@@ -308,26 +309,41 @@ mod tests {
             kind: crate::domain::SOURCE_KIND_GITHUB_RELEASE.to_owned(),
             ..RunItemRow::default()
         };
+        let news = RunItemRow {
+            title: "News <one>".to_owned(),
+            source_label: "Example & Co".to_owned(),
+            ..RunItemRow::default()
+        };
         let context = RunDeliveryContext {
             max_delivery_items: 7,
             sports_timezone: "America/Chicago".to_owned(),
-            sports_updates: vec![SportsUpdate {
-                status: "upcoming".to_owned(),
-                title: "Alpha vs Beta".to_owned(),
-                competition: "Example League".to_owned(),
-                url: "https://example.test/game".to_owned(),
-                starts_at: chrono::DateTime::parse_from_rfc3339("2026-08-29T12:00:00Z")?
-                    .with_timezone(&chrono::Utc),
-                images: vec![SportsImage {
-                    url: "https://images.example/alpha.png".to_owned(),
-                    alt: "Alpha".to_owned(),
-                }],
-                ..SportsUpdate::default()
-            }],
-            health_footnote: String::new(),
+            sports_updates: vec![
+                SportsUpdate {
+                    status: "upcoming".to_owned(),
+                    title: "Alpha vs Beta".to_owned(),
+                    competition: "Example League".to_owned(),
+                    url: "https://example.test/game".to_owned(),
+                    starts_at: chrono::DateTime::parse_from_rfc3339("2026-08-29T12:00:00Z")?
+                        .with_timezone(&chrono::Utc),
+                    images: vec![SportsImage {
+                        url: "https://images.example/alpha.png".to_owned(),
+                        alt: "Alpha".to_owned(),
+                    }],
+                    ..SportsUpdate::default()
+                },
+                SportsUpdate {
+                    status: "final".to_owned(),
+                    title: "Gamma 2–1 Delta".to_owned(),
+                    competition: "Example Cup".to_owned(),
+                    starts_at: chrono::DateTime::parse_from_rfc3339("2026-08-28T00:00:00Z")?
+                        .with_timezone(&chrono::Utc),
+                    ..SportsUpdate::default()
+                },
+            ],
+            health_footnote: "Source <one> & source two unavailable".to_owned(),
         };
         let evening = render(
-            &[&item],
+            &[&item, &news],
             &context,
             "2026-08-28T00:00:00Z",
             chrono_tz::America::Chicago,
@@ -338,6 +354,21 @@ mod tests {
         assert!(evening.contains("Release &lt;one&gt;"));
         assert!(evening.contains("a=1&amp;b=2"));
         assert!(evening.contains("https://images.example/alpha.png"));
+        assert!(evening.contains("1 story, 1 release, 2 sports updates."));
+        assert!(evening.contains("Thu, Aug 27"));
+        assert!(evening.contains("Times: America/Chicago"));
+        assert!(evening.contains("Example &amp; Co · Example &amp; Co"));
+        assert!(evening.contains("News &lt;one&gt;</span>"));
+        assert!(evening.contains("Upcoming</td>"));
+        assert!(evening.contains("Results</td>"));
+        assert!(evening.contains("Gamma 2–1 Delta</span>"));
+        assert!(evening.contains("Example League · 7:00 AM CDT"));
+        assert!(evening.contains("Example Cup · 7:00 PM CDT"));
+        assert!(evening.contains("Source &lt;one&gt; &amp; source two unavailable"));
+        assert!(!evening.contains("text-transform:uppercase"));
+        assert!(!evening.contains("letter-spacing:"));
+        assert!(evening.contains("font-size:11px;line-height:15px;color:#a14200;"));
+        assert!(evening.contains("font-size:12px;line-height:16px;color:#5634d4;"));
         Ok(())
     }
 }

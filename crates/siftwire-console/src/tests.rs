@@ -3,7 +3,6 @@
     reason = "router tests assert their own setup failures explicitly"
 )]
 
-use std::io::Write as _;
 use std::os::unix::fs::PermissionsExt as _;
 
 use axum::Router;
@@ -31,12 +30,12 @@ fn state_with_runner(script: &str, web_root: &str) -> crate::AppState {
 /// Writes an executable fake runner that records its invocation and stdin.
 fn write_runner(dir: &TempDir, stdout: &str, exit: i32) -> String {
     let path = dir.path().join("fake-runner.sh");
-    let mut file = std::fs::File::create(&path).expect("create fake runner");
+    std::fs::write(dir.path().join("output.json"), stdout).expect("write runner output");
     let body = format!(
-        "#!/usr/bin/env bash\nprintf '%s\\n' \"$*\" >\"$FAKE_RUNNER_ARGS\"\ncat >\"$FAKE_RUNNER_STDIN\" || true\nprintf '%s\\n' '{stdout}'\nexit {exit}\n",
+        "#!/usr/bin/env bash\ncd -- '{}' || exit 1\nprintf '%s\\n' \"$*\" >args\ncat >input.json\ncat output.json\nexit {exit}\n",
+        dir.path().display(),
     );
-    file.write_all(body.as_bytes()).expect("write fake runner");
-    drop(file);
+    std::fs::write(&path, body).expect("write fake runner");
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
         .expect("chmod fake runner");
     path.to_string_lossy().into_owned()
@@ -92,19 +91,9 @@ async fn rejected_results_map_to_400() {
 async fn options_forward_sports_settings_to_the_runner() {
     let temp = TempDir::new().expect("temp dir");
     let input = temp.path().join("input.json");
-    let script = temp.path().join("options-runner.sh");
-    std::fs::write(
-        &script,
-        format!(
-            "#!/usr/bin/env bash\ncat >'{}'\nprintf '%s\\n' '{{\"rejected\":false,\"summary\":\"stored\"}}'\n",
-            input.display()
-        ),
-    )
-    .expect("write runner");
-    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755))
-        .expect("chmod runner");
+    let script = write_runner(&temp, r#"{"rejected":false,"summary":"stored"}"#, 0);
     let app = crate::router(state_with_runner(
-        &script.to_string_lossy(),
+        &script,
         temp.path().to_str().expect("utf8"),
     ));
     let request = json!({
@@ -164,6 +153,270 @@ async fn unknown_run_maps_to_404() {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(body.get("error").is_some(), "expected error body: {body}");
+}
+
+fn json_request(method: &str, uri: &str, body: &Value) -> Request<Body> {
+    Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("content-type", "application/json")
+        .body(Body::from(body.to_string()))
+        .expect("request")
+}
+
+fn priority_items() -> Value {
+    json!([
+        {"priority_rank": i64::MIN, "source_key": "min"},
+        {"priority_rank": i64::MAX, "source_key": "max"},
+        {"priority_rank": 9_007_199_254_740_993_i64},
+        {"priority_rank": -9_007_199_254_740_993_i64},
+        {"priority_rank": 0, "enabled": true, "extra": {"priority_rank": 42}}
+    ])
+}
+
+fn string_priority_items() -> Value {
+    json!([
+        {"priority_rank": "-9223372036854775808", "source_key": "min"},
+        {"priority_rank": "9223372036854775807", "source_key": "max"},
+        {"priority_rank": "9007199254740993"},
+        {"priority_rank": "-9007199254740993"},
+        {"priority_rank": "0", "enabled": true, "extra": {"priority_rank": 42}}
+    ])
+}
+
+#[tokio::test]
+async fn every_configuration_response_stringifies_source_priorities() {
+    let mut output = json!({
+        "sources": priority_items(), "summary": "stored", "rejected": false,
+        "runtime_config": {"max_delivery_items": "7"},
+        "outlets": [{"name": "fixture", "extra": {"priority_rank": 23}}],
+        "unrelated_number": 9_007_199_254_740_993_i64
+    });
+    let mut expected = output.clone();
+    *expected.get_mut("sources").expect("sources") = string_priority_items();
+    output
+        .get_mut("sources")
+        .expect("sources")
+        .as_array_mut()
+        .expect("sources")
+        .push(json!({"key": "zero"}));
+    expected
+        .get_mut("sources")
+        .expect("sources")
+        .as_array_mut()
+        .expect("sources")
+        .push(json!({
+            "key": "zero", "priority_rank": "0"
+        }));
+    for (method, uri, request) in [
+        ("GET", "/api/v1/config", Value::Null),
+        ("POST", "/api/v1/sources", json!({"key": "fixture"})),
+        ("DELETE", "/api/v1/sources/fixture", Value::Null),
+        ("PUT", "/api/v1/options", json!({"max_delivery_items": 7})),
+        ("PUT", "/api/v1/outlets", json!({"outlets": []})),
+    ] {
+        let temp = TempDir::new().expect("temp dir");
+        let script = write_runner(&temp, &output.to_string(), 0);
+        let app = crate::router(state_with_runner(
+            &script,
+            temp.path().to_str().expect("utf8"),
+        ));
+        let (status, body) = call(app, json_request(method, uri, &request)).await;
+        assert_eq!(status, StatusCode::OK, "{method} {uri}: {body}");
+        assert_eq!(body, expected, "{method} {uri}");
+    }
+}
+
+#[tokio::test]
+async fn historical_priorities_are_strings_without_rewriting_other_evidence() {
+    let output = json!({
+        "run": {"run_id": "fixture", "dry_run": false},
+        "must_include": priority_items(), "candidates": priority_items(),
+        "dropped": [{"detail": {"priority_rank": 9_007_199_254_740_993_i64}}],
+        "fetch": [{"items": 7, "new_items": 3}], "sent_items": []
+    });
+    let mut expected = output.clone();
+    *expected.get_mut("must_include").expect("must_include") = string_priority_items();
+    *expected.get_mut("candidates").expect("candidates") = string_priority_items();
+    let temp = TempDir::new().expect("temp dir");
+    let script = write_runner(&temp, &output.to_string(), 0);
+    let app = crate::router(state_with_runner(
+        &script,
+        temp.path().to_str().expect("utf8"),
+    ));
+    let (status, body) = call(
+        app,
+        json_request("GET", "/api/v1/runs/fixture", &Value::Null),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body, expected);
+    assert_eq!(
+        std::fs::read_to_string(temp.path().join("args")).expect("args"),
+        "runs show --json fixture\n"
+    );
+}
+
+#[tokio::test]
+async fn source_writes_forward_exact_i64_numbers_and_preserve_omission() {
+    for (priority, expected_rank) in [
+        (None, None),
+        (Some(json!("-9223372036854775808")), Some(i64::MIN)),
+        (Some(json!("9223372036854775807")), Some(i64::MAX)),
+        (Some(json!("9007199254740993")), Some(9_007_199_254_740_993)),
+        (
+            Some(json!("-9007199254740993")),
+            Some(-9_007_199_254_740_993),
+        ),
+        (Some(json!("00042")), Some(42)),
+        (Some(json!("-00042")), Some(-42)),
+        (Some(json!("-0")), Some(0)),
+        (
+            Some(json!(9_007_199_254_740_991_i64)),
+            Some(9_007_199_254_740_991),
+        ),
+        (
+            Some(json!(-9_007_199_254_740_991_i64)),
+            Some(-9_007_199_254_740_991),
+        ),
+        (Some(json!(0)), Some(0)),
+    ] {
+        let temp = TempDir::new().expect("temp dir");
+        let script = write_runner(&temp, r#"{"rejected":false}"#, 0);
+        let app = crate::router(state_with_runner(
+            &script,
+            temp.path().to_str().expect("utf8"),
+        ));
+        let mut source = json!({"key": "fixture", "enabled": true, "label": "Fixture", "extra": {"priority_rank": 12}});
+        let mut expected = source.clone();
+        if let Some(rank) = priority {
+            source
+                .as_object_mut()
+                .expect("source")
+                .insert("priority_rank".to_owned(), rank);
+        }
+        if let Some(rank) = expected_rank {
+            expected
+                .as_object_mut()
+                .expect("source")
+                .insert("priority_rank".to_owned(), json!(rank));
+        }
+        let (status, body) = call(app, json_request("POST", "/api/v1/sources", &source)).await;
+        assert_eq!(status, StatusCode::OK, "{source}: {body}");
+        let forwarded: Value = serde_json::from_slice(
+            &std::fs::read(temp.path().join("input.json")).expect("runner input"),
+        )
+        .expect("decode input");
+        assert_eq!(
+            forwarded,
+            json!({"action": "upsert_source", "source": expected}),
+            "{source}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("args")).expect("args"),
+            "config\n"
+        );
+    }
+}
+
+#[tokio::test]
+async fn invalid_browser_priorities_are_rejected_before_spawning() {
+    for rank in [
+        json!(""),
+        json!("-"),
+        json!("+1"),
+        json!(" 1"),
+        json!("1 "),
+        json!("1\n"),
+        json!("1.0"),
+        json!("1e3"),
+        json!("--1"),
+        json!("１２"),
+        json!("−1"),
+        json!("9223372036854775808"),
+        json!("-9223372036854775809"),
+        json!(9_007_199_254_740_992_i64),
+        json!(-9_007_199_254_740_992_i64),
+        json!(i64::MIN),
+        json!(i64::MAX),
+        json!(u64::MAX),
+        json!(1.0),
+        json!(1.5),
+        json!(1e3),
+        Value::Null,
+        json!(true),
+        json!(false),
+        json!([]),
+        json!({}),
+    ] {
+        let temp = TempDir::new().expect("temp dir");
+        let script = write_runner(&temp, r#"{"rejected":false}"#, 0);
+        let app = crate::router(state_with_runner(
+            &script,
+            temp.path().to_str().expect("utf8"),
+        ));
+        let source = json!({"key": "fixture", "priority_rank": rank});
+        let (status, body) = call(app, json_request("POST", "/api/v1/sources", &source)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{source}: {body}");
+        assert!(
+            body.pointer("/error/message")
+                .expect("error message")
+                .as_str()
+                .expect("error")
+                .contains("priority_rank"),
+            "{body}"
+        );
+        assert!(
+            !temp.path().join("args").exists(),
+            "runner spawned for {source}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn invalid_runner_priority_shapes_fail_visibly() {
+    for collection in ["sources", "must_include", "candidates"] {
+        let mut invalid_items = vec![Value::Null, json!({}), json!([null]), json!([1])];
+        for rank in [
+            json!("1"),
+            json!(1.0),
+            Value::Null,
+            json!(false),
+            json!([]),
+            json!({}),
+            json!(u64::MAX),
+        ] {
+            invalid_items.push(json!([{"priority_rank": rank}]));
+        }
+        if collection != "sources" {
+            invalid_items.push(json!([{}]));
+        }
+        for items in invalid_items {
+            let mut output = json!({"sources": [], "must_include": [], "candidates": []});
+            *output.get_mut(collection).expect("collection") = items;
+            let temp = TempDir::new().expect("temp dir");
+            let script = write_runner(&temp, &output.to_string(), 0);
+            let app = crate::router(state_with_runner(
+                &script,
+                temp.path().to_str().expect("utf8"),
+            ));
+            let uri = if collection == "sources" {
+                "/api/v1/config"
+            } else {
+                "/api/v1/runs/fixture"
+            };
+            let (status, body) = call(app, json_request("GET", uri, &Value::Null)).await;
+            assert_eq!(status, StatusCode::BAD_GATEWAY, "{output}: {body}");
+            let message = body
+                .pointer("/error/message")
+                .and_then(Value::as_str)
+                .expect("error");
+            assert!(
+                message.contains("invalid runner response") && message.contains(collection),
+                "{body}"
+            );
+        }
+    }
 }
 
 #[tokio::test]

@@ -5,8 +5,6 @@ import { Field } from "./ui"
 export default function SourceOptions({
   draft,
   update,
-  rank,
-  onRank,
   editing,
   suggestedKey,
   open,
@@ -14,8 +12,6 @@ export default function SourceOptions({
 }: {
   draft: Source
   update: (patch: Partial<Source>) => void
-  rank: string
-  onRank: (value: string) => void
   editing: boolean
   suggestedKey: string
   open: boolean
@@ -45,12 +41,7 @@ export default function SourceOptions({
             onChange={(event) => update({ key: event.target.value })}
           />
         </Field>
-        <PolicyFields
-          draft={draft}
-          update={update}
-          rank={rank}
-          onRank={onRank}
-        />
+        <PolicyFields draft={draft} update={update} />
       </div>
       <ScheduleFields draft={draft} update={update} />
       <HandlingFields draft={draft} update={update} />

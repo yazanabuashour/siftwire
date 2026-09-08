@@ -44,6 +44,23 @@ changes affect newly prepared messages, not already stored delivery plans.
 The production app contains no comparison gallery, alternate designs, or sample
 configuration.
 
+## Large priority values
+
+Source priorities use the runner's full signed 64-bit integer range. The console
+keeps them as decimal text in the editor and in historical evidence. Its HTTP
+API encodes `priority_rank` as a decimal string, such as
+`"9223372036854775807"`; an omitted priority still means zero.
+
+Source writes accept decimal strings from `"-9223372036854775808"` through
+`"9223372036854775807"`. The console converts them to exact integers before
+calling the runner. Fractions, exponent notation, and values outside that range
+are rejected. Older clients may still send JSON integers within JavaScript's
+exact range, but larger numeric writes are rejected rather than silently rounded.
+Refresh console tabs after updating so they use the string contract.
+
+This changes only the console's HTTP representation. The runner JSON protocol
+and SQLite storage remain numeric and require no migration.
+
 ## Running
 
 An installed `siftwire` runner must be on `PATH` (or named through

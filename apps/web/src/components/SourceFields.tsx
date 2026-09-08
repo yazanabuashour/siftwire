@@ -103,12 +103,7 @@ export function IdentityFields({ draft, update }: SourceFieldsProps) {
   )
 }
 
-export function PolicyFields({
-  draft,
-  update,
-  rank,
-  onRank,
-}: SourceFieldsProps & { rank: string; onRank: (rank: string) => void }) {
+export function PolicyFields({ draft, update }: SourceFieldsProps) {
   return (
     <>
       <Field label="Include when">
@@ -124,11 +119,10 @@ export function PolicyFields({
       </Field>
       <Field label="Priority">
         <input
-          type="number"
+          type="text"
           required
-          step="1"
-          value={rank}
-          onChange={(event) => onRank(event.target.value)}
+          value={draft.priority_rank}
+          onChange={(event) => update({ priority_rank: event.target.value })}
         />
       </Field>
       <Field

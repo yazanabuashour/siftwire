@@ -69,6 +69,71 @@ async fn run(
     }
 }
 
+// Receipt: the browser compatibility contract uses Number.MAX_SAFE_INTEGER.
+const JS_MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
+
+fn parse_priority(value: &Value) -> Result<i64, ApiError> {
+    let rank = match value {
+        Value::String(raw) => {
+            let digits = raw.strip_prefix('-').unwrap_or(raw);
+            if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+                None
+            } else {
+                raw.parse::<i64>().ok()
+            }
+        }
+        Value::Number(number) => number
+            .as_i64()
+            .filter(|rank| (-JS_MAX_SAFE_INTEGER..=JS_MAX_SAFE_INTEGER).contains(rank)),
+        Value::Null | Value::Bool(_) | Value::Array(_) | Value::Object(_) => None,
+    };
+    rank.ok_or_else(|| {
+        ApiError::bad_request(
+            "priority_rank must be a signed decimal i64 string or a JSON integer within ±9007199254740991",
+        )
+    })
+}
+
+/// Converts only the runner collections that carry source priorities.
+fn priority_response(mut value: Value, collections: &[&str]) -> ApiResult {
+    let invalid = |path: &str, expected: &str| {
+        ApiError::new(
+            StatusCode::BAD_GATEWAY,
+            format!("invalid runner response: {path} must be {expected}"),
+        )
+    };
+    let object = value
+        .as_object_mut()
+        .ok_or_else(|| invalid("result", "an object"))?;
+    for &collection in collections {
+        // ConfigResult omits empty sources; Source omits a zero priority.
+        if collection == "sources" && !object.contains_key(collection) {
+            continue;
+        }
+        let items = object
+            .get_mut(collection)
+            .and_then(Value::as_array_mut)
+            .ok_or_else(|| invalid(collection, "an array"))?;
+        for (index, item) in items.iter_mut().enumerate() {
+            let path = format!("{collection}[{index}]");
+            let item = item
+                .as_object_mut()
+                .ok_or_else(|| invalid(&path, "an object"))?;
+            let rank = match item.get("priority_rank") {
+                None if collection == "sources" => 0,
+                rank => rank.and_then(Value::as_i64).ok_or_else(|| {
+                    invalid(
+                        &format!("{path}.priority_rank"),
+                        "a signed i64 JSON integer",
+                    )
+                })?,
+            };
+            item.insert("priority_rank".to_owned(), Value::String(rank.to_string()));
+        }
+    }
+    Ok(Json(value))
+}
+
 fn protocol_arguments(verb: &str) -> Vec<String> {
     vec![verb.to_owned()]
 }
@@ -86,7 +151,7 @@ pub async fn health() -> Json<Value> {
     Json(json!({ "ok": true }))
 }
 
-/// Forwards the `inspect_config` result: runtime options, sources, outlets.
+/// Returns `inspect_config` with source priorities encoded as decimal strings.
 ///
 /// # Errors
 ///
@@ -98,7 +163,7 @@ pub async fn config(State(state): State<AppState>) -> ApiResult {
         Some(json!({ "action": "inspect_config" })),
     )
     .await?;
-    Ok(Json(value))
+    priority_response(value, &["sources"])
 }
 
 /// Stores one source through `upsert_source`.
@@ -107,9 +172,15 @@ pub async fn config(State(state): State<AppState>) -> ApiResult {
 ///
 /// Returns an API error when the body is malformed or the runner invocation
 /// fails or is rejected.
-pub async fn upsert_source(State(state): State<AppState>, Json(source): Json<Value>) -> ApiResult {
+pub async fn upsert_source(
+    State(state): State<AppState>,
+    Json(mut source): Json<Value>,
+) -> ApiResult {
     if !source.is_object() {
         return Err(ApiError::bad_request("body must be a source object"));
+    }
+    if let Some(rank) = source.get_mut("priority_rank") {
+        *rank = Value::from(parse_priority(rank)?);
     }
     let value = run(
         &state,
@@ -117,7 +188,7 @@ pub async fn upsert_source(State(state): State<AppState>, Json(source): Json<Val
         Some(json!({ "action": "upsert_source", "source": source })),
     )
     .await?;
-    Ok(Json(value))
+    priority_response(value, &["sources"])
 }
 
 /// Deletes one source by key.
@@ -135,7 +206,7 @@ pub async fn delete_source(State(state): State<AppState>, Path(key): Path<String
         Some(json!({ "action": "delete_source", "key": key })),
     )
     .await?;
-    Ok(Json(value))
+    priority_response(value, &["sources"])
 }
 
 #[derive(Deserialize)]
@@ -167,7 +238,7 @@ pub async fn set_options(
         })),
     )
     .await?;
-    Ok(Json(value))
+    priority_response(value, &["sources"])
 }
 
 /// Replaces the full outlet policy list through `replace_outlet_policies`.
@@ -192,7 +263,7 @@ pub async fn replace_outlets(State(state): State<AppState>, Json(body): Json<Val
         Some(json!({ "action": "replace_outlet_policies", "outlets": outlets })),
     )
     .await?;
-    Ok(Json(value))
+    priority_response(value, &["sources"])
 }
 
 pub async fn runs(State(state): State<AppState>, Query(query): Query<RunsQuery>) -> ApiResult {
@@ -218,5 +289,5 @@ pub async fn run_detail(State(state): State<AppState>, Path(run_id): Path<String
         None,
     )
     .await?;
-    Ok(Json(value))
+    priority_response(value, &["must_include", "candidates"])
 }

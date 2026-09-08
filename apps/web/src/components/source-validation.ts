@@ -1,4 +1,4 @@
-import type { Source } from "../api-contracts"
+import { PriorityRankSchema, type Source } from "../api-contracts"
 
 export const emptySource: Source = {
   key: "",
@@ -12,18 +12,14 @@ export const emptySource: Source = {
   url_canonicalization: "none",
   outlet_extraction: "none",
   dedup_group: "",
-  priority_rank: 0,
+  priority_rank: "0",
   always_report: false,
   schedule_format: "",
   schedule_filter: "all",
   api_key: "",
 }
 
-export function normalizeDraft(
-  draft: Source,
-  rank: string,
-  key: string,
-): Source {
+export function normalizeDraft(draft: Source, key: string): Source {
   return {
     ...draft,
     key,
@@ -33,7 +29,7 @@ export function normalizeDraft(
     repo: draft.repo.trim(),
     dedup_group: draft.dedup_group.trim().toLowerCase(),
     api_key: draft.api_key.trim(),
-    priority_rank: rank.trim() ? Number(rank) : NaN,
+    priority_rank: draft.priority_rank.trim(),
   }
 }
 
@@ -69,10 +65,9 @@ export function sourceError(
     )
   )
     return "That source key already exists. Choose a different key."
-  // The runner validates its i64 range after JSON decoding. Do not substitute
-  // JavaScript's narrower safe-integer range for that contract.
-  if (!Number.isInteger(source.priority_rank))
-    return "Priority must be a whole number."
+  const priority = PriorityRankSchema.safeParse(source.priority_rank)
+  if (!priority.success)
+    return priority.error.issues[0]?.message ?? "Invalid priority."
   if (source.kind === "github_release" && !source.repo && !source.url)
     return "Enter a repository or a release URL."
   if (

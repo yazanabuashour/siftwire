@@ -26,7 +26,6 @@ export default function SourceEditor({
   onClose: () => void
 }) {
   const [draft, setDraft] = useState(() => structuredClone(source))
-  const [rank, setRank] = useState(String(source.priority_rank))
   const [error, setError] = useState("")
   const [more, setMore] = useState(false)
   const suggestedKey = suggestKey(draft.label, sources)
@@ -38,7 +37,6 @@ export default function SourceEditor({
     if (busy) return
     const next = normalizeDraft(
       draft,
-      rank,
       editing ? source.key : draft.key.trim().toLowerCase() || suggestedKey,
     )
     const problem = sourceError(next, sources, editing ? source.key : null)
@@ -76,11 +74,6 @@ export default function SourceEditor({
           <SourceOptions
             draft={draft}
             update={update}
-            rank={rank}
-            onRank={(value) => {
-              setRank(value)
-              setError("")
-            }}
             editing={editing}
             suggestedKey={suggestedKey}
             open={more}

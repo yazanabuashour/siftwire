@@ -1,6 +1,12 @@
-import { describe, expect, test } from "vitest"
+import { afterEach, describe, expect, test, vi } from "vitest"
 
-import { ConfigResultSchema, RunDetailSchema } from "./api-contracts"
+import { fetchConfig, saveSource } from "./api-client"
+import {
+  ConfigResultSchema,
+  PriorityRankSchema,
+  RunDetailSchema,
+} from "./api-contracts"
+import { normalizeDraft, sourceError } from "./components/source-validation"
 
 const configFixture = {
   rejected: false,
@@ -25,6 +31,7 @@ describe("ConfigResultSchema", () => {
   test("fills optional collections and normalizes defaults", () => {
     const decoded = ConfigResultSchema.parse(configFixture)
     expect(decoded.sources[0]?.url_canonicalization).toBe("")
+    expect(decoded.sources[0]?.priority_rank).toBe("0")
   })
 })
 
@@ -49,6 +56,7 @@ describe("RunDetailSchema", () => {
           title: "Story",
           url: "https://fixture.test/story",
           selected: true,
+          priority_rank: "9223372036854775807",
         },
       ],
       dropped: [
@@ -71,5 +79,63 @@ describe("RunDetailSchema", () => {
     }
     const decoded = RunDetailSchema.parse(fixture)
     expect(decoded.fetch[0]?.items).toBe(0)
+    expect(decoded.candidates[0]?.priority_rank).toBe("9223372036854775807")
   })
+})
+
+afterEach(() => vi.unstubAllGlobals())
+
+describe("lossless priorities", () => {
+  test.each([
+    "-9223372036854775808",
+    "9223372036854775807",
+    "-9007199254740993",
+    "9007199254740993",
+    "0",
+  ])(
+    "keeps %s exact through config, editing, and the save request",
+    async (rank) => {
+      const payload = {
+        ...configFixture,
+        sources: [{ ...configFixture.sources[0], priority_rank: rank }],
+      }
+      const fetch = vi.fn(() =>
+        Promise.resolve(new Response(JSON.stringify(payload))),
+      )
+      vi.stubGlobal("fetch", fetch)
+      const config = await fetchConfig()
+      const source = config.sources[0]
+      if (!source) throw new Error("Missing fixture source")
+      const draft = normalizeDraft(
+        { ...source, label: "Renamed source", enabled: false },
+        source.key,
+      )
+      expect(sourceError(draft, config.sources, source.key)).toBe("")
+      expect(draft.priority_rank).toBe(rank)
+      await saveSource(draft)
+      expect(fetch).toHaveBeenLastCalledWith(
+        "/api/v1/sources",
+        expect.objectContaining({
+          body: JSON.stringify(draft),
+        }),
+      )
+      expect(JSON.parse(JSON.stringify(draft)).priority_rank).toBe(rank)
+    },
+  )
+
+  test.each([
+    "",
+    "1.5",
+    "1e3",
+    "+1",
+    " 1",
+    "1\n",
+    "1\r",
+    "9223372036854775808",
+    "-9223372036854775809",
+    0,
+    9007199254740992,
+  ])("rejects malformed, out-of-range, or numeric priority %s", (value) =>
+    expect(PriorityRankSchema.safeParse(value).success).toBe(false),
+  )
 })

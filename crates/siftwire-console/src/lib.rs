@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use axum::Router;
 use axum::extract::Request;
-use axum::http::StatusCode;
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse as _, Response};
 use tower_http::services::{ServeDir, ServeFile};
@@ -37,8 +37,23 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/runs", get(api::runs))
         .route("/api/v1/runs/{run_id}", get(api::run_detail))
         .fallback_service(static_files)
+        .layer(middleware::map_response(revalidate_html))
         .layer(middleware::from_fn(deny_rebound_hosts))
         .with_state(state)
+}
+
+// Cached HTML can keep referencing an old build's hashed assets after an upgrade.
+async fn revalidate_html(mut response: Response) -> Response {
+    if response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .is_some_and(|value| value.as_bytes().starts_with(b"text/html"))
+    {
+        response
+            .headers_mut()
+            .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    }
+    response
 }
 
 /// Blocks browser-based DNS rebinding: every Host must be an IP literal or

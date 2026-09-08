@@ -1,4 +1,10 @@
-import { useEffect, useId, useRef, type ReactNode } from "react"
+import {
+  useEffect,
+  useId,
+  useRef,
+  type PointerEvent,
+  type ReactNode,
+} from "react"
 
 export function dateLabel(value: string, withTime = false): string {
   if (!value || Number.isNaN(Date.parse(value))) return value || "Not recorded"
@@ -14,8 +20,17 @@ export function dateLabel(value: string, withTime = false): string {
 }
 
 export function ErrorNote({ error }: { error: Error }) {
+  const ref = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    const message = ref.current
+    const body = message?.closest(".folio-dialog-body")
+    // Fixed Save actions must reveal repeated failures, not just new messages.
+    if (message && body instanceof HTMLElement)
+      body.scrollTop +=
+        message.getBoundingClientRect().top - body.getBoundingClientRect().top
+  }, [error])
   return (
-    <p className="folio-error" role="alert">
+    <p ref={ref} className="folio-error" role="alert">
       {error.message}
     </p>
   )
@@ -61,16 +76,32 @@ export function Field({
   )
 }
 
+function isBackdrop(event: PointerEvent<HTMLDialogElement>): boolean {
+  if (event.target !== event.currentTarget) return false
+  const bounds = event.currentTarget.getBoundingClientRect()
+  return (
+    event.clientX < bounds.left ||
+    event.clientX > bounds.right ||
+    event.clientY < bounds.top ||
+    event.clientY > bounds.bottom
+  )
+}
+
 export function Dialog({
   title,
   onClose,
   children,
+  actions,
+  busy = false,
 }: {
   title: string
   onClose: () => void
   children: ReactNode
+  actions: ReactNode
+  busy?: boolean
 }) {
   const ref = useRef<HTMLDialogElement>(null)
+  const pressedBackdrop = useRef(false)
   const titleId = useId()
   useEffect(() => {
     const dialog = ref.current
@@ -92,13 +123,35 @@ export function Dialog({
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault()
-        onClose()
+        if (!busy) onClose()
+      }}
+      onPointerDown={(event) => {
+        pressedBackdrop.current = isBackdrop(event)
+      }}
+      onPointerUp={(event) => {
+        if (
+          !busy &&
+          event.button === 0 &&
+          pressedBackdrop.current &&
+          isBackdrop(event)
+        )
+          onClose()
+        pressedBackdrop.current = false
       }}
     >
       <header className="folio-dialog-heading">
         <h2 id={titleId}>{title}</h2>
+        <button
+          type="button"
+          aria-label="Close dialog"
+          disabled={busy}
+          onClick={onClose}
+        >
+          Close
+        </button>
       </header>
-      {children}
+      <div className="folio-dialog-body">{children}</div>
+      <footer className="folio-dialog-actions">{actions}</footer>
     </dialog>
   )
 }

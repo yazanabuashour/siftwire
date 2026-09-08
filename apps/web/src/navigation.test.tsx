@@ -99,7 +99,6 @@ it("keeps selected IDs across Brief, Activity, Sources subnavigation and Setting
     document.querySelectorAll('[aria-label="Main navigation"] a'),
   ).toHaveLength(4)
   expect(link("Brief").getAttribute("aria-current")).toBe("page")
-  expect(element(".folio-app").classList.contains("folio-reader")).toBe(true)
   for (const label of [
     "Activity",
     "Sources",
@@ -116,9 +115,6 @@ it("keeps selected IDs across Brief, Activity, Sources subnavigation and Setting
       "older / ? & brief",
     )
     if (label === "Sources") {
-      expect(element(".folio-app").classList.contains("folio-management")).toBe(
-        true,
-      )
       expect(link("Feeds").getAttribute("aria-current")).toBe("page")
     }
     if (label === "Publisher rules") {

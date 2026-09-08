@@ -48,6 +48,13 @@ export function useOutletEditor() {
     setNotice("")
     save.reset()
   }
+  const updateRow = (
+    index: number,
+    patch: Partial<Pick<OutletPolicy, "policy" | "enabled">>,
+  ): void => {
+    if (save.isPending || editor) return
+    update(rows.map((row, at) => (at === index ? { ...row, ...patch } : row)))
+  }
   const startEditing = (index: number | null, row = emptyOutlet): void => {
     update(rows)
     setEditor({ index, row, hadDraft: draft !== null })
@@ -85,6 +92,7 @@ export function useOutletEditor() {
     hasDraft: draft !== null,
     editor,
     startEditing,
+    updateRow,
     closeEditor,
     apply,
     remove,
@@ -97,15 +105,15 @@ export function useOutletDraft(
   index: number | null,
 ) {
   const [draft, setDraft] = useState(() => outletDraft(row))
-  const [error, setError] = useState("")
+  const [error, setError] = useState<Error | null>(null)
   const update = (patch: Partial<OutletDraft>): void => {
     setDraft((current) => ({ ...current, ...patch }))
-    setError("")
+    setError(null)
   }
   const validate = (): OutletPolicy | null => {
     const next = outletFromDraft(draft)
     const problem = outletError(next, rows, index)
-    setError(problem)
+    setError(problem ? new Error(problem) : null)
     return problem ? null : next
   }
   return { draft, error, update, validate }

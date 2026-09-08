@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useId, useState } from "react"
 
 import type { ReportingMode, Source } from "../api-contracts"
 import {
@@ -14,7 +14,7 @@ import {
   SourceFlags,
 } from "./SourceFields"
 import SourceOptions from "./SourceOptions"
-import { Dialog } from "./ui"
+import { Dialog, ErrorNote } from "./ui"
 
 export { emptySource } from "./source-validation"
 
@@ -29,14 +29,6 @@ type SourceEditorProps = {
   onClose: () => void
 }
 
-function revealInvalidField(event: FormEvent<HTMLFormElement>): boolean {
-  const disclosure =
-    event.target instanceof HTMLElement ? event.target.closest("details") : null
-  if (!disclosure) return false
-  disclosure.open = true
-  return true
-}
-
 export default function SourceEditor({
   source,
   sources,
@@ -47,6 +39,7 @@ export default function SourceEditor({
   onSave,
   onClose,
 }: SourceEditorProps) {
+  const formId = useId()
   const [draft, setDraft] = useState(() => structuredClone(source))
   // Type changes do not change the raw feed policy or the user's selection.
   const [feedMode, setFeedMode] = useState<FeedReportingMode | undefined>(
@@ -56,12 +49,12 @@ export default function SourceEditor({
         ? reporting
         : undefined,
   )
-  const [error, setError] = useState("")
-  const [more, setMore] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  const displayedError = error ?? saveError
   const suggestedKey = suggestKey(draft.label, sources)
   const update = (patch: Partial<Source>): void => {
     setDraft((current) => ({ ...current, ...patch }))
-    setError("")
+    setError(null)
   }
   const save = (): void => {
     if (busy) return
@@ -72,22 +65,27 @@ export default function SourceEditor({
         : draft.key.trim().toLowerCase() || suggestedKey,
     }
     const problem = sourceError(next, sources, editing ? source.key : null)
-    setError(problem)
-    if (problem) setMore(true)
-    else onSave(next)
+    setError(problem ? new Error(problem) : null)
+    if (!problem) onSave(next)
   }
   return (
     <Dialog
-      title={editing ? `Edit ${source.label}` : "Add a source"}
-      onClose={() => {
-        if (!busy) onClose()
-      }}
+      title={editing ? "Edit source" : "Add source"}
+      onClose={onClose}
+      busy={busy}
+      actions={
+        <button
+          className="folio-primary"
+          type="submit"
+          form={formId}
+          disabled={busy}
+        >
+          {busy ? "Saving…" : "Save source"}
+        </button>
+      }
     >
       <form
-        className="config-source-editor"
-        onInvalidCapture={(event) => {
-          if (revealInvalidField(event)) setMore(true)
-        }}
+        id={formId}
         onSubmit={(event) => {
           event.preventDefault()
           save()
@@ -110,22 +108,8 @@ export default function SourceEditor({
             update={update}
             editing={editing}
             suggestedKey={suggestedKey}
-            open={more}
-            onToggle={setMore}
           />
-          {(error || saveError) && (
-            <p className="folio-error" role="alert">
-              {error || saveError?.message}
-            </p>
-          )}
-          <div className="folio-form-actions">
-            <button className="folio-primary" type="submit">
-              {busy ? "Saving…" : "Save source"}
-            </button>
-            <button type="button" onClick={onClose}>
-              Cancel
-            </button>
-          </div>
+          {displayedError && <ErrorNote error={displayedError} />}
         </fieldset>
       </form>
     </Dialog>

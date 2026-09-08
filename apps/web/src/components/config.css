@@ -45,8 +45,8 @@
   flex: 1;
 }
 
-.config-page .config-outlet-row > span {
-  font-size: 12px;
+.config-page .config-outlet-rule {
+  width: auto;
 }
 
 .config-page .config-reporting {

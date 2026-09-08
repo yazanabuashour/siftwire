@@ -144,7 +144,10 @@ export function input(label: string): HTMLInputElement {
   return found
 }
 export function select(label: string): HTMLSelectElement {
-  const found = field(label).querySelector("select")
+  const found =
+    [...host.querySelectorAll("select")].find(
+      (element) => element.getAttribute("aria-label") === label,
+    ) ?? field(label).querySelector("select")
   if (!found) throw new Error(`Missing select ${label}`)
   return found
 }

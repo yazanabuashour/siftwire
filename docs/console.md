@@ -27,8 +27,8 @@ would invite accidental duplicate-suppressed runs.
 
 ## App and email design
 
-The console keeps Folio's reading column and gives configuration pages more
-horizontal space. Navigation follows tasks: Brief, Sources, Activity, Settings.
+All tabs share one application frame; brief content keeps Folio's narrower
+reading column. Navigation follows tasks: Brief, Sources, Activity, Settings.
 Sources groups feeds and publisher rules. `/deliveries` remains a Brief alias;
 `/runs` opens Activity and `/outlets` opens publisher rules.
 
@@ -74,14 +74,20 @@ effective choice from stored fields, including older combinations. Unrelated
 edits preserve those raw fields. Observe advances seen state without offering
 items for inclusion; it does not create a review backlog.
 
-Feed link resolution and publisher extraction appear only for feeds. Source
-preference and title-matching groups remain advanced fields. Lower preference
+Source options appear directly in the editor, without an extra disclosure.
+Feed link resolution and publisher extraction appear only for feeds. The
+Selection section contains source preference and title matching. Lower preference
 wins ordinary duplicate representation, not editorial importance. Title groups
 do not isolate identical URLs or recent-delivery suppression.
 
-Publisher rows show the rule and enabled state. Edit reveals other names and an
-optional note. Notes are metadata, not runner instructions. Allow and Watch both
-retain matching items; Watch records an annotation rather than a review queue.
+Edit dialogs keep Close and their save actions visible while fields scroll.
+Close, Escape, or an outside click discards that dialog's unapplied changes.
+Dismissal is disabled while a source write is pending.
+
+Change a publisher's rule or Active checkbox directly in its row. Edit opens
+its name, aliases, and optional note. Notes are metadata, not runner instructions.
+Allow and Watch both retain matching items; Watch records an annotation rather
+than a review queue.
 Block excludes matches. New writes reject overlapping enabled names or aliases.
 Existing conflicts remain visible and keep their old matching order until an
 operator resolves them.

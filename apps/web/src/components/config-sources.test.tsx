@@ -5,6 +5,7 @@ import type { ConfigResult, ReportingMode, Source } from "../api-contracts"
 import { reportingLabels } from "../reporting"
 import { configQuery } from "./config-query"
 import {
+  button,
   change,
   choose,
   click,
@@ -115,9 +116,16 @@ it("changes raw reporting only on explicit selection and retains the feed choice
   })
 })
 
-it("shows feed-only advanced processing and its effective failure behavior", () => {
+it("shows feed processing directly with its effective failure behavior and one dismissal control", () => {
   editor()
-  expect(select("Link resolution").closest("details")).not.toBeNull()
+  expect(select("Link resolution").closest("details")).toBeNull()
+  expect(input("Source preference").closest("details")).toBeNull()
+  expect(
+    [...host.querySelectorAll("dialog button")].some(
+      (entry) => entry.textContent === "Cancel",
+    ),
+  ).toBe(false)
+  expect(button("Close dialog").disabled).toBe(false)
   expect(host.textContent).toContain("the original item remains eligible")
   choose("Publisher identification", "url_host")
   expect(host.textContent).toContain(
@@ -158,6 +166,13 @@ it("preserves a source draft through refetch and server rejection, then merges t
   const write = pendingResponse()
   click("Save source")
   await settle()
+  expect(button("Close dialog").disabled).toBe(true)
+  act(() =>
+    host
+      .querySelector("dialog")
+      ?.dispatchEvent(new Event("cancel", { cancelable: true })),
+  )
+  expect(host.querySelector("dialog")).not.toBeNull()
   expect(request).toHaveBeenLastCalledWith(
     "/api/v1/sources",
     expect.objectContaining({

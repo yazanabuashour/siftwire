@@ -17,7 +17,7 @@ import {
 import "./config.css"
 import SourceCollection from "./SourceCollection"
 import SourceEditor, { emptySource } from "./SourceEditor"
-import { Dialog, PageHeading } from "./ui"
+import { Dialog, ErrorNote, PageHeading } from "./ui"
 
 export default function SourcesPage() {
   const [editor, setEditor] = useState<{
@@ -172,33 +172,33 @@ function DeleteSourceDialog({
 }) {
   return (
     <Dialog
-      title={`Remove ${source.label}?`}
-      onClose={() => {
-        if (!busy) onClose()
-      }}
+      title="Remove source?"
+      onClose={onClose}
+      busy={busy}
+      actions={
+        <>
+          <button type="button" disabled={busy} onClick={onClose}>
+            Keep source
+          </button>
+          <button
+            type="button"
+            className="folio-danger"
+            disabled={busy}
+            onClick={onRemove}
+          >
+            {busy ? "Removing…" : "Remove source"}
+          </button>
+        </>
+      }
     >
       <p>
-        This removes {source.key} and its latest-seen state. Future briefs will
-        no longer include it. Past briefs will stay unchanged.
+        This removes {source.label} and its latest-seen state. Future briefs
+        will no longer include it. Past briefs will stay unchanged.
       </p>
-      {error && (
-        <p className="folio-error" role="alert">
-          {error.message}
-        </p>
-      )}
-      <div className="folio-form-actions">
-        <button type="button" disabled={busy} onClick={onClose}>
-          Keep source
-        </button>
-        <button
-          type="button"
-          className="folio-danger"
-          disabled={busy}
-          onClick={onRemove}
-        >
-          {busy ? "Removing…" : "Remove source"}
-        </button>
-      </div>
+      <p className="folio-muted">
+        Source key: <code>{source.key}</code>
+      </p>
+      {error && <ErrorNote error={error} />}
     </Dialog>
   )
 }

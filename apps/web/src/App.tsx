@@ -27,9 +27,7 @@ export default function App() {
   }, [page, section])
   return (
     <QueryClientProvider client={client}>
-      <div
-        className={`folio-app folio-${section === "overview" ? "reader" : "management"}`}
-      >
+      <div className="folio-app">
         <a
           className="folio-skip"
           href="#folio-content"

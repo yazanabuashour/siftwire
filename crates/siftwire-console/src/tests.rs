@@ -490,26 +490,30 @@ async fn static_fallback_serves_spa_routes() {
         "/bin/true",
         temp.path().to_str().expect("utf8"),
     ));
-    let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/sources")
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("in-process response");
-    assert_eq!(response.status(), StatusCode::OK);
-    let bytes = response
-        .into_body()
-        .collect()
-        .await
-        .expect("body")
-        .to_bytes();
-    assert!(
-        String::from_utf8_lossy(&bytes).contains("siftwire"),
-        "index body differs"
-    );
+    for uri in ["/", "/sources"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri(uri)
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("in-process response");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["cache-control"], "no-cache");
+        let bytes = response
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes();
+        assert!(
+            String::from_utf8_lossy(&bytes).contains("siftwire"),
+            "index body differs"
+        );
+    }
 }
 
 #[tokio::test]

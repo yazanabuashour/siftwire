@@ -5,6 +5,7 @@ import { configQuery } from "./config-query"
 import {
   button,
   change,
+  choose,
   click,
   client,
   configuration,
@@ -17,6 +18,7 @@ import {
   sentOutlets,
   setupConfigTest,
   settle,
+  select,
 } from "./config-test-utils"
 import OutletsPage from "./OutletsPage"
 import SettingsPage from "./SettingsPage"
@@ -41,6 +43,12 @@ it("keeps publisher edits local, preserves notes on failure/refetch, and discard
     "Saved publisher rules have overlapping matches",
   )
   expect(host.textContent).toContain("example.test")
+  choose("Rule for Example", "allow")
+  act(() =>
+    host.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click(),
+  )
+  expect(host.querySelector("dialog")).toBeNull()
+  expect(request).not.toHaveBeenCalled()
   click("Edit Example")
   change("Publisher name", "Renamed")
   click("Apply to draft")
@@ -52,7 +60,11 @@ it("keeps publisher edits local, preserves notes on failure/refetch, and discard
     "/api/v1/outlets",
     expect.objectContaining({
       method: "PUT",
-      body: JSON.stringify({ outlets: [{ ...publisher, name: "Renamed" }] }),
+      body: JSON.stringify({
+        outlets: [
+          { ...publisher, name: "Renamed", policy: "allow", enabled: false },
+        ],
+      }),
     }),
   )
   expect(host.textContent).toContain("Overlapping publisher matches")
@@ -65,7 +77,8 @@ it("keeps publisher edits local, preserves notes on failure/refetch, and discard
   await settle()
   click("Edit Renamed")
   expect(input("Note, optional").value).toBe(publisher.note)
-  click("Cancel")
+  click("Close dialog")
+  expect(select("Rule for Renamed").value).toBe("allow")
   click("Discard changes")
   expect(host.textContent).toContain("Publisher changes discarded.")
   click("Edit Example")
@@ -177,7 +190,7 @@ it("cancels unapplied publisher edits without leaving a stale collection draft",
     }),
   )
   await settle()
-  click("Cancel")
+  click("Close dialog")
   expect(host.textContent).toContain("Remote name")
   expect(host.textContent).not.toContain("Cancelled name")
   expect(button("Save publishers").disabled).toBe(true)
@@ -187,7 +200,8 @@ it("cancels unapplied publisher edits without leaving a stale collection draft",
 
 it("adds a local publisher, freezes the collection while editing, and accepts only normalized saved rows", async () => {
   render(<OutletsPage />)
-  expect(host.querySelectorAll("input")).toHaveLength(0)
+  expect(host.querySelector("dialog")).toBeNull()
+  expect(select("Rule for Example").value).toBe("watch")
   click("Add publisher")
   change("Publisher name", "New publisher")
   change("Aliases", " NEW.TEST, Another name ")
@@ -212,10 +226,18 @@ it("adds a local publisher, freezes the collection while editing, and accepts on
     name: "Normalized publisher",
     aliases: ["new.test"],
   }
-  request.mockResolvedValue(
+  const write = pendingResponse()
+  click("Save publishers")
+  await settle()
+  expect(select("Rule for Example").disabled).toBe(true)
+  expect(
+    [
+      ...host.querySelectorAll<HTMLInputElement>(".config-outlet-row input"),
+    ].every((entry) => entry.disabled),
+  ).toBe(true)
+  write.respond(
     Response.json({ outlets: [publisher, normalized], outlet_conflicts: [] }),
   )
-  click("Save publishers")
   await settle()
   expect(request).toHaveBeenCalledWith(
     "/api/v1/outlets",

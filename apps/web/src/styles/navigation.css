@@ -1,7 +1,3 @@
-.folio-app.folio-management {
-  max-width: none;
-}
-
 .folio-masthead .folio-source-nav {
   border-top: 1px solid var(--folio-line);
 }
@@ -13,5 +9,9 @@
 }
 
 .folio-run-navigation > a {
+  display: inline-flex;
+  align-items: center;
   justify-self: start;
+  min-height: 44px;
+  font-size: 12px;
 }

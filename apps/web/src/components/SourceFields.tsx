@@ -159,18 +159,11 @@ export function PolicyFields({
 }
 
 export function PreferenceFields({ draft, update }: SourceFieldsProps) {
-  if (draft.kind === "sports_schedule")
-    return (
-      <p className="folio-wide folio-muted">
-        Sports use fixture identity and their own order, not source preference
-        or title-matching groups.
-      </p>
-    )
   return (
     <>
       <Field
         label="Source preference"
-        hint="Lower wins duplicate representative choice and orders normal items. This is not article importance. Sports use fixture identity and their own order."
+        hint="Lower numbers prefer this source for duplicate stories and sort ordinary items. The default is 0. This is not article importance."
       >
         <input
           type="text"

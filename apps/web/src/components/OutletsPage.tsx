@@ -1,8 +1,8 @@
-import { useState } from "react"
+import { useId, useState } from "react"
 
 import type { ConfigResult, OutletPolicy } from "../api-contracts"
 import { useOutletDraft, useOutletEditor } from "./config-outlets"
-import { Dialog, Field, PageHeading } from "./ui"
+import { Dialog, ErrorNote, Field, PageHeading } from "./ui"
 
 import "./config.css"
 
@@ -49,12 +49,9 @@ export default function OutletsPage() {
             conflicts={config.data.outlet_conflicts}
             busy={save.isPending}
             onEdit={startEditing}
+            onChange={model.updateRow}
           />
-          {save.isError && (
-            <p className="folio-error" role="alert">
-              {save.error.message}
-            </p>
-          )}
+          {save.isError && <ErrorNote error={save.error} />}
           <div className="folio-save-bar">
             <button
               type="button"
@@ -115,19 +112,24 @@ function ClearPublishersDialog({
   onClear: () => void
 }) {
   return (
-    <Dialog title="Clear all publisher rules?" onClose={onClose}>
+    <Dialog
+      title="Clear all publisher rules?"
+      onClose={onClose}
+      actions={
+        <>
+          <button type="button" onClick={onClose}>
+            Keep draft
+          </button>
+          <button type="button" className="folio-danger" onClick={onClear}>
+            Clear all rules
+          </button>
+        </>
+      }
+    >
       <p>
         Saving this empty list removes every publisher rule, including all
         blocks. No publisher will be blocked by this list.
       </p>
-      <div className="folio-form-actions">
-        <button type="button" onClick={onClose}>
-          Keep draft
-        </button>
-        <button type="button" className="folio-danger" onClick={onClear}>
-          Clear all rules
-        </button>
-      </div>
     </Dialog>
   )
 }
@@ -137,11 +139,16 @@ function PublisherRows({
   conflicts,
   busy,
   onEdit,
+  onChange,
 }: {
   rows: OutletPolicy[]
   conflicts: ConfigResult["outlet_conflicts"]
   busy: boolean
   onEdit: (index: number, row: OutletPolicy) => void
+  onChange: (
+    index: number,
+    patch: Partial<Pick<OutletPolicy, "policy" | "enabled">>,
+  ) => void
 }) {
   return (
     <>
@@ -164,18 +171,33 @@ function PublisherRows({
         {rows.map((row, index) => (
           <article className="config-outlet-row" key={row.name}>
             <h2>{row.name}</h2>
-            <span>
-              {row.policy === "watch"
-                ? "Watch · allowed + annotated"
-                : row.policy === "block"
-                  ? "Block"
-                  : row.policy === "allow"
-                    ? "Allow"
-                    : row.policy}
-            </span>
-            <span className="folio-muted">
-              {row.enabled ? "Active" : "Inactive"}
-            </span>
+            <select
+              className="config-outlet-rule"
+              aria-label={`Rule for ${row.name}`}
+              disabled={busy}
+              value={row.policy}
+              onChange={(event) =>
+                onChange(index, { policy: event.target.value })
+              }
+            >
+              {!["allow", "watch", "block"].includes(row.policy) && (
+                <option value={row.policy}>{row.policy}</option>
+              )}
+              <option value="allow">Allow</option>
+              <option value="watch">Watch</option>
+              <option value="block">Block</option>
+            </select>
+            <label className="folio-check">
+              <input
+                type="checkbox"
+                checked={row.enabled}
+                disabled={busy}
+                onChange={(event) =>
+                  onChange(index, { enabled: event.target.checked })
+                }
+              />
+              Active<span className="folio-sr-only"> for {row.name}</span>
+            </label>
             <button
               type="button"
               disabled={busy}
@@ -213,13 +235,31 @@ function OutletEditor({
   onApply,
   onRemove,
 }: OutletEditorProps) {
+  const formId = useId()
   const { draft, error, update, validate } = useOutletDraft(row, rows, index)
   return (
     <Dialog
-      title={index === null ? "Add publisher" : `Edit ${row.name}`}
+      title={index === null ? "Add publisher" : "Edit publisher"}
       onClose={onClose}
+      actions={
+        <>
+          <button type="submit" form={formId} className="folio-primary">
+            Apply to draft
+          </button>
+          {onRemove && (
+            <button
+              type="button"
+              className="folio-quiet-danger"
+              onClick={onRemove}
+            >
+              Remove from draft
+            </button>
+          )}
+        </>
+      }
     >
       <form
+        id={formId}
         onSubmit={(event) => {
           event.preventDefault()
           const next = validate()
@@ -227,22 +267,12 @@ function OutletEditor({
         }}
       >
         <div className="folio-form-grid">
-          <Field label="Publisher name">
+          <Field label="Publisher name" wide>
             <input
               required
               value={draft.name}
               onChange={(event) => update({ name: event.target.value })}
             />
-          </Field>
-          <Field label="Rule">
-            <select
-              value={draft.policy}
-              onChange={(event) => update({ policy: event.target.value })}
-            >
-              <option value="allow">Allow</option>
-              <option value="watch">Watch, allowed + annotated</option>
-              <option value="block">Block</option>
-            </select>
           </Field>
           <Field
             label="Aliases"
@@ -264,40 +294,11 @@ function OutletEditor({
               onChange={(event) => update({ note: event.target.value })}
             />
           </Field>
-          <label className="folio-check">
-            <input
-              type="checkbox"
-              checked={draft.enabled}
-              onChange={(event) => update({ enabled: event.target.checked })}
-            />
-            Active
-          </label>
         </div>
-        {error && (
-          <p className="folio-error" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <ErrorNote error={error} />}
         <p className="folio-muted">
           Changes stay local until you choose Save publishers.
         </p>
-        <div className="folio-form-actions">
-          <button type="submit" className="folio-primary">
-            Apply to draft
-          </button>
-          <button type="button" onClick={onClose}>
-            Cancel
-          </button>
-          {onRemove && (
-            <button
-              type="button"
-              className="folio-quiet-danger"
-              onClick={onRemove}
-            >
-              Remove from draft
-            </button>
-          )}
-        </div>
       </form>
     </Dialog>
   )

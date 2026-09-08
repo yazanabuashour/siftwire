@@ -5,6 +5,9 @@ GitHub Releases and mirrored in `docs/release-notes/`.
 
 ## Releases
 
+- [v0.6.1](https://github.com/yazanabuashour/siftwire/releases/tag/v0.6.1)
+  keeps console pages at a stable width, bounds edit dialogs, exposes routine
+  configuration directly, and revalidates HTML after upgrades.
 - [v0.6.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.6.0)
   simplifies configuration and brief navigation, adds a searchable delivery
   archive, and makes reporting policy and historical evidence explicit without

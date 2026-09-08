@@ -147,6 +147,11 @@ fn resolved(source: &Source, mut item: FetchedItem, canonical_url: String) -> Fe
 
 fn failed(source: &Source, mut item: FetchedItem, error: &ResolveError) -> FeedItemResult {
     let unresolved = UnresolvedItem {
+        disposition: if source.outlet_extraction == "url_host" {
+            crate::contract::ItemDisposition::Dropped
+        } else {
+            crate::contract::ItemDisposition::Retained
+        },
         title: item.title.clone(),
         url: item.url.clone(),
         reason: error.reason(),
@@ -169,6 +174,7 @@ fn unresolved_only(item: &FetchedItem, reason: String) -> FeedItemResult {
     FeedItemResult {
         item: None,
         unresolved: Some(UnresolvedItem {
+            disposition: crate::contract::ItemDisposition::Dropped,
             title: item.title.clone(),
             url: item.url.clone(),
             reason,

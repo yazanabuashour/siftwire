@@ -1,5 +1,5 @@
 import type { Source } from "../api-contracts"
-import { HandlingFields, PolicyFields, ScheduleFields } from "./SourceFields"
+import { HandlingFields, PreferenceFields } from "./SourceFields"
 import { Field } from "./ui"
 
 export default function SourceOptions({
@@ -23,27 +23,27 @@ export default function SourceOptions({
       open={open}
       onToggle={(event) => onToggle(event.currentTarget.open)}
     >
-      <summary>More options</summary>
+      <summary>Advanced source options</summary>
       <div className="folio-form-grid">
-        <Field
-          label="Source key"
-          wide
-          hint={
-            editing
-              ? "Fixed for this source."
-              : "Created from the name unless you enter one."
-          }
-        >
-          <input
-            readOnly={editing}
-            value={draft.key}
-            placeholder={suggestedKey}
-            onChange={(event) => update({ key: event.target.value })}
-          />
-        </Field>
-        <PolicyFields draft={draft} update={update} />
+        {editing ? (
+          <p className="folio-wide folio-muted">
+            Immutable source key: <code>{draft.key}</code>
+          </p>
+        ) : (
+          <Field
+            label="Source key"
+            wide
+            hint="Created from the name unless you enter one."
+          >
+            <input
+              value={draft.key}
+              placeholder={suggestedKey}
+              onChange={(event) => update({ key: event.target.value })}
+            />
+          </Field>
+        )}
+        <PreferenceFields draft={draft} update={update} />
       </div>
-      <ScheduleFields draft={draft} update={update} />
       <HandlingFields draft={draft} update={update} />
     </details>
   )

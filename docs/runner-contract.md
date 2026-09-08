@@ -68,7 +68,28 @@ Actions:
 
 Config results contain `runner_protocol`, `capabilities`, `rejected`, optional
 `rejection_reason`, `paths`, optional `runtime_config`, `sources`, and `outlets`,
-plus `summary`.
+plus `summary`. Source-bearing results also contain the read-only
+`source_reporting` map keyed by source key. Inspection includes `outlet_conflicts`
+as `{matcher, names}` records for overlapping enabled publisher matchers.
+Mutation results are partial: source upsert returns the normalized source,
+source deletion returns the remaining source collection, publisher replacement
+returns the normalized publisher collection, and brief-option writes return
+runtime configuration. Do not replace an entire cached configuration with a
+partial mutation result.
+
+`source_reporting` has these values:
+
+- `sports`: recurring schedule updates, outside normal candidate slots.
+- `required`: eligible new items are required by a release source, an `always`
+  threshold, or `always_report`.
+- `observe`: audit-only collection, with no inclusion queue.
+- `major`: high-threshold candidates for caller judgment.
+- `highlights`: medium-threshold candidates for caller judgment.
+
+The runner owns this decision. Reporting metadata is not a writable Source
+field. Editing another field must not silently normalize `threshold`,
+`always_report`, priority, or source kind. Observation advances seen state;
+unselected candidates are not a durable backlog.
 
 Sources support `rss`, `atom`, `github_release`, and `sports_schedule`. Their
 stable fields are `key`, `label`, `kind`, `url`, `repo`, `section`, `threshold`,
@@ -101,7 +122,12 @@ sources must resolve only to public addresses. The runner applies that policy to
 resolution and redirect, disables proxy bypass, and rejects decoded response
 bodies beyond the measured 16 MiB tripwire in
 `receipts/http-response-size.json`. Outlet policies use `name`, `aliases`,
-`policy`, `note`, and `enabled`.
+`policy`, `note`, and `enabled`. Notes are optional metadata, not instructions.
+Allow and Watch retain matching items and produce annotations; unmatched items
+also remain. Block excludes matches. New replacement writes reject overlapping
+enabled names or aliases under the runner's shared matcher normalization.
+Existing conflicts remain readable and keep their previous first-match order
+until the operator changes them. Rejection leaves the whole collection intact.
 
 ## Briefs
 
@@ -151,7 +177,9 @@ dark background. Required normal items can exceed
 `max_delivery_items`; `candidate_slots` then remains explicitly zero. Consumers
 must send prepared bodies unchanged. Each `prepared_items` entry includes its
 source `kind`; sports evidence remains auditable but does not enter normal-item
-recent suppression.
+recent suppression. New plans also retain optional `run_item_ids` as strings
+linking prepared items to immutable collection evidence. Old plans without these
+references remain valid and unchanged.
 
 `paths.data_dir`, `recent_sent`, aggregate `suppressed`, and `previous_briefs`
 remain compatibility fields. New consumers should prefer typed suppression

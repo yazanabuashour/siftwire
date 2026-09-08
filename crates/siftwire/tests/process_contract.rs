@@ -3,6 +3,9 @@
     reason = "process tests return Result for setup while assertions report contract failures"
 )]
 
+#[path = "process_contract/architecture.rs"]
+mod architecture;
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::process::{Command, Output, Stdio};

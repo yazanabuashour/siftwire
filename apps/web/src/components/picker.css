@@ -1,0 +1,103 @@
+.folio-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.folio-picker-open {
+  z-index: 5;
+}
+
+.folio-picker-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+
+.folio-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+}
+
+.folio-picker-trigger > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folio-picker-popup {
+  position: fixed;
+  right: auto;
+  bottom: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--folio-line);
+  border-radius: 3px;
+  background: var(--folio-paper);
+  color: var(--folio-ink);
+}
+
+.folio-picker-input-wrap,
+.folio-picker-footer {
+  flex-shrink: 0;
+  padding: 12px;
+}
+
+.folio-picker-input-wrap {
+  border-bottom: 1px solid var(--folio-line);
+}
+
+.folio-app .folio-picker-input-wrap input {
+  font-size: 16px;
+}
+
+.folio-app .folio-picker-input-wrap p {
+  margin-top: 8px;
+}
+
+.folio-picker-list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  padding: 6px;
+  margin: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  scrollbar-color: var(--folio-line) transparent;
+}
+
+.folio-picker-option {
+  display: grid;
+  gap: 2px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.folio-picker-option small {
+  color: var(--folio-muted);
+  font-size: 12px;
+}
+
+.folio-picker-option[aria-selected="true"] {
+  background: var(--folio-group);
+  outline: 1px solid var(--folio-violet);
+  outline-offset: -1px;
+}
+
+.folio-picker-footer {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--folio-line);
+  color: var(--folio-muted);
+  font-size: 12px;
+}

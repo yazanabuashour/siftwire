@@ -1,4 +1,9 @@
-import { PriorityRankSchema, type Source } from "../api-contracts"
+import {
+  PriorityRankSchema,
+  type ReportingMode,
+  type Source,
+} from "../api-contracts"
+import { reportingLabels } from "../reporting"
 
 export const emptySource: Source = {
   key: "",
@@ -19,18 +24,35 @@ export const emptySource: Source = {
   api_key: "",
 }
 
-export function normalizeDraft(draft: Source, key: string): Source {
+export type FeedReportingMode = Exclude<ReportingMode, "sports">
+
+export function reportingPatch(mode: FeedReportingMode): Partial<Source> {
   return {
-    ...draft,
-    key,
-    label: draft.label.trim(),
-    section: draft.section.trim().toLowerCase(),
-    url: draft.url.trim(),
-    repo: draft.repo.trim(),
-    dedup_group: draft.dedup_group.trim().toLowerCase(),
-    api_key: draft.api_key.trim(),
-    priority_rank: draft.priority_rank.trim(),
+    threshold: {
+      required: "always",
+      highlights: "medium",
+      major: "high",
+      observe: "audit",
+    }[mode],
+    always_report: false,
   }
+}
+
+export function sourceType(kind: string): string {
+  return kind === "rss" || kind === "atom" ? "feed" : kind
+}
+
+export function sourceTypePatch(type: string): Partial<Source> {
+  return {
+    kind: type === "feed" ? "rss" : type,
+    schedule_format: type === "sports_schedule" ? "espn" : "",
+    schedule_filter: "all",
+    api_key: "",
+  }
+}
+
+export function reportingLabel(mode: ReportingMode | undefined): string {
+  return mode ? reportingLabels[mode] : "Reporting unavailable"
 }
 
 export function suggestKey(label: string, sources: Source[]): string {
@@ -57,7 +79,8 @@ export function sourceError(
 ): string {
   if (!/^[a-z0-9][a-z0-9._-]*$/.test(source.key))
     return "Start the key with a letter or number. Use lowercase letters, numbers, dots, underscores, or hyphens."
-  if (!source.label || !source.section) return "Enter a name and topic."
+  if (!source.label.trim() || !source.section.trim())
+    return "Enter a name and topic."
   if (
     sources.some(
       (entry) =>
@@ -76,7 +99,11 @@ export function sourceError(
     !/^[a-zA-Z0-9][a-zA-Z0-9-]*\/[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(source.repo)
   )
     return "Enter a repository as owner/name."
-  if (source.schedule_format === "riot" && !source.api_key)
+  if (
+    source.kind === "sports_schedule" &&
+    source.schedule_format === "riot" &&
+    !source.api_key.trim()
+  )
     return "Enter the public frontend API key used by the League of Legends esports website."
   if (source.kind !== "github_release" || source.url) {
     try {
@@ -93,6 +120,7 @@ export function sourceError(
       )
         return "The address must not include credentials."
       if (
+        source.kind === "sports_schedule" &&
         source.schedule_format === "riot" &&
         source.schedule_filter === "standings_top_two"
       ) {

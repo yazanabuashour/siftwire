@@ -22,6 +22,7 @@ impl FetchedItem {
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct UnresolvedItem {
+    pub disposition: crate::contract::ItemDisposition,
     pub title: String,
     pub url: String,
     pub reason: String,

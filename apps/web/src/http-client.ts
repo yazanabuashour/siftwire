@@ -5,6 +5,11 @@ const ErrorEnvelopeSchema = z.object({
 })
 
 const PlainMessageSchema = z.object({ message: z.string() })
+const RejectionSchema = z.object({
+  rejected: z.literal(true),
+  rejection_reason: z.string().optional(),
+  summary: z.string().optional(),
+})
 
 export class HttpError extends Error {
   readonly status: number
@@ -37,15 +42,9 @@ export async function request<T>(
     TIMEOUT_MS,
   )
   const external = options.signal
-  if (external) {
-    if (external.aborted) controller.abort(external.reason)
-    else
-      external.addEventListener(
-        "abort",
-        () => controller.abort(external.reason),
-        { once: true },
-      )
-  }
+  const abort = () => controller.abort(external?.reason)
+  if (external?.aborted) abort()
+  else external?.addEventListener("abort", abort, { once: true })
   try {
     const init: RequestInit = {
       method: options.method,
@@ -67,8 +66,16 @@ export async function request<T>(
           : response.statusText || "request failed"
       throw new HttpError(response.status, message)
     }
+    const rejection = RejectionSchema.safeParse(payload)
+    if (rejection.success)
+      throw new Error(
+        rejection.data.rejection_reason ||
+          rejection.data.summary ||
+          "The runner rejected the request.",
+      )
     return options.schema.parse(payload)
   } finally {
     clearTimeout(timer)
+    external?.removeEventListener("abort", abort)
   }
 }

@@ -228,6 +228,69 @@ async fn every_configuration_response_stringifies_source_priorities() {
 }
 
 #[tokio::test]
+async fn archive_queries_proxy_filters_cursors_and_literal_search() {
+    let output = json!({"runs": [{"run_id": "old"}], "next_before": "old"});
+    for (uri, arguments) in [
+        ("/api/v1/runs", "runs list --json\n"),
+        (
+            "/api/v1/runs?delivered=true&before=old&search=100%25%20literal&limit=1",
+            "runs list --json --limit 1 --delivered --before old --search 100% literal\n",
+        ),
+        (
+            "/api/v1/runs?delivered=false&search=--db",
+            "runs list --json --search --db\n",
+        ),
+    ] {
+        let temp = TempDir::new().expect("temp dir");
+        let script = write_runner(&temp, &output.to_string(), 0);
+        let app = crate::router(state_with_runner(
+            &script,
+            temp.path().to_str().expect("utf8"),
+        ));
+        let (status, body) = call(app, json_request("GET", uri, &Value::Null)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, output);
+        assert_eq!(
+            std::fs::read_to_string(temp.path().join("args")).expect("args"),
+            arguments
+        );
+    }
+}
+
+#[tokio::test]
+async fn invalid_archive_queries_fail_before_spawning() {
+    for query in [
+        "limit=0",
+        "limit=-1",
+        "limit=9223372036854775807",
+        "limit=9223372036854775808",
+        "limit=no",
+        "before=",
+        "before=%20",
+        "delivered=yes",
+        "unknown=true",
+        "limit=1&limit=2",
+    ] {
+        let temp = TempDir::new().expect("temp dir");
+        let script = write_runner(&temp, "{}", 0);
+        let app = crate::router(state_with_runner(
+            &script,
+            temp.path().to_str().expect("utf8"),
+        ));
+        let response = app
+            .oneshot(json_request(
+                "GET",
+                &format!("/api/v1/runs?{query}"),
+                &Value::Null,
+            ))
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{query}");
+        assert!(!temp.path().join("args").exists(), "spawned for {query}");
+    }
+}
+
+#[tokio::test]
 async fn historical_priorities_are_strings_without_rewriting_other_evidence() {
     let output = json!({
         "run": {"run_id": "fixture", "dry_run": false},

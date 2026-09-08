@@ -78,8 +78,8 @@ impl Store {
         self.connection
             .execute(
                 "INSERT INTO fetch_log \
-                 (run_id, source_key, status, error, item_count, new_item_count, created_at) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                 (run_id, source_key, status, error, item_count, new_item_count, created_at, source_label) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                 params![
                     log.run_id,
                     log.source_key,
@@ -88,6 +88,7 @@ impl Store {
                     item_count,
                     new_item_count,
                     format_timestamp(created_at),
+                    log.source_label,
                 ],
             )
             .with_context(|| format!("insert fetch log for source {}", log.source_key))?;
@@ -106,7 +107,7 @@ impl Store {
         let mut statement = self
             .connection
             .prepare(
-                "SELECT run_id, source_key, status, error, item_count, new_item_count, created_at \
+                "SELECT run_id, source_key, status, error, item_count, new_item_count, created_at, source_label \
                  FROM fetch_log ORDER BY id DESC LIMIT ?1",
             )
             .context("prepare recent fetch log query")?;
@@ -188,6 +189,7 @@ impl Store {
 }
 
 pub(super) struct RawFetchLog {
+    source_label: String,
     run_id: String,
     source_key: String,
     status: String,
@@ -202,6 +204,7 @@ impl TryFrom<RawFetchLog> for FetchLog {
 
     fn try_from(raw: RawFetchLog) -> Result<Self> {
         Ok(Self {
+            source_label: raw.source_label,
             run_id: raw.run_id,
             source_key: raw.source_key,
             status: raw.status,
@@ -216,6 +219,7 @@ impl TryFrom<RawFetchLog> for FetchLog {
 
 pub(super) fn raw_fetch_log(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawFetchLog> {
     Ok(RawFetchLog {
+        source_label: row.get(7)?,
         run_id: row.get(0)?,
         source_key: row.get(1)?,
         status: row.get(2)?,

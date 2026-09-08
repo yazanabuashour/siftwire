@@ -34,28 +34,24 @@ export function saveSource(
   })
 }
 
-const DeletionResultSchema = z.object({
-  rejected: z.boolean(),
-  summary: z.string(),
-})
-
 export function deleteSource(
   key: string,
   signal?: AbortSignal | undefined,
-): Promise<{ rejected: boolean; summary: string }> {
+): Promise<ConfigResult> {
   return request(`/sources/${encodeURIComponent(key)}`, {
     method: "DELETE",
-    schema: DeletionResultSchema,
+    schema: ConfigResultSchema,
     signal,
   })
 }
 
-const AckSchema = z.object({
-  rejected: z.boolean(),
-  summary: z.string().optional().default(""),
+const OptionsResultSchema = z.object({
+  runtime_config: z.record(z.string(), z.string()),
 })
-
-type Ack = z.infer<typeof AckSchema>
+const OutletsResultSchema = ConfigResultSchema.pick({
+  outlets: true,
+  outlet_conflicts: true,
+})
 
 export type BriefOptionsInput = {
   maxDeliveryItems: number
@@ -67,7 +63,7 @@ export type BriefOptionsInput = {
 export function setOptions(
   options: BriefOptionsInput,
   signal?: AbortSignal | undefined,
-): Promise<Ack> {
+): Promise<z.infer<typeof OptionsResultSchema>> {
   return request("/options", {
     method: "PUT",
     body: {
@@ -76,7 +72,7 @@ export function setOptions(
       sports_post_game_days: options.sportsPostGameDays,
       sports_timezone: options.sportsTimezone,
     },
-    schema: AckSchema,
+    schema: OptionsResultSchema,
     signal,
   })
 }
@@ -84,20 +80,32 @@ export function setOptions(
 export function replaceOutlets(
   outlets: OutletPolicy[],
   signal?: AbortSignal | undefined,
-): Promise<Ack> {
+): Promise<z.infer<typeof OutletsResultSchema>> {
   return request("/outlets", {
     method: "PUT",
     body: { outlets },
-    schema: AckSchema,
+    schema: OutletsResultSchema,
     signal,
   })
 }
 
+export type RunListOptions = {
+  limit?: number
+  delivered?: boolean
+  before?: string
+  search?: string
+}
+
 export function listRuns(
-  limit: number,
+  options: RunListOptions = {},
   signal?: AbortSignal | undefined,
 ): Promise<RunsList> {
-  return request(`/runs?limit=${limit}`, {
+  const query = new URLSearchParams()
+  if (options.limit !== undefined) query.set("limit", String(options.limit))
+  if (options.delivered) query.set("delivered", "true")
+  if (options.before) query.set("before", options.before)
+  if (options.search) query.set("search", options.search)
+  return request(`/runs?${query}`, {
     method: "GET",
     schema: RunsListSchema,
     signal,

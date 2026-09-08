@@ -1,7 +1,11 @@
+#[cfg(test)]
+mod architecture_tests;
 mod delivery;
 mod delivery_plans;
 mod outlets;
+mod run_archive;
 mod run_items;
+pub use run_archive::{RunListOptions, RunPage};
 mod runs_health;
 mod runtime_config;
 mod schema;
@@ -27,7 +31,8 @@ pub use crate::domain::{OutletPolicy, Source, normalize_source};
 pub use delivery::normalize_title_key;
 pub use delivery_plans::{DeliveryPlan, RunDeliveryContext};
 pub use run_items::{
-    RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RunDetail, RunItemRow, RunSummary,
+    RUN_ITEM_ANNOTATION, RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RunDetail,
+    RunItemRow, RunSummary,
 };
 
 pub const RUNTIME_CONFIG_CONFIGURATION_VERSION: &str = "configuration_version";
@@ -58,6 +63,7 @@ pub struct SourceState {
 
 #[derive(Clone, Debug)]
 pub struct FetchLog {
+    pub source_label: String,
     pub run_id: String,
     pub source_key: String,
     pub status: String,
@@ -99,6 +105,7 @@ impl Default for SourceState {
 impl Default for FetchLog {
     fn default() -> Self {
         Self {
+            source_label: String::new(),
             run_id: String::new(),
             source_key: String::new(),
             status: String::new(),

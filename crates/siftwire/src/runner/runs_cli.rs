@@ -5,13 +5,15 @@ use serde::Serialize;
 
 use crate::contract::{FetchStatus, SentItem};
 use crate::storage::{
-    RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RunDetail, RunItemRow, RunSummary,
-    StoredSentItem,
+    RUN_ITEM_ANNOTATION, RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RunDetail,
+    RunItemRow, RunListOptions, RunPage, RunSummary, StoredSentItem,
 };
 
 use super::delivery::sent_item;
+use super::evidence::{DeliveryStatus, delivery_status};
 use super::format::{print_table, truncate};
 use super::{EXIT_FAILURE, EXIT_OK, EXIT_USAGE_CODE, emit_json, open_store};
+use crate::contract::ItemDisposition;
 
 const DEFAULT_RUN_LIMIT: i64 = 20;
 const SUMMARY_WIDTH: usize = 64;
@@ -38,14 +40,17 @@ fn list(arguments: &[String]) -> ExitCode {
     };
     let mut json = false;
     let mut limit: Option<i64> = None;
-    if let Err(error) = parse_flags(&rest, &mut json, &mut limit) {
+    let mut options = RunListOptions::default();
+    if let Err(error) = parse_flags(&rest, &mut json, &mut limit, &mut options) {
         return usage_failure(&error);
     }
     match open_store(database.as_deref()) {
-        Ok((_paths, store)) => match store.list_runs(limit.unwrap_or(DEFAULT_RUN_LIMIT)) {
-            Ok(runs) => render_runs(&runs, json),
-            Err(error) => failure(&format!("list runs: {error:#}")),
-        },
+        Ok((_paths, store)) => {
+            match store.list_runs(limit.unwrap_or(DEFAULT_RUN_LIMIT), &options) {
+                Ok(runs) => render_runs(&runs, json),
+                Err(error) => failure(&format!("list runs: {error:#}")),
+            }
+        }
         Err(error) => failure(&format!("open database: {error:#}")),
     }
 }
@@ -108,17 +113,36 @@ fn show(arguments: &[String]) -> ExitCode {
     }
 }
 
-fn parse_flags(arguments: &[String], json: &mut bool, limit: &mut Option<i64>) -> Result<()> {
+fn parse_flags(
+    arguments: &[String],
+    json: &mut bool,
+    limit: &mut Option<i64>,
+    options: &mut RunListOptions,
+) -> Result<()> {
     let mut values = arguments.iter();
     while let Some(argument) = values.next() {
         if argument == "--json" {
             *json = true;
+        } else if argument == "--delivered" {
+            options.delivered = true;
+        } else if matches!(argument.as_str(), "--before" | "--search") {
+            let value = values
+                .next()
+                .ok_or_else(|| anyhow::anyhow!("flag needs an argument: {argument}"))?;
+            if argument == "--before" {
+                if value.trim().is_empty() {
+                    bail!("--before requires a run id");
+                }
+                options.before = Some(value.clone());
+            } else {
+                options.search = Some(value.clone());
+            }
         } else if argument == "--limit" {
             let raw = values
                 .next()
                 .ok_or_else(|| anyhow::anyhow!("flag needs an argument: {argument}"))?;
             *limit = match raw.parse::<i64>() {
-                Ok(value) if value > 0 => Some(value),
+                Ok(value) if value > 0 && value < i64::MAX => Some(value),
                 Ok(_) | Err(_) => {
                     return Err(anyhow::anyhow!(
                         "--limit expects a positive number: {raw:?}"
@@ -134,10 +158,11 @@ fn parse_flags(arguments: &[String], json: &mut bool, limit: &mut Option<i64>) -
     Ok(())
 }
 
-fn render_runs(runs: &[RunSummary], json: bool) -> ExitCode {
+fn render_runs(page: &RunPage, json: bool) -> ExitCode {
     if json {
-        return emit_json(&serde_json::json!({ "runs": runs }));
+        return emit_json(page);
     }
+    let runs = &page.runs;
     let header = ["RUN_ID", "STARTED", "STATUS", "DELIVERED", "SUMMARY"];
     let rows: Vec<Vec<String>> = runs
         .iter()
@@ -152,6 +177,9 @@ fn render_runs(runs: &[RunSummary], json: bool) -> ExitCode {
         })
         .collect();
     print_table(&header, &rows);
+    if let Some(before) = &page.next_before {
+        println!("next_before: {before}");
+    }
     EXIT_OK
 }
 
@@ -170,7 +198,7 @@ fn render_detail(detail: &RunDetail, parsed: &ShowArguments) -> ExitCode {
                 .items
                 .iter()
                 .filter(|item| item.category == RUN_ITEM_MUST_INCLUDE),
-            &detail.sent_items,
+            detail,
         );
         println!();
         render_items(
@@ -179,17 +207,22 @@ fn render_detail(detail: &RunDetail, parsed: &ShowArguments) -> ExitCode {
                 .items
                 .iter()
                 .filter(|item| item.category == RUN_ITEM_CANDIDATE),
-            &detail.sent_items,
+            detail,
         );
     }
     if parsed.sections.dropped {
         println!();
-        render_dropped(
-            detail
-                .items
-                .iter()
-                .filter(|item| item.category == RUN_ITEM_DROPPED),
-        );
+        render_dropped(detail.items.iter().filter(|item| is_drop(item)));
+        println!("annotations:");
+        for item in detail.items.iter().filter(|item| is_annotation(item)) {
+            println!(
+                "  [{}] {} {:?}: {}",
+                item.source_key,
+                item.title,
+                disposition(item),
+                item.detail
+            );
+        }
     }
     if parsed.sections.selected {
         println!();
@@ -224,15 +257,20 @@ fn render_fetch_block(detail: &RunDetail) {
     }
     println!("fetch:");
     for log in &detail.fetch_logs {
+        let label = if log.source_label.is_empty() {
+            log.source_key.clone()
+        } else {
+            format!("{} [{}]", log.source_label, log.source_key)
+        };
         if log.status == "ok" {
             println!(
                 "  {} ok items={} new={}",
-                log.source_key, log.item_count, log.new_item_count
+                label, log.item_count, log.new_item_count
             );
         } else {
             println!(
                 "  {} {} {}",
-                log.source_key,
+                label,
                 log.status,
                 truncate(&log.error, SUMMARY_WIDTH)
             );
@@ -240,15 +278,11 @@ fn render_fetch_block(detail: &RunDetail) {
     }
 }
 
-fn render_items<'a>(
-    label: &str,
-    items: impl Iterator<Item = &'a RunItemRow>,
-    sent: &[StoredSentItem],
-) {
+fn render_items<'a>(label: &str, items: impl Iterator<Item = &'a RunItemRow>, detail: &RunDetail) {
     println!("{label}:");
     for item in items {
-        let mark = if is_selected(item, sent) { "*" } else { "-" };
-        println!("  {mark} [{}] {}", item.source_key, item.title);
+        let status = delivery_status(item, detail);
+        println!("  {status:?} [{}] {}", item.source_key, item.title);
         println!("    {}", item.url);
     }
 }
@@ -275,51 +309,88 @@ fn render_selected(detail: &RunDetail) {
     }
 }
 
-fn detail_json(detail: &RunDetail) -> serde_json::Value {
+pub(super) fn detail_json(detail: &RunDetail) -> serde_json::Value {
     serde_json::json!({
         "run": detail.summary,
         "delivery_html": detail.delivery_html,
         "must_include": items_json(
             detail.items.iter().filter(|item| item.category == RUN_ITEM_MUST_INCLUDE),
-            &detail.sent_items,
+            detail,
         ),
         "candidates": items_json(
             detail.items.iter().filter(|item| item.category == RUN_ITEM_CANDIDATE),
-            &detail.sent_items,
+            detail,
         ),
         "dropped": drops_json(
-            detail.items.iter().filter(|item| item.category == RUN_ITEM_DROPPED),
+            detail.items.iter().filter(|item| is_drop(item)),
         ),
+        "annotations": drops_json(detail.items.iter().filter(|item| is_annotation(item))),
         "fetch": fetch_json(detail),
         "sent_items": sent_json(&detail.sent_items),
     })
 }
 
-/// Selection matches the persisted title-and-URL pair so a candidate sharing a
-/// URL with a distinct must-include item is not falsely marked.
-fn is_selected(item: &RunItemRow, sent: &[StoredSentItem]) -> bool {
-    sent.iter()
-        .any(|entry| entry.url == item.url && entry.title == item.title)
+fn disposition(item: &RunItemRow) -> ItemDisposition {
+    if item.reason == "unresolved" {
+        return match serde_json::from_str::<serde_json::Value>(&item.detail)
+            .ok()
+            .and_then(|detail| {
+                detail
+                    .get("disposition")
+                    .and_then(|value| value.as_str())
+                    .map(str::to_owned)
+            })
+            .as_deref()
+        {
+            Some("retained") => ItemDisposition::Retained,
+            Some("dropped") => ItemDisposition::Dropped,
+            _ => ItemDisposition::Unknown,
+        };
+    }
+    if item.category == RUN_ITEM_DROPPED {
+        ItemDisposition::Dropped
+    } else {
+        ItemDisposition::Retained
+    }
+}
+
+fn is_drop(item: &RunItemRow) -> bool {
+    item.category == RUN_ITEM_DROPPED && disposition(item) == ItemDisposition::Dropped
+}
+
+fn is_annotation(item: &RunItemRow) -> bool {
+    item.category == RUN_ITEM_ANNOTATION
+        || (item.category == RUN_ITEM_DROPPED && disposition(item) == ItemDisposition::Unknown)
 }
 
 fn items_json<'a>(
     items: impl Iterator<Item = &'a RunItemRow>,
-    sent: &[StoredSentItem],
+    detail: &RunDetail,
 ) -> Vec<ItemJson> {
     items
-        .map(|item| ItemJson {
-            source_key: item.source_key.clone(),
-            source_label: item.source_label.clone(),
-            kind: item.kind.clone(),
-            section: item.section.clone(),
-            threshold: item.threshold.clone(),
-            priority_rank: item.priority_rank,
-            always_report: item.always_report,
-            published_at: item.published_at.clone(),
-            outlet: item.outlet.clone(),
-            title: item.title.clone(),
-            url: item.url.clone(),
-            selected: is_selected(item, sent),
+        .map(|item| {
+            let status = delivery_status(item, detail);
+            ItemJson {
+                id: item.id.clone(),
+                source_key: item.source_key.clone(),
+                source_label: item.source_label.clone(),
+                kind: item.kind.clone(),
+                section: item.section.clone(),
+                threshold: item.threshold.clone(),
+                priority_rank: item.priority_rank,
+                always_report: item.always_report,
+                published_at: item.published_at.clone(),
+                outlet: item.outlet.clone(),
+                title: item.title.clone(),
+                url: item.url.clone(),
+                selected: status.selected(),
+                delivery_status: status,
+                reporting: crate::domain::Reporting::from_recorded(
+                    &item.kind,
+                    &item.threshold,
+                    item.always_report,
+                ),
+            }
         })
         .collect()
 }
@@ -327,6 +398,9 @@ fn items_json<'a>(
 fn drops_json<'a>(items: impl Iterator<Item = &'a RunItemRow>) -> Vec<DroppedJson> {
     items
         .map(|item| DroppedJson {
+            id: item.id.clone(),
+            source_label: item.source_label.clone(),
+            disposition: disposition(item),
             source_key: item.source_key.clone(),
             title: item.title.clone(),
             url: item.url.clone(),
@@ -343,6 +417,7 @@ fn fetch_json(detail: &RunDetail) -> Vec<FetchStatus> {
         .iter()
         .map(|log| FetchStatus {
             source_key: log.source_key.clone(),
+            source_label: log.source_label.clone(),
             status: log.status.clone(),
             error: log.error.clone(),
             items: log.item_count,
@@ -358,6 +433,7 @@ fn sent_json(items: &[StoredSentItem]) -> Vec<SentItem> {
 
 #[derive(Serialize)]
 struct ItemJson {
+    id: String,
     source_key: String,
     source_label: String,
     kind: String,
@@ -370,10 +446,15 @@ struct ItemJson {
     title: String,
     url: String,
     selected: bool,
+    delivery_status: DeliveryStatus,
+    reporting: Option<crate::domain::Reporting>,
 }
 
 #[derive(Serialize)]
 struct DroppedJson {
+    id: String,
+    source_label: String,
+    disposition: ItemDisposition,
     source_key: String,
     title: String,
     url: String,
@@ -392,7 +473,7 @@ fn category_counts(detail: &RunDetail) -> (usize, usize, usize) {
     (
         count(RUN_ITEM_MUST_INCLUDE),
         count(RUN_ITEM_CANDIDATE),
-        count(RUN_ITEM_DROPPED),
+        detail.items.iter().filter(|item| is_drop(item)).count(),
     )
 }
 

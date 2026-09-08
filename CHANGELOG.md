@@ -5,6 +5,10 @@ GitHub Releases and mirrored in `docs/release-notes/`.
 
 ## Releases
 
+- [v0.6.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.6.0)
+  simplifies configuration and brief navigation, adds a searchable delivery
+  archive, and makes reporting policy and historical evidence explicit without
+  rewriting source state or saved emails.
 - [v0.2.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.2.0)
   presents the SiftWire name, ports the runtime to Rust under strict lint
   rules, documents the JSON process contract, and preserves the SQLite

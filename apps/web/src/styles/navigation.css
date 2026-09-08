@@ -1,0 +1,17 @@
+.folio-app.folio-management {
+  max-width: none;
+}
+
+.folio-masthead .folio-source-nav {
+  border-top: 1px solid var(--folio-line);
+}
+
+.folio-run-navigation {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.folio-run-navigation > a {
+  justify-self: start;
+}

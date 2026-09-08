@@ -5,9 +5,7 @@ use chrono::{DateTime, FixedOffset};
 use url::Url;
 
 use crate::contract::{BriefItem, SuppressedItem};
-use crate::domain::{
-    SOURCE_KIND_GITHUB_RELEASE, SOURCE_KIND_SCHEDULE, Source, THRESHOLD_ALWAYS, THRESHOLD_AUDIT,
-};
+use crate::domain::{Reporting, SOURCE_KIND_SCHEDULE, Source};
 use crate::storage::normalize_title_key;
 
 #[derive(Clone, Debug)]
@@ -36,7 +34,8 @@ pub fn classify_and_dedupe(items: Vec<CollectedItem>) -> ClassifiedItems {
     let mut fixture_duplicates = Vec::new();
     let mut fixture_keys = BTreeSet::new();
     for item in items {
-        if is_always_report_source(&item.source) {
+        let reporting = item.source.reporting();
+        if matches!(reporting, Reporting::Required | Reporting::Sports) {
             if item.source.kind == SOURCE_KIND_SCHEDULE
                 && !fixture_keys.insert(item.fixture_identity.clone())
             {
@@ -44,7 +43,7 @@ pub fn classify_and_dedupe(items: Vec<CollectedItem>) -> ClassifiedItems {
                 continue;
             }
             must_include.push(item.brief_item);
-        } else if item.source.threshold != THRESHOLD_AUDIT {
+        } else if reporting != Reporting::Observe {
             candidates.push(item);
         }
     }
@@ -57,14 +56,6 @@ pub fn classify_and_dedupe(items: Vec<CollectedItem>) -> ClassifiedItems {
         candidates,
         suppressed: fixture_duplicates,
     }
-}
-
-#[must_use]
-pub fn is_always_report_source(source: &Source) -> bool {
-    source.always_report
-        || source.threshold == THRESHOLD_ALWAYS
-        || source.kind == SOURCE_KIND_GITHUB_RELEASE
-        || source.kind == SOURCE_KIND_SCHEDULE
 }
 
 pub fn sort_brief_items(items: &mut [BriefItem]) {

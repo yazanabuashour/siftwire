@@ -64,7 +64,7 @@ pub(super) fn fetch_schedule(
     })
 }
 
-fn sports_update_item(update: &SportsUpdate, timezone: Tz) -> FetchedItem {
+pub fn sports_update_item(update: &SportsUpdate, timezone: Tz) -> FetchedItem {
     let when = update
         .starts_at
         .with_timezone(&timezone)

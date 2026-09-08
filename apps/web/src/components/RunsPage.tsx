@@ -1,71 +1,48 @@
 import { useState } from "react"
 
 import type { RunDetail } from "../api-contracts"
-import { useRecentRuns, useRun } from "./run-queries"
-import { Candidates, Dropped, Fetch } from "./RunEvidence"
-import { dateLabel, ErrorNote, Field, PageHeading } from "./ui"
+import { AppLink, runHref, useNavigation } from "../navigation"
+import { useSelectedRun } from "./run-queries"
+import { Candidates, Dropped, FetchStatuses } from "./RunEvidence"
+import { RunPicker } from "./RunPicker"
+import { dateLabel, ErrorNote, PageHeading } from "./ui"
 
 const tabs = ["candidates", "dropped", "fetch"] as const
 type Tab = (typeof tabs)[number]
 
 export default function RunsPage() {
-  const history = useRecentRuns()
-  const runs = history.data?.runs ?? []
-  const [selected, setSelected] = useState("")
+  const { runId } = useNavigation()
+  const { archive, activeId, detail: result } = useSelectedRun(runId, false)
   const [tab, setTab] = useState<Tab>("candidates")
-  const active = runs.find((run) => run.run_id === selected) ?? runs[0]
-  const result = useRun(active?.run_id)
   const detail = result.data
-  if (history.isPending)
-    return (
-      <>
-        <PageHeading title="History" />
-        <output className="folio-empty">Loading history…</output>
-      </>
-    )
-  if (history.isError)
-    return (
-      <>
-        <PageHeading title="History" />
-        <ErrorNote error={history.error} />
-      </>
-    )
-  if (!runs.length)
-    return (
-      <>
-        <PageHeading title="History" />
-        <p className="folio-empty">No runs in recent history.</p>
-      </>
-    )
   return (
     <>
-      <PageHeading title="History" />
+      <PageHeading
+        title="Activity"
+        action={
+          detail?.run.delivered_at && (
+            <AppLink href={runHref("/", detail.run.run_id)}>
+              Read saved brief
+            </AppLink>
+          )
+        }
+      />
       <div className="folio-runs-layout">
-        <Field label="Choose a brief">
-          <select
-            value={active?.run_id ?? ""}
-            onChange={(event) => setSelected(event.target.value)}
-          >
-            {runs.map((run) => (
-              <option key={run.run_id} value={run.run_id}>
-                {dateLabel(run.started_at, true)} ·{" "}
-                {run.dry_run
-                  ? "Preview only"
-                  : run.delivered_at
-                    ? "Sent"
-                    : run.status === "ok"
-                      ? "Not sent"
-                      : run.status}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {result.isPending ? (
+        <RunPicker delivered={false} selected={detail?.run} runId={runId} />
+        {activeId === undefined ? (
+          archive.isPending ? (
+            <output className="folio-empty">Loading activity…</output>
+          ) : archive.isError ? (
+            <ErrorNote error={archive.error} />
+          ) : (
+            <p className="folio-empty">No recorded runs yet.</p>
+          )
+        ) : result.isPending ? (
           <output className="folio-empty">Loading run…</output>
         ) : result.isError ? (
           <ErrorNote error={result.error} />
         ) : detail ? (
-          <section className="folio-evidence" aria-label="Brief history">
+          <section className="folio-evidence" aria-label="Run activity">
             <RunHeader detail={detail} />
             <EvidenceTabs detail={detail} tab={tab} onSelect={setTab} />
             <div
@@ -74,11 +51,11 @@ export default function RunsPage() {
               aria-labelledby={`folio-tab-${tab}`}
               tabIndex={0}
               className="folio-evidence-body"
-              key={`${selected}-${tab}`}
+              key={`${activeId}-${tab}`}
             >
               {tab === "candidates" && <Candidates detail={detail} />}
               {tab === "dropped" && <Dropped detail={detail} />}
-              {tab === "fetch" && <Fetch detail={detail} />}
+              {tab === "fetch" && <FetchStatuses detail={detail} />}
             </div>
           </section>
         ) : (

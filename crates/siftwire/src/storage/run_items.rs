@@ -6,10 +6,12 @@ use super::{FetchLog, Store, StoredSentItem, bool_i64};
 pub const RUN_ITEM_MUST_INCLUDE: &str = "must_include";
 pub const RUN_ITEM_CANDIDATE: &str = "candidate";
 pub const RUN_ITEM_DROPPED: &str = "dropped";
+pub const RUN_ITEM_ANNOTATION: &str = "annotation";
 
 /// One persisted selection-evidence item belonging to a finished brief run.
 #[derive(Clone, Debug, Default, serde::Serialize)]
 pub struct RunItemRow {
+    pub id: String,
     pub category: String,
     pub source_key: String,
     pub source_label: String,
@@ -46,6 +48,8 @@ pub struct RunSummary {
 pub struct RunDetail {
     pub summary: RunSummary,
     pub delivery_html: Option<String>,
+    pub delivery_plan: Option<super::DeliveryPlan>,
+    pub delivery_context: Option<super::RunDeliveryContext>,
     pub items: Vec<RunItemRow>,
     pub fetch_logs: Vec<FetchLog>,
     pub sent_items: Vec<StoredSentItem>,
@@ -95,29 +99,6 @@ impl Store {
         transaction.commit().context("commit run item insert")
     }
 
-    /// Returns recent runs newest first. The limit must be positive.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when `SQLite` cannot read a run row.
-    pub fn list_runs(&self, limit: i64) -> Result<Vec<RunSummary>> {
-        let mut statement = self
-            .connection
-            .prepare(
-                "SELECT r.id, r.started_at, r.finished_at, r.dry_run, r.status, r.summary, \
-                 delivery.delivered_at, delivery.message \
-                 FROM brief_run r \
-                 LEFT JOIN delivery_once ON delivery_once.run_id = r.id \
-                 LEFT JOIN delivery ON delivery.id = delivery_once.delivery_id \
-                 ORDER BY r.started_at DESC, r.id DESC LIMIT ?1",
-            )
-            .context("prepare run list query")?;
-        let rows = statement
-            .query_map([limit], run_summary_from_row)
-            .context("query runs")?;
-        rows.map(|row| row.context("read run row")).collect()
-    }
-
     /// Returns everything stored for one run, or `None` when unknown.
     ///
     /// # Errors
@@ -150,6 +131,8 @@ impl Store {
         };
         Ok(Some(RunDetail {
             delivery_html,
+            delivery_plan: self.delivery_plan_for_run(run_id)?,
+            delivery_context: self.run_delivery_context(run_id)?,
             items: query_run_items(&self.connection, run_id)?,
             fetch_logs: query_fetch_logs_for_run(&self.connection, run_id)?,
             sent_items: query_sent_items_for_run(&self.connection, run_id)?,
@@ -158,7 +141,7 @@ impl Store {
     }
 }
 
-fn run_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RunSummary> {
+pub(super) fn run_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RunSummary> {
     Ok(RunSummary {
         run_id: row.get(0)?,
         started_at: row.get(1)?,
@@ -175,13 +158,14 @@ fn query_run_items(connection: &Connection, run_id: &str) -> Result<Vec<RunItemR
     let mut statement = connection
         .prepare(
             "SELECT category, source_key, source_label, kind, section, threshold, \
-             priority_rank, always_report, published_at, outlet, title, url, reason, detail \
+             priority_rank, always_report, published_at, outlet, title, url, reason, detail, CAST(id AS TEXT) \
              FROM brief_run_item WHERE run_id = ?1 ORDER BY id",
         )
         .context("prepare run item query")?;
     let rows = statement
         .query_map([run_id], |row| {
             Ok(RunItemRow {
+                id: row.get(14)?,
                 category: row.get(0)?,
                 source_key: row.get(1)?,
                 source_label: row.get(2)?,
@@ -205,7 +189,7 @@ fn query_run_items(connection: &Connection, run_id: &str) -> Result<Vec<RunItemR
 fn query_fetch_logs_for_run(connection: &Connection, run_id: &str) -> Result<Vec<FetchLog>> {
     let mut statement = connection
         .prepare(
-            "SELECT run_id, source_key, status, error, item_count, new_item_count, created_at \
+            "SELECT run_id, source_key, status, error, item_count, new_item_count, created_at, source_label \
              FROM fetch_log WHERE run_id = ?1 ORDER BY id",
         )
         .context("prepare run fetch log query")?;

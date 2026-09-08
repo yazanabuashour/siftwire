@@ -9,6 +9,20 @@ export const PriorityRankSchema = z.string().refine((value) => {
   return rank >= -9223372036854775808n && rank <= 9223372036854775807n
 }, "Priority must be a whole number from -9223372036854775808 to 9223372036854775807.")
 
+export const ReportingModeSchema = z.enum([
+  "required",
+  "sports",
+  "observe",
+  "major",
+  "highlights",
+])
+export type ReportingMode = z.infer<typeof ReportingModeSchema>
+
+export const OutletConflictSchema = z.object({
+  matcher: z.string(),
+  names: z.array(z.string()),
+})
+
 export const SourceSchema = z.object({
   key: z.string(),
   label: z.string(),
@@ -46,6 +60,11 @@ export const ConfigResultSchema = z.object({
   runtime_config: StringMapSchema.optional().default({}),
   sources: z.array(SourceSchema).optional().default([]),
   outlets: z.array(OutletPolicySchema).optional().default([]),
+  source_reporting: z
+    .record(z.string(), ReportingModeSchema)
+    .optional()
+    .default({}),
+  outlet_conflicts: z.array(OutletConflictSchema).optional().default([]),
 })
 export type ConfigResult = z.infer<typeof ConfigResultSchema>
 
@@ -61,7 +80,8 @@ const RunSummarySchema = z.object({
 })
 export type RunSummary = z.infer<typeof RunSummarySchema>
 
-const ItemSchema = z.object({
+export const RunItemSchema = z.object({
+  id: z.string(),
   source_key: z.string(),
   source_label: z.string(),
   kind: z.string().optional().default(""),
@@ -74,11 +94,28 @@ const ItemSchema = z.object({
   title: z.string(),
   url: z.string(),
   selected: z.boolean(),
+  reporting: ReportingModeSchema.nullable().optional().default(null),
+  delivery_status: z
+    .enum([
+      "sent",
+      "sent_as_sports",
+      "not_selected",
+      "not_delivered",
+      "unknown",
+    ])
+    .optional()
+    .default("unknown"),
 })
-export type RunItem = z.infer<typeof ItemSchema>
+export type RunItem = z.infer<typeof RunItemSchema>
 
 const DroppedSchema = z.object({
+  id: z.string(),
+  disposition: z
+    .enum(["retained", "dropped", "unknown"])
+    .optional()
+    .default("unknown"),
   source_key: z.string(),
+  source_label: z.string().optional().default(""),
   title: z.string(),
   url: z.string(),
   reason: z.string(),
@@ -87,6 +124,7 @@ const DroppedSchema = z.object({
 
 const FetchStatusSchema = z.object({
   source_key: z.string(),
+  source_label: z.string().optional().default(""),
   status: z.string(),
   error: z.string().optional().default(""),
   items: z.number().optional().default(0),
@@ -95,15 +133,17 @@ const FetchStatusSchema = z.object({
 
 export const RunsListSchema = z.object({
   runs: z.array(RunSummarySchema),
+  next_before: z.string().nullable().optional().default(null),
 })
 export type RunsList = z.infer<typeof RunsListSchema>
 
 export const RunDetailSchema = z.object({
   run: RunSummarySchema,
   delivery_html: z.string().nullable().optional().default(null),
-  must_include: z.array(ItemSchema),
-  candidates: z.array(ItemSchema),
+  must_include: z.array(RunItemSchema),
+  candidates: z.array(RunItemSchema),
   dropped: z.array(DroppedSchema),
+  annotations: z.array(DroppedSchema).optional().default([]),
   fetch: z.array(FetchStatusSchema),
   sent_items: z.array(
     z.object({

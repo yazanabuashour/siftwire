@@ -70,14 +70,15 @@ inspection and one configuration shortcut:
 
 ```bash
 siftwire source list [--enabled] [--json] [--db path]
-siftwire runs list [--limit N] [--json] [--db path]
+siftwire runs list [--delivered] [--before run_id] [--search text] [--limit N] [--json] [--db path]
 siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]
 siftwire source add [--json] [--db path] < source.json
 ```
 
 `source list`, `runs list`, and `runs show` are read-only. Each run persists its
-must-include items, candidates, and dropped evidence, so `runs show` can render
-what was selected versus dropped for selection tuning. `source add` reads
+must-include items, candidates, exclusions, and annotations. `runs show` reports
+confirmed delivery outcomes separately from collection decisions and labels
+older outcomes unknown when the saved evidence cannot prove them. `source add` reads
 exactly one JSON source object from stdin and stores it with the same validation
 as the `upsert_source` config action; it is a durable configuration write.
 Each successfully completed non-dry run persists selection evidence. `--json`
@@ -85,11 +86,13 @@ switches to machine-readable output; `runs show --json` returns the complete
 run detail regardless of section flags. Its nullable `delivery_html` field
 contains the exact saved HTML for a confirmed delivery, or `null` when no
 confirmed HTML is available. Reading history never regenerates an email.
+See [run history](docs/run-history.md) for archive cursors, search, and evidence.
 
 ## Console
 
-An optional local web console views sources, outlet policies, runs, and
-deliveries, and edits configuration through the same runner process contract.
+The optional local web console has one brief reader with a searchable archive,
+source and publisher configuration, and a separate Activity view for recorded
+runs. It reads and writes through the runner process contract.
 See [`docs/console.md`](docs/console.md).
 
 ## Storage

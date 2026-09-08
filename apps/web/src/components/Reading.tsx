@@ -2,11 +2,23 @@ import { createContext, useContext, type ReactNode } from "react"
 import Markdown from "react-markdown"
 
 import type { RunDetail, RunItem } from "../api-contracts"
+import { reportingLabels } from "../reporting"
 import EmailBrief from "./EmailBrief"
-import { useRun } from "./run-queries"
-import { dateLabel, ErrorNote } from "./ui"
+import { dateLabel } from "./ui"
 
 const RunContext = createContext<RunDetail | null>(null)
+
+function linkEvidence(detail: RunDetail, url: string, title?: string) {
+  const matches = [...detail.must_include, ...detail.candidates].filter(
+    (item) => item.url === url,
+  )
+  const exact = matches.filter((item) => item.title === title)
+  return exact.length === 1
+    ? exact[0]
+    : matches.length === 1
+      ? matches[0]
+      : undefined
+}
 
 function StoryLink({
   href,
@@ -16,9 +28,7 @@ function StoryLink({
   children?: ReactNode
 }) {
   const detail = useContext(RunContext)
-  const story =
-    detail?.must_include.find((item) => item.url === href) ??
-    detail?.candidates.find((item) => item.url === href)
+  const story = detail && href ? linkEvidence(detail, href) : undefined
   return (
     <>
       {story && (
@@ -56,18 +66,9 @@ function ImageLink({
 
 const markdownComponents = { a: StoryLink, img: ImageLink }
 
-export function SentBrief({ runId }: { runId: string }) {
-  const detail = useRun(runId)
-  if (detail.isPending)
-    return <output className="folio-empty">Loading brief…</output>
-  if (detail.isError) return <ErrorNote error={detail.error} />
-  return <RecordedBrief detail={detail.data} />
-}
-
 export function RecordedBrief({ detail }: { detail: RunDetail }) {
   if (detail.delivery_html?.trim())
     return <EmailBrief key={detail.run.run_id} html={detail.delivery_html} />
-  const evidence = [...detail.must_include, ...detail.candidates]
   if (detail.run.message?.trim()) {
     return (
       <div className="folio-markdown folio-recorded-brief">
@@ -90,7 +91,7 @@ export function RecordedBrief({ detail }: { detail: RunDetail }) {
         The full message was not recorded. These are the saved story links.
       </p>
       {detail.sent_items.map((item) => {
-        const story = evidence.find((entry) => entry.url === item.url)
+        const story = linkEvidence(detail, item.url, item.title)
         return (
           <article className="folio-story" key={item.url}>
             {story && (
@@ -116,12 +117,14 @@ export function StoryReceipt({ story }: { story: RunItem }) {
       <summary>Details</summary>
       <dl className="folio-receipt">
         {[
-          ["Source", story.source_label],
+          ["Source", story.source_label || "Label not recorded"],
           ["Source ID", story.source_key],
           ["Type", story.kind.replaceAll("_", " ") || "Not recorded"],
-          ["Include when", story.threshold || "Not recorded"],
-          ["Priority", story.priority_rank],
-          ["Always included", story.always_report ? "Yes" : "No"],
+          [
+            "Reporting",
+            story.reporting ? reportingLabels[story.reporting] : "Not recorded",
+          ],
+          ["Source preference", story.priority_rank],
           ["Published", dateLabel(story.published_at, true)],
           ["Publisher", story.outlet || "Not recorded"],
         ].map(([label, value]) => (
@@ -131,6 +134,10 @@ export function StoryReceipt({ story }: { story: RunItem }) {
           </div>
         ))}
       </dl>
+      <p className="folio-muted">
+        Lower source preference wins ordinary duplicate selection, not editorial
+        importance. These settings belong to this recorded run.
+      </p>
     </details>
   )
 }

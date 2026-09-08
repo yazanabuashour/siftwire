@@ -70,6 +70,8 @@ pub struct ConfigResult {
     pub sources: Vec<Source>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub outlets: Vec<OutletPolicy>,
+    pub source_reporting: BTreeMap<String, crate::domain::Reporting>,
+    pub outlet_conflicts: Vec<crate::domain::OutletConflict>,
     pub summary: String,
 }
 
@@ -205,6 +207,10 @@ pub struct DeliveryRecord {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DeliveryItem {
+    /// Stable `SQLite` run-item identifiers, never JSON numbers. Legacy plans and
+    /// sports results without compatibility rows have no references.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub run_item_ids: Option<Vec<String>>,
     pub title: String,
     pub url: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -244,8 +250,19 @@ pub struct SuppressedPolicyItem {
     pub policy: String,
 }
 
+/// The producing step's decision, not a claim about later selection or delivery.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ItemDisposition {
+    Retained,
+    Dropped,
+    #[default]
+    Unknown,
+}
+
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct SuppressedUnresolvedItem {
+    pub disposition: ItemDisposition,
     pub source_key: String,
     pub title: String,
     pub url: String,
@@ -255,6 +272,7 @@ pub struct SuppressedUnresolvedItem {
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct FetchStatus {
     pub source_key: String,
+    pub source_label: String,
     pub status: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub error: String,

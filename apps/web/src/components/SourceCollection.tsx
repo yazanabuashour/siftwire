@@ -1,6 +1,7 @@
 import { useState } from "react"
 
-import type { Source } from "../api-contracts"
+import type { ReportingMode, Source } from "../api-contracts"
+import { reportingLabel, sourceType } from "./source-validation"
 import { Field } from "./ui"
 
 interface CollectionActions {
@@ -13,18 +14,24 @@ interface CollectionActions {
 
 export default function SourceCollection({
   sources,
+  reporting,
   busy,
   savingKey,
   onEdit,
   onRemove,
   onToggle,
-}: CollectionActions & { sources: Source[] }) {
+}: CollectionActions & {
+  sources: Source[]
+  reporting: Record<string, ReportingMode>
+}) {
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState("all")
   const [kind, setKind] = useState("all")
   const needle = query.trim().toLowerCase()
   const visible = [...sources]
-    .sort((a, b) => a.key.localeCompare(b.key))
+    .sort(
+      (a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key),
+    )
     .filter(
       (source) =>
         [
@@ -33,13 +40,13 @@ export default function SourceCollection({
           source.url,
           source.repo,
           source.section,
-          source.kind,
+          sourceType(source.kind),
         ]
           .join(" ")
           .toLowerCase()
           .includes(needle) &&
         (status === "all" || source.enabled === (status === "enabled")) &&
-        (kind === "all" || source.kind === kind),
+        (kind === "all" || sourceType(source.kind) === kind),
     )
   return (
     <>
@@ -68,21 +75,21 @@ export default function SourceCollection({
             onChange={(event) => setKind(event.target.value)}
           >
             <option value="all">All types</option>
-            <option value="rss">RSS feed</option>
-            <option value="atom">Atom feed</option>
+            <option value="feed">Feed</option>
             <option value="github_release">GitHub releases</option>
             <option value="sports_schedule">Sports schedule</option>
           </select>
         </Field>
       </div>
       <p className="folio-list-note">
-        {visible.length} of {sources.length} sources
+        {visible.length} of {sources.length} sources, sorted by name
       </p>
       <div className="folio-source-list">
         {visible.map((source) => (
           <SourceRow
             key={source.key}
             source={source}
+            reporting={reporting[source.key]}
             busy={busy}
             savingKey={savingKey}
             onEdit={onEdit}
@@ -131,19 +138,27 @@ function EmptySources({
 
 function SourceRow({
   source,
+  reporting,
   busy,
   savingKey,
   onEdit,
   onRemove,
   onToggle,
-}: CollectionActions & { source: Source }) {
+}: CollectionActions & {
+  source: Source
+  reporting: ReportingMode | undefined
+}) {
   return (
     <article className="folio-source-row">
       <div className="folio-source-identity">
-        <p className="folio-muted">{source.section}</p>
         <h2>{source.label}</h2>
-        <p className="folio-source-address">{source.repo || source.url}</p>
-        {source.always_report && <p className="folio-muted">Always included</p>}
+        <p className="config-source-summary">
+          {source.section} · {reportingLabel(reporting)}
+          {!source.enabled && " · Paused"}
+        </p>
+        <p className="folio-source-address" title={source.repo || source.url}>
+          {source.repo || source.url}
+        </p>
       </div>
       <div className="folio-source-actions">
         <label className="folio-check">

@@ -1,4 +1,9 @@
 use std::collections::BTreeSet;
+
+mod outlets;
+mod reporting;
+pub use outlets::{OutletConflict, matching_outlet_policy, outlet_conflicts};
+pub use reporting::Reporting;
 use std::env;
 
 use anyhow::{Result, bail};
@@ -184,6 +189,13 @@ pub fn normalize_outlet_policies(policies: Vec<OutletPolicy>) -> Result<Vec<Outl
             bail!("duplicate outlet policy {:?}", policy.name);
         }
         normalized.push(policy);
+    }
+    if let Some(conflict) = outlet_conflicts(&normalized).first() {
+        bail!(
+            "colliding outlet matcher {:?}: {}",
+            conflict.matcher,
+            conflict.names.join(", ")
+        );
     }
     Ok(normalized)
 }

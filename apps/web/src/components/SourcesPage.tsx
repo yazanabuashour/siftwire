@@ -1,13 +1,20 @@
 import {
   useMutation,
-  useQuery,
   useQueryClient,
   type UseQueryResult,
 } from "@tanstack/react-query"
 import { useState } from "react"
 
-import { deleteSource, fetchConfig, saveSource } from "../api-client"
-import type { ConfigResult, Source } from "../api-contracts"
+import { deleteSource, saveSource } from "../api-client"
+import type { ConfigResult, ReportingMode, Source } from "../api-contracts"
+import {
+  applyConfigResult,
+  configQuery,
+  mergeSourceResult,
+  useConfig,
+} from "./config-query"
+
+import "./config.css"
 import SourceCollection from "./SourceCollection"
 import SourceEditor, { emptySource } from "./SourceEditor"
 import { Dialog, PageHeading } from "./ui"
@@ -16,6 +23,7 @@ export default function SourcesPage() {
   const [editor, setEditor] = useState<{
     source: Source
     editing: boolean
+    reporting: ReportingMode | undefined
   } | null>(null)
   const [removing, setRemoving] = useState<Source | null>(null)
   const [notice, setNotice] = useState("")
@@ -25,16 +33,20 @@ export default function SourcesPage() {
     setRemoving(null)
   })
   const busy = save.isPending || remove.isPending
-  const ready = config.isSuccess && !config.data.rejected
+  const ready = !!config.data
   const sources = config.data?.sources ?? []
   const startEditing = (source: Source, editing: boolean): void => {
     save.reset()
     remove.reset()
     setNotice("")
-    setEditor({ source, editing })
+    setEditor({
+      source,
+      editing,
+      reporting: config.data?.source_reporting[source.key],
+    })
   }
   return (
-    <>
+    <section className="config-page">
       <PageHeading
         title="Sources"
         action={
@@ -60,6 +72,7 @@ export default function SourcesPage() {
       {ready && (
         <SourceCollection
           sources={sources}
+          reporting={config.data?.source_reporting ?? {}}
           busy={busy}
           savingKey={save.isPending ? save.variables.key : undefined}
           onEdit={(source) => startEditing(source, true)}
@@ -80,6 +93,7 @@ export default function SourcesPage() {
           source={editor.source}
           sources={sources}
           editing={editor.editing}
+          reporting={editor.reporting}
           busy={save.isPending}
           saveError={save.error}
           onClose={() => setEditor(null)}
@@ -95,44 +109,30 @@ export default function SourcesPage() {
           onRemove={() => remove.mutate(removing.key)}
         />
       )}
-    </>
+    </section>
   )
 }
 
 function useSources(onSaved: (message: string) => void) {
   const client = useQueryClient()
-  const config = useQuery({
-    queryKey: ["config"],
-    queryFn: async ({ signal }) => {
-      const result = await fetchConfig(signal)
-      if (result.rejected)
-        throw new Error("The runner rejected loading sources.")
-      return result
-    },
-  })
+  const config = useConfig()
   const save = useMutation({
-    mutationFn: async (source: Source) => {
-      const result = await saveSource(source)
-      if (result.rejected)
-        throw new Error("The runner rejected saving this source.")
-      return result
-    },
-    onSuccess: async (_result, source) => {
-      await client.invalidateQueries({ queryKey: ["config"] })
-      onSaved(`${source.label} saved.`)
+    mutationFn: (source: Source) => saveSource(source),
+    onMutate: () => client.cancelQueries(configQuery),
+    onSuccess: async (result) => {
+      await applyConfigResult(client, (current) =>
+        mergeSourceResult(current, result, "upsert"),
+      )
+      onSaved(`${result.sources[0]?.label ?? "Source"} saved.`)
     },
   })
   const remove = useMutation({
-    mutationFn: async (key: string) => {
-      const result = await deleteSource(key)
-      if (result.rejected)
-        throw new Error(
-          result.summary || "The runner rejected removing this source.",
-        )
-      return result
-    },
-    onSuccess: async (_result, key) => {
-      await client.invalidateQueries({ queryKey: ["config"] })
+    mutationFn: (key: string) => deleteSource(key),
+    onMutate: () => client.cancelQueries(configQuery),
+    onSuccess: async (result, key) => {
+      await applyConfigResult(client, (current) =>
+        mergeSourceResult(current, result, "delete"),
+      )
       onSaved(`${key} removed.`)
     },
   })
@@ -141,10 +141,10 @@ function useSources(onSaved: (message: string) => void) {
 
 function SourceLoadState({ config }: { config: UseQueryResult<ConfigResult> }) {
   if (config.isPending) return <output>Loading sources…</output>
-  if (!config.isError && !config.data?.rejected) return null
+  if (!config.isError) return null
   return (
     <div className="folio-error" role="alert">
-      <p>{config.error?.message || "The runner rejected loading sources."}</p>
+      <p>{config.error.message}</p>
       <button
         type="button"
         onClick={() => {

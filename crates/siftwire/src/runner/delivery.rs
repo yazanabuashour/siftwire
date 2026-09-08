@@ -177,6 +177,19 @@ fn build_plan(
         })
         .collect::<Vec<_>>();
     let selected_refs = selected.iter().collect::<Vec<_>>();
+    let sports_references = context
+        .sports_updates
+        .iter()
+        .map(|update| {
+            Some(
+                super::evidence::sports_row(update, context, rows)
+                    .filter(|row| !row.id.is_empty())
+                    .map(|row| row.id.clone())
+                    .into_iter()
+                    .collect(),
+            )
+        })
+        .collect::<Vec<_>>();
     let mut context = context.clone();
     for update in &mut context.sports_updates {
         update.url = normalize_delivery_url(&update.url).unwrap_or_default();
@@ -191,16 +204,20 @@ fn build_plan(
     let mut items = selected
         .iter()
         .map(|row| DeliveryItem {
+            run_item_ids: Some(vec![row.id.clone()]),
             title: row.title.clone(),
             url: row.url.clone(),
             kind: row.kind.clone(),
         })
         .collect::<Vec<_>>();
-    items.extend(context.sports_updates.iter().map(|update| DeliveryItem {
-        title: update.title.clone(),
-        url: update.url.clone(),
-        kind: SOURCE_KIND_SCHEDULE.to_owned(),
-    }));
+    items.extend(context.sports_updates.iter().zip(sports_references).map(
+        |(update, run_item_ids)| DeliveryItem {
+            run_item_ids,
+            title: update.title.clone(),
+            url: update.url.clone(),
+            kind: SOURCE_KIND_SCHEDULE.to_owned(),
+        },
+    ));
     let (message, text, html) = render_bodies(&selected_refs, &context, started_at)?;
     Ok(DeliveryPlan {
         id: format!("plan-{run_id}"),
@@ -323,7 +340,7 @@ fn markdown_link_text(value: &str) -> String {
         .replace(']', "\\]")
 }
 
-fn normalize_delivery_url(value: &str) -> Result<String> {
+pub(super) fn normalize_delivery_url(value: &str) -> Result<String> {
     let url = Url::parse(value).context("delivery item URL is invalid")?;
     if !matches!(url.scheme(), "http" | "https")
         || url.host().is_none()

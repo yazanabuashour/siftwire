@@ -1,0 +1,73 @@
+.config-page .folio-source-row {
+  gap: 12px;
+  padding-block: 8px;
+}
+
+.config-page .folio-source-identity {
+  flex: 1;
+}
+
+.config-page .folio-source-identity h2,
+.config-page .config-outlet-row h2 {
+  margin: 0;
+  font: inherit;
+  font-weight: bold;
+}
+
+.config-page .config-source-summary {
+  color: var(--folio-muted);
+  font-size: 12px;
+}
+
+.config-page .folio-source-address {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.config-page .folio-source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.config-page .config-outlet-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--folio-line);
+}
+
+.config-page .config-outlet-row h2 {
+  flex: 1;
+}
+
+.config-page .config-outlet-row > span {
+  font-size: 12px;
+}
+
+.config-page .config-reporting {
+  margin-top: 16px;
+}
+
+.config-page .folio-form-group > .folio-muted {
+  margin-bottom: 12px;
+}
+
+.config-page .folio-save-bar {
+  border-top: 1px solid var(--folio-line);
+  padding-top: 16px;
+}
+
+@media (max-width: 540px) {
+  .config-page .config-outlet-row h2 {
+    flex-basis: 100%;
+  }
+
+  .config-page .config-outlet-row button {
+    margin-left: auto;
+  }
+}

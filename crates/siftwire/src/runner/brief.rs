@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use chrono::{SecondsFormat, TimeDelta, Utc};
 use chrono_tz::Tz;
 
+use crate::contract::ItemDisposition;
 use crate::contract::{
     BriefItem, BriefRequest, BriefResult, FetchStatus, HealthDelta, Paths, PreviousBrief,
     SportsUpdate, SuppressedItem, SuppressedPolicyItem, SuppressedUnresolvedItem,
@@ -18,6 +19,7 @@ use crate::engine::{
     prepare_sports_updates, process_source_items, render_sports_section, sort_brief_items,
     suppress_recent_candidates,
 };
+use crate::storage::RUN_ITEM_ANNOTATION;
 use crate::storage::{
     DEFAULT_MAX_DELIVERY_ITEMS, DEFAULT_SPORTS_POST_GAME_DAYS, DEFAULT_SPORTS_PRE_GAME_DAYS,
     DEFAULT_SPORTS_TIMEZONE, Delivery, FetchLog, MAX_DELIVERY_ITEMS_UPPER_BOUND,
@@ -70,7 +72,7 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
     let mut accumulator = collect_sources(store, &sources, &run_id, dry_run, now, &options.sports)?;
     let mut classified = classify_and_dedupe(std::mem::take(&mut accumulator.collected));
     let recent_result = suppress_recent_candidates(classified.candidates, &recent);
-    let run_rows = if dry_run {
+    let mut run_rows = if dry_run {
         Vec::new()
     } else {
         run_item_rows(
@@ -82,6 +84,11 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
             &accumulator.suppressed_unresolved,
         )
     };
+    for row in &mut run_rows {
+        if let Some(source) = sources.iter().find(|source| source.key == row.source_key) {
+            row.source_label.clone_from(&source.label);
+        }
+    }
     classified.suppressed.extend(recent_result.suppressed);
     let health_delta = finish_health(
         store,
@@ -237,19 +244,21 @@ fn process_source(
             let message = error.to_string();
             add_fetch_failure_warning(&source.key, &message, &mut accumulator.warnings);
             accumulator.statuses.push(FetchStatus {
+                source_label: source.label.clone(),
                 source_key: source.key.clone(),
                 status: "error".to_owned(),
                 error: message.clone(),
                 ..FetchStatus::default()
             });
             if !run.dry_run {
-                let _inserted = run.store.insert_fetch_log(&FetchLog {
+                run.store.insert_fetch_log(&FetchLog {
+                    source_label: source.label.clone(),
                     run_id: run.run_id.to_owned(),
                     source_key: source.key.clone(),
                     status: "error".to_owned(),
                     error: message,
                     ..FetchLog::default()
-                });
+                })?;
             }
             return Ok(());
         }
@@ -289,16 +298,18 @@ fn process_source(
                 checked_at: run.now,
             })?;
         }
-        let _inserted = run.store.insert_fetch_log(&FetchLog {
+        run.store.insert_fetch_log(&FetchLog {
+            source_label: source.label.clone(),
             run_id: run.run_id.to_owned(),
             source_key: source.key.clone(),
             status: "ok".to_owned(),
             item_count,
             new_item_count: new_count,
             ..FetchLog::default()
-        });
+        })?;
     }
     accumulator.statuses.push(FetchStatus {
+        source_label: source.label.clone(),
         source_key: source.key.clone(),
         status: "ok".to_owned(),
         items: item_count,
@@ -424,31 +435,38 @@ fn run_item_rows(
             ..RunItemRow::default()
         }
     }));
-    // Only blocked outlets remove items; watch and allow audits stay queryable
-    // through the candidate row that survives.
     rows.extend(
         suppressed_policy
             .iter()
-            .filter(|item| item.policy == OUTLET_POLICY_BLOCK)
             .map(|item| RunItemRow {
-                category: RUN_ITEM_DROPPED.to_owned(),
+                category: if item.policy == OUTLET_POLICY_BLOCK { RUN_ITEM_DROPPED } else { RUN_ITEM_ANNOTATION }.to_owned(),
                 source_key: item.source_key.clone(),
                 outlet: item.outlet.clone(),
                 title: item.title.clone(),
                 url: item.url.clone(),
                 reason: "outlet_policy".to_owned(),
-                detail: serde_json::json!({ "policy": item.policy }).to_string(),
+                detail: serde_json::json!({ "policy": item.policy, "outlet": item.outlet,
+                    "disposition": if item.policy == OUTLET_POLICY_BLOCK { ItemDisposition::Dropped } else { ItemDisposition::Retained }
+                }).to_string(),
                 ..RunItemRow::default()
             }),
     );
-    rows.extend(suppressed_unresolved.iter().map(|item| RunItemRow {
-        category: RUN_ITEM_DROPPED.to_owned(),
-        source_key: item.source_key.clone(),
-        title: item.title.clone(),
-        url: item.url.clone(),
-        reason: "unresolved".to_owned(),
-        detail: serde_json::json!({ "reason": item.reason }).to_string(),
-        ..RunItemRow::default()
+    rows.extend(suppressed_unresolved.iter().map(|item| {
+        RunItemRow {
+            category: if item.disposition == ItemDisposition::Dropped {
+                RUN_ITEM_DROPPED
+            } else {
+                RUN_ITEM_ANNOTATION
+            }
+            .to_owned(),
+            source_key: item.source_key.clone(),
+            title: item.title.clone(),
+            url: item.url.clone(),
+            reason: "unresolved".to_owned(),
+            detail: serde_json::json!({ "reason": item.reason, "disposition": item.disposition })
+                .to_string(),
+            ..RunItemRow::default()
+        }
     }));
     rows
 }
@@ -469,6 +487,7 @@ fn item_row(category: &str, item: &BriefItem, reason: &str, detail: &str) -> Run
         url: item.url.clone(),
         reason: reason.to_owned(),
         detail: detail.to_owned(),
+        ..RunItemRow::default()
     }
 }
 

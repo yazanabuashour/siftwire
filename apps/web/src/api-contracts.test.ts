@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 
-import { fetchConfig, saveSource } from "./api-client"
+import { fetchConfig, listRuns, replaceOutlets, saveSource } from "./api-client"
 import {
   ConfigResultSchema,
   PriorityRankSchema,
   RunDetailSchema,
 } from "./api-contracts"
-import { normalizeDraft, sourceError } from "./components/source-validation"
+import { sourceError } from "./components/source-validation"
 
 const configFixture = {
   rejected: false,
@@ -53,6 +53,7 @@ describe("RunDetailSchema", () => {
         {
           source_key: "fixture",
           source_label: "Fixture",
+          id: "story-item",
           title: "Story",
           url: "https://fixture.test/story",
           selected: true,
@@ -62,6 +63,7 @@ describe("RunDetailSchema", () => {
       dropped: [
         {
           source_key: "fixture",
+          id: "old-item",
           title: "Old",
           url: "https://fixture.test/old",
           reason: "recently_sent",
@@ -80,10 +82,54 @@ describe("RunDetailSchema", () => {
     const decoded = RunDetailSchema.parse(fixture)
     expect(decoded.fetch[0]?.items).toBe(0)
     expect(decoded.candidates[0]?.priority_rank).toBe("9223372036854775807")
+    expect(decoded.candidates[0]?.delivery_status).toBe("unknown")
+    expect(decoded.candidates[0]?.reporting).toBeNull()
+    expect(decoded.annotations).toEqual([])
   })
 })
 
 afterEach(() => vi.unstubAllGlobals())
+
+describe("runner response ownership", () => {
+  test("rejects runner refusals before a page can treat them as saved", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              rejected: true,
+              rejection_reason: "Conflicting publisher matcher: example.test",
+            }),
+          ),
+        ),
+      ),
+    )
+    await expect(replaceOutlets([])).rejects.toThrow(
+      "Conflicting publisher matcher: example.test",
+    )
+  })
+
+  test("encodes archive search and cursor separately and preserves continuation", async () => {
+    const fetch = vi.fn(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ runs: [], next_before: "older-run" })),
+      ),
+    )
+    vi.stubGlobal("fetch", fetch)
+    expect(
+      await listRuns({
+        delivered: true,
+        before: "run&1",
+        search: "2026-09 + release",
+      }),
+    ).toEqual({ runs: [], next_before: "older-run" })
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/v1/runs?delivered=true&before=run%261&search=2026-09+%2B+release",
+      expect.objectContaining({ method: "GET" }),
+    )
+  })
+})
 
 describe("lossless priorities", () => {
   test.each([
@@ -106,10 +152,7 @@ describe("lossless priorities", () => {
       const config = await fetchConfig()
       const source = config.sources[0]
       if (!source) throw new Error("Missing fixture source")
-      const draft = normalizeDraft(
-        { ...source, label: "Renamed source", enabled: false },
-        source.key,
-      )
+      const draft = { ...source, label: "Renamed source", enabled: false }
       expect(sourceError(draft, config.sources, source.key)).toBe("")
       expect(draft.priority_rank).toBe(rank)
       await saveSource(draft)

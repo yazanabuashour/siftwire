@@ -1,9 +1,17 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 
-import { fetchConfig, setOptions, type BriefOptionsInput } from "../api-client"
+import { setOptions, type BriefOptionsInput } from "../api-client"
 import type { ConfigResult } from "../api-contracts"
+import {
+  applyConfigResult,
+  configQuery,
+  mergeOptionsResult,
+  useConfig,
+} from "./config-query"
 import { Field, PageHeading } from "./ui"
+
+import "./config.css"
 
 type SettingsDraft = {
   max_delivery_items: string
@@ -37,49 +45,38 @@ function settingsError(draft: SettingsDraft): string {
 }
 
 function useSettingsEditor() {
-  const config = useQuery({
-    queryKey: ["config"],
-    queryFn: ({ signal }) => fetchConfig(signal),
-  })
+  const config = useConfig()
   const client = useQueryClient()
   const [draft, setDraft] = useState<SettingsDraft | null>(null)
   const [error, setError] = useState("")
+  const [notice, setNotice] = useState("")
   const configured = settingsDraft(config.data?.runtime_config ?? {})
   // Follow refetches until the user starts editing.
   const values = draft ?? configured
   const dirty = JSON.stringify(values) !== JSON.stringify(configured)
-  const unavailable = !config.data || config.isError || config.data.rejected
+  const unavailable = !config.data
   const save = useMutation({
-    mutationFn: async (next: BriefOptionsInput) => {
-      const result = await setOptions(next)
-      if (result.rejected) {
-        throw new Error(result.summary || "Settings changes were rejected.")
-      }
-      return result
-    },
-    onSuccess: async (_result, next) => {
-      client.setQueryData<ConfigResult>(["config"], (current) =>
-        current
-          ? {
-              ...current,
-              runtime_config: {
-                ...current.runtime_config,
-                max_delivery_items: String(next.maxDeliveryItems),
-                sports_pre_game_days: String(next.sportsPreGameDays),
-                sports_post_game_days: String(next.sportsPostGameDays),
-                sports_timezone: next.sportsTimezone,
-              },
-            }
-          : current,
+    mutationFn: (next: BriefOptionsInput) => setOptions(next),
+    onMutate: () => client.cancelQueries(configQuery),
+    onSuccess: async (result) => {
+      await applyConfigResult(client, (current) =>
+        mergeOptionsResult(current, result),
       )
       setDraft(null)
-      await client.invalidateQueries({ queryKey: ["config"] })
+      setNotice("Settings saved.")
     },
   })
   const update = (key: keyof SettingsDraft, value: string): void => {
     setDraft({ ...values, [key]: value })
     setError("")
+    setNotice("")
     save.reset()
+  }
+  const discard = (): void => {
+    setDraft(null)
+    setError("")
+    save.reset()
+    setNotice("Settings changes discarded.")
   }
   const submit = (): void => {
     if (unavailable || !dirty || save.isPending) return
@@ -93,21 +90,42 @@ function useSettingsEditor() {
       sportsTimezone: values.sports_timezone.trim(),
     })
   }
-  return { config, values, dirty, unavailable, save, update, error, submit }
+  return {
+    config,
+    values,
+    dirty,
+    unavailable,
+    save,
+    update,
+    error,
+    submit,
+    discard,
+    notice,
+    hasDraft: draft !== null,
+  }
 }
 
 export default function SettingsPage() {
-  const { config, values, dirty, unavailable, save, update, error, submit } =
-    useSettingsEditor()
+  const {
+    config,
+    values,
+    dirty,
+    unavailable,
+    save,
+    update,
+    error,
+    submit,
+    discard,
+    notice,
+    hasDraft,
+  } = useSettingsEditor()
   return (
-    <>
+    <section className="config-page">
       <PageHeading title="Settings" />
       {config.isPending && <output>Loading settings…</output>}
-      {(config.isError || config.data?.rejected) && (
+      {config.isError && (
         <div className="folio-error" role="alert">
-          <p>
-            {config.error?.message ?? "The configuration request was rejected."}
-          </p>
+          <p>{config.error.message}</p>
           <button
             type="button"
             disabled={config.isFetching}
@@ -117,7 +135,7 @@ export default function SettingsPage() {
           </button>
         </div>
       )}
-      {config.data && !config.data.rejected && (
+      {config.data && (
         <div className="folio-settings-layout">
           <form
             className="folio-settings-form"
@@ -145,20 +163,25 @@ export default function SettingsPage() {
               >
                 {save.isPending ? "Saving…" : "Save settings"}
               </button>
+              <button
+                type="button"
+                disabled={!hasDraft || save.isPending}
+                onClick={discard}
+              >
+                Discard changes
+              </button>
               <output>
                 {save.isPending
                   ? "Saving settings…"
                   : dirty
                     ? "Unsaved changes"
-                    : save.isSuccess
-                      ? "Settings saved."
-                      : ""}
+                    : notice}
               </output>
             </div>
           </form>
         </div>
       )}
-    </>
+    </section>
   )
 }
 
@@ -177,7 +200,7 @@ function SettingsFields({
         <legend>Brief</legend>
         <Field
           label="Stories per brief"
-          hint="Preferred size, from 1 to 25. Always-included stories and sports can exceed it."
+          hint="Preferred size, from 1 to 25. Required stories and sports can exceed it."
         >
           <input
             type="number"

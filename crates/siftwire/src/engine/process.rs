@@ -28,6 +28,7 @@ pub fn process_source_items(
         .unresolved
         .into_iter()
         .map(|item| SuppressedUnresolvedItem {
+            disposition: item.disposition,
             source_key: source.key.clone(),
             title: item.title,
             url: item.url,

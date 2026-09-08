@@ -55,6 +55,9 @@ async fn run(
             StatusCode::INTERNAL_SERVER_ERROR,
             format!("runner rejected the console arguments: {}", stderr.trim()),
         )),
+        Ok(Outcome::Failed(stderr)) if stderr.contains("unknown cursor in selected run order") => {
+            Err(ApiError::bad_request(stderr.trim()))
+        }
         Ok(Outcome::Failed(stderr)) if stderr.contains("run not found") => {
             Err(ApiError::new(StatusCode::NOT_FOUND, stderr.trim()))
         }
@@ -143,8 +146,12 @@ fn cli_arguments(parts: &[&str]) -> Vec<String> {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RunsQuery {
     limit: Option<i64>,
+    delivered: Option<bool>,
+    before: Option<String>,
+    search: Option<String>,
 }
 
 pub async fn health() -> Json<Value> {
@@ -267,13 +274,28 @@ pub async fn replace_outlets(State(state): State<AppState>, Json(body): Json<Val
 }
 
 pub async fn runs(State(state): State<AppState>, Query(query): Query<RunsQuery>) -> ApiResult {
-    if query.limit.is_some_and(|limit| limit <= 0) {
+    if query
+        .limit
+        .is_some_and(|limit| limit <= 0 || limit == i64::MAX)
+    {
         return Err(ApiError::bad_request("limit must be positive"));
     }
     let mut arguments = cli_arguments(&["runs", "list", "--json"]);
     if let Some(limit) = query.limit {
         arguments.push("--limit".to_owned());
         arguments.push(limit.to_string());
+    }
+    if query.delivered == Some(true) {
+        arguments.push("--delivered".to_owned());
+    }
+    if let Some(before) = query.before {
+        if before.trim().is_empty() {
+            return Err(ApiError::bad_request("before requires a run id"));
+        }
+        arguments.extend(["--before".to_owned(), before]);
+    }
+    if let Some(search) = query.search {
+        arguments.extend(["--search".to_owned(), search]);
     }
     let value = run(&state, arguments, None).await?;
     Ok(Json(value))

@@ -8,17 +8,18 @@ SQLite directly.
 
 ## Capabilities
 
-- Read the latest sent brief and browse recent sent messages.
+- Read the latest confirmed brief and search or page through the delivery archive.
 - View configured sources and publisher rules.
 - Add, edit, and delete sources (writes through `upsert_source` and
   `delete_source`). The source editor supports ESPN UFC scoreboards and Riot's
   optional top-two standings filter.
-- Edit publisher rules and save them as one replacement write.
+- Add, rename, edit, or remove publisher rules in a local draft. Save replaces
+  the collection; Discard leaves stored rules unchanged.
 - Set `max_delivery_items`, recurring sports windows, and the IANA sports time
   zone. The time-zone control can fill the browser's detected value before an
   explicit save.
-- Browse runs with per-run must-include, candidate, dropped, fetch, and
-  delivery evidence.
+- Browse Activity with required items, candidates, exclusions, annotations,
+  source checks, and confirmed delivery evidence.
 
 The console intentionally cannot trigger `run_brief`. A brief run mutates
 latest-seen state and is not retry-safe; exposing it behind a dashboard button
@@ -26,18 +27,26 @@ would invite accidental duplicate-suppressed runs.
 
 ## App and email design
 
-The console uses Folio's white reading column, serif headings, violet accent,
-and flat lists. Less common configuration fields remain under disclosures.
-The existing routes and runner-backed save operations are unchanged. The labels
-Publishers, History, and Sent briefs correspond to `/outlets`, `/runs`, and
-`/deliveries`.
+The console keeps Folio's reading column and gives configuration pages more
+horizontal space. Navigation follows tasks: Brief, Sources, Activity, Settings.
+Sources groups feeds and publisher rules. `/deliveries` remains a Brief alias;
+`/runs` opens Activity and `/outlets` opens publisher rules.
 
-The latest and sent brief views display the immutable HTML saved for a confirmed
+The Brief and Activity pickers share keyboard navigation and archive search.
+Typing filters without selecting; Enter or an option click commits a choice,
+and Escape cancels. Search matches stored ISO dates, run IDs, and summaries.
+Load older retrieves another page, not a separate fixed-size history window.
+The selected run lives in `?run=<id>`, so reloads, links, and back/forward keep
+it. A missing explicit ID shows an error rather than another brief.
+
+The Brief view displays the immutable HTML saved for a confirmed
 email delivery. This preserves the email's sports cards, team and event logos,
 date columns, story layout, and health notes. The console reads the nullable
 `delivery_html` field from `siftwire runs show --json`; it never regenerates a
 historical email from current configuration. Update the runner as well as the
-console to enable this view. No database migration is needed.
+console together for the current configuration and history contracts. The
+runner adds a source-label column to fetch history on open. It does not rewrite
+old labels, source state, delivery plans, or emails.
 
 Email HTML appears in a sandboxed frame whose height follows its content, so the
 page scrolls as one document. Scripts, forms, embedded pages, and external
@@ -50,11 +59,36 @@ the message is also missing. Images in the Markdown fallback remain opt-in
 links. Configuration and storage paths remain readable in Settings under
 Technical details.
 
-`apps/web/src/styles/globals.css` owns the app styling.
+`apps/web/src/styles/globals.css` owns shared styling; configuration, navigation,
+and picker styles live with those components.
 `crates/siftwire/src/runner/email.rs` owns the matching email styling. Email
 changes affect newly prepared messages, not already stored delivery plans.
 The production app contains no comparison gallery, alternate designs, or sample
 configuration.
+
+## Configure sources and publishers
+
+Normal feeds have one Reporting choice. Releases always include eligible new
+releases; schedules produce recurring sports updates. The runner computes the
+effective choice from stored fields, including older combinations. Unrelated
+edits preserve those raw fields. Observe advances seen state without offering
+items for inclusion; it does not create a review backlog.
+
+Feed link resolution and publisher extraction appear only for feeds. Source
+preference and title-matching groups remain advanced fields. Lower preference
+wins ordinary duplicate representation, not editorial importance. Title groups
+do not isolate identical URLs or recent-delivery suppression.
+
+Publisher rows show the rule and enabled state. Edit reveals other names and an
+optional note. Notes are metadata, not runner instructions. Allow and Watch both
+retain matching items; Watch records an annotation rather than a review queue.
+Block excludes matches. New writes reject overlapping enabled names or aliases.
+Existing conflicts remain visible and keep their old matching order until an
+operator resolves them.
+
+All publisher edits belong to one draft until Save publishers. Hidden notes
+survive rule edits. The console merges each normalized mutation response into
+its own configuration collection rather than guessing what the runner stored.
 
 ## Large priority values
 

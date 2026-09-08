@@ -1,6 +1,7 @@
 mod brief;
 mod delivery;
 mod email;
+mod evidence;
 mod format;
 mod runs_cli;
 mod source_cli;
@@ -137,6 +138,14 @@ fn split_database_flag(arguments: &[String]) -> Result<(Option<String>, Vec<Stri
             database = Some(value.to_owned());
         } else {
             rest.push(argument.clone());
+            if matches!(argument.as_str(), "--search" | "--before" | "--limit") {
+                rest.push(
+                    values
+                        .next()
+                        .ok_or_else(|| anyhow::anyhow!("flag needs an argument: {argument}"))?
+                        .clone(),
+                );
+            }
         }
     }
     Ok((database, rest))
@@ -183,6 +192,17 @@ fn open_store(explicit: Option<&str>) -> Result<(Paths, Store)> {
 }
 
 fn run_config_action(paths: Paths, store: &Store, request: ConfigRequest) -> Result<ConfigResult> {
+    let mut result = config_action(paths, store, request)?;
+    result.source_reporting = result
+        .sources
+        .iter()
+        .map(|source| (source.key.clone(), source.reporting()))
+        .collect();
+    result.outlet_conflicts = crate::domain::outlet_conflicts(&result.outlets);
+    Ok(result)
+}
+
+fn config_action(paths: Paths, store: &Store, request: ConfigRequest) -> Result<ConfigResult> {
     match request.action.as_str() {
         "init" => Ok(ConfigResult {
             paths,
@@ -344,7 +364,7 @@ fn write_result<T: Serialize>(result: &T, label: &str) -> ExitCode {
 }
 
 fn usage(stdout: bool) {
-    let text = "usage: siftwire <version|config|brief|source|runs>\n       siftwire config [--db path] < request.json\n       siftwire brief [--db path] < request.json\n       siftwire source add [--json] [--db path] < source.json\n       siftwire source list [--enabled] [--json] [--db path]\n       siftwire runs list [--limit N] [--json] [--db path]\n       siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]";
+    let text = "usage: siftwire <version|config|brief|source|runs>\n       siftwire config [--db path] < request.json\n       siftwire brief [--db path] < request.json\n       siftwire source add [--json] [--db path] < source.json\n       siftwire source list [--enabled] [--json] [--db path]\n       siftwire runs list [--delivered] [--before run_id] [--search text] [--limit N] [--json] [--db path]\n       siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]";
     if stdout {
         println!("{text}");
     } else {

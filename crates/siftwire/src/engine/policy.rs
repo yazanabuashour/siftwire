@@ -1,5 +1,5 @@
 use crate::contract::SuppressedPolicyItem;
-use crate::domain::{OUTLET_POLICY_BLOCK, OutletPolicy, Source};
+use crate::domain::{OUTLET_POLICY_BLOCK, OutletPolicy, Source, matching_outlet_policy};
 
 use super::model::FetchedItem;
 
@@ -24,7 +24,7 @@ pub fn apply_outlet_policies(
     let mut kept = Vec::new();
     let mut audit = Vec::new();
     for item in items {
-        let Some(policy) = matching_policy(&item, policies) else {
+        let Some(policy) = matching_outlet_policy(&item.outlet, policies) else {
             kept.push(item);
             continue;
         };
@@ -40,68 +40,4 @@ pub fn apply_outlet_policies(
         }
     }
     OutletPolicyResult { items: kept, audit }
-}
-
-fn matching_policy<'a>(
-    item: &FetchedItem,
-    policies: &'a [OutletPolicy],
-) -> Option<&'a OutletPolicy> {
-    let outlet = item.outlet.trim();
-    if outlet.is_empty() {
-        return None;
-    }
-    let normalized = normalize_outlet_name(outlet);
-    policies.iter().find(|policy| {
-        policy.enabled
-            && (normalize_outlet_name(&policy.name) == normalized
-                || policy
-                    .aliases
-                    .iter()
-                    .any(|alias| normalize_outlet_name(alias) == normalized))
-    })
-}
-
-fn normalize_outlet_name(value: &str) -> String {
-    let mut without_suffixes = String::new();
-    let lowercase = value.trim().to_lowercase();
-    let mut characters = lowercase.chars();
-    while let Some(character) = characters.next() {
-        if character != '.' {
-            without_suffixes.push(character);
-            continue;
-        }
-        let extension = characters
-            .clone()
-            .take_while(char::is_ascii_alphabetic)
-            .collect::<String>();
-        let boundary = characters
-            .clone()
-            .nth(extension.len())
-            .is_none_or(|next| !next.is_ascii_alphanumeric());
-        let removed_extension = matches!(
-            extension.as_str(),
-            "com" | "co" | "net" | "org" | "io" | "ai" | "news" | "uk"
-        );
-        if boundary && removed_extension {
-            for _character in extension.chars() {
-                let _consumed = characters.next();
-            }
-            without_suffixes.push(' ');
-        } else {
-            without_suffixes.push(character);
-        }
-    }
-    without_suffixes
-        .chars()
-        .map(|character| {
-            if character.is_ascii_lowercase() || character.is_ascii_digit() {
-                character
-            } else {
-                ' '
-            }
-        })
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
 }

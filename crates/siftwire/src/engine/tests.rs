@@ -255,6 +255,39 @@ fn same_run_exact_url_dedupes_different_titles() -> Result<()> {
 }
 
 #[test]
+fn required_reporting_overrides_observe_without_changing_duplicate_scope() -> Result<()> {
+    let mut feed = source("required");
+    feed.threshold = "audit".to_owned();
+    feed.always_report = true;
+    let mut observed = feed.clone();
+    observed.key = "observed".to_owned();
+    observed.always_report = false;
+    let url = "https://example.test/shared";
+    let classified = classify_and_dedupe(vec![
+        collected(&feed, "First required", url)?,
+        collected(&feed, "Second required", url)?,
+        collected(&observed, "Observed", url)?,
+    ]);
+    assert_eq!(
+        classified.must_include.len(),
+        2,
+        "required news bypasses ordinary URL deduplication"
+    );
+    assert!(
+        classified.candidates.is_empty(),
+        "observe must not offer a candidate"
+    );
+    assert!(
+        classified
+            .must_include
+            .iter()
+            .all(|item| item.threshold == "audit" && item.always_report),
+        "effective reporting must not rewrite the snapshot"
+    );
+    Ok(())
+}
+
+#[test]
 fn same_run_relative_urls_do_not_cross_source_boundaries() -> Result<()> {
     let first = source("first");
     let second = source("second");
@@ -406,6 +439,28 @@ fn canonicalization_caps_relevant_items_without_network_access() -> Result<()> {
         "six relevant canonicalizations did not trip the source bound"
     );
     assert_eq!(items.len(), 5, "processed canonicalization prefix changed");
+    assert!(
+        unresolved
+            .iter()
+            .take(5)
+            .all(|item| item.disposition == crate::contract::ItemDisposition::Retained)
+    );
+    assert_eq!(
+        unresolved.last().map(|item| item.disposition),
+        Some(crate::contract::ItemDisposition::Dropped)
+    );
+    source.outlet_extraction = "url_host".to_owned();
+    let (host_items, host_unresolved, _) = process_feed_items(
+        &client,
+        &google,
+        &source,
+        vec![fetched("Host required", "file:///nonexistent/host", "host")],
+    )?;
+    assert!(host_items.is_empty());
+    assert_eq!(
+        host_unresolved.first().map(|item| item.disposition),
+        Some(crate::contract::ItemDisposition::Dropped)
+    );
     assert_eq!(
         unresolved.len(),
         6,

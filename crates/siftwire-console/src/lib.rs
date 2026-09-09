@@ -8,7 +8,7 @@ use std::net::IpAddr;
 use std::path::PathBuf;
 
 use axum::Router;
-use axum::extract::Request;
+use axum::extract::{Request, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse as _, Response};
@@ -38,7 +38,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/runs/{run_id}", get(api::run_detail))
         .fallback_service(static_files)
         .layer(middleware::map_response(revalidate_html))
-        .layer(middleware::from_fn(deny_rebound_hosts))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            deny_rebound_hosts,
+        ))
         .with_state(state)
 }
 
@@ -56,9 +59,13 @@ async fn revalidate_html(mut response: Response) -> Response {
     response
 }
 
-/// Blocks browser-based DNS rebinding: every Host must be an IP literal or
-/// `localhost`, so a foreign domain cannot be aimed at this server.
-async fn deny_rebound_hosts(request: Request, next: Next) -> Response {
+/// Blocks browser-based DNS rebinding; configured hostnames permit trusted proxies,
+/// not authenticated users. IP literals and `localhost` retain local access.
+async fn deny_rebound_hosts(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
     let Some(header) = request.headers().get(axum::http::header::HOST) else {
         return next.run(request).await;
     };
@@ -78,8 +85,14 @@ async fn deny_rebound_hosts(request: Request, next: Next) -> Response {
         _ => host,
     };
     let name = name.trim_start_matches('[').trim_end_matches(']');
-    let allowed =
-        name.parse::<IpAddr>().is_ok() || name.eq_ignore_ascii_case("localhost") || name.is_empty();
+    let allowed = name.parse::<IpAddr>().is_ok()
+        || name.eq_ignore_ascii_case("localhost")
+        || name.is_empty()
+        || state
+            .settings
+            .allowed_hosts
+            .iter()
+            .any(|host| name.eq_ignore_ascii_case(host));
     if allowed {
         next.run(request).await
     } else {

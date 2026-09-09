@@ -19,6 +19,7 @@ fn state_with_runner(script: &str, web_root: &str) -> crate::AppState {
     crate::AppState {
         settings: Settings {
             bind: "127.0.0.1:0".to_owned(),
+            allowed_hosts: Vec::new(),
             web_root: web_root.to_owned(),
             runner_bin: script.to_owned(),
             database: None,
@@ -562,7 +563,7 @@ async fn foreign_host_headers_are_rejected() {
         .oneshot(
             Request::builder()
                 .uri("/api/v1/health")
-                .header("host", "attacker.example.com")
+                .header("host", "console.example.com")
                 .body(Body::empty())
                 .expect("request"),
         )
@@ -572,21 +573,36 @@ async fn foreign_host_headers_are_rejected() {
 }
 
 #[tokio::test]
-async fn lan_ip_host_headers_are_accepted() {
+async fn configured_hostnames_are_exact_and_preserve_local_access() {
     let temp = TempDir::new().expect("temp dir");
-    let app = crate::router(state_with_runner(
-        "/bin/true",
-        temp.path().to_str().expect("utf8"),
-    ));
-    let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/api/v1/health")
-                .header("host", "192.168.0.143:8790")
-                .body(Body::empty())
-                .expect("request"),
-        )
-        .await
-        .expect("in-process response");
-    assert_eq!(response.status(), StatusCode::OK);
+    let mut state = state_with_runner("/bin/true", temp.path().to_str().expect("utf8"));
+    state.settings.allowed_hosts = vec!["console.example.com".to_owned()];
+    let app = crate::router(state);
+    for (host, expected) in [
+        ("console.example.com", StatusCode::OK),
+        ("CONSOLE.example.com:8443", StatusCode::OK),
+        ("127.0.0.1:8790", StatusCode::OK),
+        ("192.168.0.143:8790", StatusCode::OK),
+        ("localhost:8790", StatusCode::OK),
+        ("attacker.example.com", StatusCode::MISDIRECTED_REQUEST),
+        (
+            "console.example.com.attacker.test",
+            StatusCode::MISDIRECTED_REQUEST,
+        ),
+        ("sub.console.example.com", StatusCode::MISDIRECTED_REQUEST),
+    ] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/api/v1/health")
+                    .header("host", host)
+                    .header("x-forwarded-host", "console.example.com")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("in-process response");
+        assert_eq!(response.status(), expected, "{host}");
+    }
 }

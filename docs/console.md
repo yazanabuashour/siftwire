@@ -146,6 +146,7 @@ Set environment variables before starting the console:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SIFTWIRE_CONSOLE_BIND` | `127.0.0.1:8790` | Listen address. |
+| `SIFTWIRE_CONSOLE_ALLOWED_HOSTS` | unset | Additional exact DNS hostnames, separated by commas. Matching ignores case and the request port. |
 | `SIFTWIRE_CONSOLE_WEB_ROOT` | `apps/web/dist` | Built web assets directory. |
 | `SIFTWIRE_CONSOLE_RUNNER_BIN` | `siftwire` | Runner executable to spawn. |
 | `SIFTWIRE_CONSOLE_DATABASE` | unset | Optional `--db` override for every call. |
@@ -153,6 +154,31 @@ Set environment variables before starting the console:
 
 The console has no authentication. Keep the default loopback binding unless you
 intend to grant access to a trusted network. For LAN access, configure both the
-bind address and host firewall. The Host-header check rejects foreign domain
-names to block browser-based DNS rebinding on loopback and LAN bindings. It does
-not authenticate users.
+bind address and host firewall. The Host-header check accepts IP literals,
+`localhost`, and explicitly configured hostnames. Other domain names receive
+HTTP 421 to block browser-based DNS rebinding.
+
+## Serve through a trusted proxy
+
+Keep the console bound to loopback when the proxy runs on the same machine.
+Allow the hostname that the proxy forwards in the `Host` header:
+
+```bash
+SIFTWIRE_CONSOLE_ALLOWED_HOSTS=console.example.com \
+	SIFTWIRE_CONSOLE_WEB_ROOT="$HOME/.local/share/siftwire-console/web" \
+	~/.local/bin/siftwire-console
+```
+
+Use exact hostnames without schemes, ports, paths, trailing dots, or wildcards.
+Separate multiple names with commas. An unset or blank value retains local-only
+hostname handling. Invalid entries prevent startup. `X-Forwarded-Host` does not
+override the `Host` check.
+
+Serve the console at its own origin root, not under a path prefix. Keep generated
+HTML on a separate origin so its scripts cannot access the console's writable API.
+Different HTTPS ports are different origins.
+
+The allowlist permits routing, not user access. Keep a private network boundary,
+or require authentication at the proxy before exposing the console publicly.
+Protect every route, including the API, and prevent direct access to the backend.
+Hosting only the frontend in the cloud does not move the local runner or database.

@@ -12,16 +12,14 @@ const MISSING_URL: &str = "https://example.com/siftwire-missing.xml";
 pub fn prepare(mut scenario: Scenario, run_dir: &Path) -> Result<Scenario> {
     let needs_feed = contains(&scenario, FEED_URL);
     let needs_missing = contains(&scenario, MISSING_URL);
-    let needs_releases = contains(&scenario, "repository openai/codex");
     let needs_limits = scenario.id == "configured-max-delivery-items";
     let needs_history = scenario.id == "brief-run-history";
-    if !(needs_feed || needs_missing || needs_releases || needs_limits || needs_history) {
+    if !(needs_feed || needs_missing || needs_limits || needs_history) {
         return Ok(scenario);
     }
     let fixture_dir = run_dir.join("fixtures");
     create_dir_all(&fixture_dir, 0o755)?;
     let feed_path = fixture_dir.join("github-blog.xml");
-    let release_path = fixture_dir.join("codex-releases.json");
     if needs_feed {
         write_file(&feed_path, feed().as_bytes(), 0o644)?;
     }
@@ -35,14 +33,10 @@ pub fn prepare(mut scenario: Scenario, run_dir: &Path) -> Result<Scenario> {
     } else {
         Vec::new()
     };
-    if needs_releases {
-        write_file(&release_path, releases().as_bytes(), 0o644)?;
-    }
     rewrite(
         &mut scenario,
         &fixture_dir,
         &feed_path,
-        &release_path,
         &limit_urls,
         &history_urls,
     )?;
@@ -77,23 +71,16 @@ fn rewrite(
     scenario: &mut Scenario,
     fixture_dir: &Path,
     feed_path: &Path,
-    release_path: &Path,
     limit_urls: &[String],
     history_urls: &[String],
 ) -> Result<()> {
     let feed_url = file_url(feed_path)?;
     let missing_url = file_url(&fixture_dir.join("missing.xml"))?;
-    let release_url = file_url(release_path)?;
     for turn in &mut scenario.turns {
         turn.prompt = turn
             .prompt
             .replace(FEED_URL, &feed_url)
-            .replace(MISSING_URL, &missing_url)
-            .replace("named github.blog", "named fixture.example")
-            .replace(
-                "repository openai/codex with key",
-                &format!("repository openai/codex using source URL {release_url} with key"),
-            );
+            .replace(MISSING_URL, &missing_url);
         replace_generated(&mut turn.prompt, "limit", limit_urls);
         replace_generated(&mut turn.prompt, "history", history_urls);
     }
@@ -117,8 +104,4 @@ fn file_url(path: &Path) -> Result<String> {
 
 const fn feed() -> &'static str {
     "<?xml version=\"1.0\"?>\n<rss version=\"2.0\"><channel>\n<title>SiftWire fixture</title>\n<item><title>SiftWire fixture story - Fixture Outlet</title><link>https://fixture.example/story</link><guid>fixture-guid-1</guid><pubDate>Thu, 23 Apr 2026 01:00:00 GMT</pubDate></item>\n</channel></rss>"
-}
-
-const fn releases() -> &'static str {
-    "[{\"tag_name\":\"v1.2.3\",\"name\":\"SiftWire fixture release\",\"html_url\":\"https://fixture.example/releases/tag/v1.2.3\",\"published_at\":\"2026-04-23T01:00:00Z\",\"draft\":false,\"prerelease\":false}]"
 }

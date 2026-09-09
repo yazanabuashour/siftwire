@@ -11,14 +11,13 @@ siftwire config [--db path]
 siftwire brief [--db path]
 ```
 
-Human-facing operator commands also exist on the same binary: read-only
-`source list` and `runs list|show`, plus a `source add` stdin write that uses
-the same validation as `upsert_source`. They are operator conveniences outside
-this protocol; automated consumers must use only `config` and `brief`.
+The read-only `runs list|show` operator commands also serve the console's
+archive requests. Source inspection and writes use `config.inspect_config`
+and `config.upsert_source`; there is no separate `source` command.
 
 Every result identifies `runner_protocol` and `capabilities`. Consumers must
 require the protocol and capabilities they use before acting. The current
-protocol is `siftwire-runner/v2`; `prepared-delivery/v1` and `sports-updates/v1`
+protocol is `siftwire-runner/v3`; `prepared-delivery/v1` and `sports-updates/v1`
 identify the contracts documented below. The binary release version remains
 useful operator information but is not capability negotiation.
 
@@ -80,27 +79,29 @@ partial mutation result.
 `source_reporting` has these values:
 
 - `sports`: recurring schedule updates, outside normal candidate slots.
-- `required`: eligible new items are required by a release source, an `always`
-  threshold, or `always_report`.
-- `observe`: audit-only collection, with no inclusion queue.
+- `required`: eligible new items are required by a release source or an `always`
+  threshold.
+- `observe`: retained legacy audit configuration only, not a new reporting choice.
 - `major`: high-threshold candidates for caller judgment.
 - `highlights`: medium-threshold candidates for caller judgment.
 
-The runner owns this decision. Reporting metadata is not a writable Source
-field. Editing another field must not silently normalize `threshold`,
-`always_report`, priority, or source kind. Observation advances seen state;
-unselected candidates are not a durable backlog.
+The runner owns this decision. Reporting metadata is not writable. New feed
+thresholds are `always`, `high`, and `medium`. Unselected candidates are not a
+durable backlog. See [v3 migration](runner-v3-migration.md) for legacy source
+configuration and historical reporting.
 
-Sources support `rss`, `atom`, `github_release`, and `sports_schedule`. Their
-stable fields are `key`, `label`, `kind`, `url`, `repo`, `section`, `threshold`,
-`enabled`, `url_canonicalization`, `outlet_extraction`, `dedup_group`,
-`priority_rank`, `always_report`, `schedule_format`, `schedule_filter`, and
-`api_key`. A `github_release` source fetches `url` when provided; otherwise it derives the
-GitHub API endpoint from `repo`. A `sports_schedule` source (see
-`docs/architecture/schedule-source-adr.md`) fetches a schedule endpoint and
-emits recurring upcoming fixtures and completed results. `schedule_format`
-selects the response parser (`espn`, `espn_scoreboard`, `espn_core`, or `riot`),
-and `api_key` carries Riot's public frontend key for `riot`.
+Source writes support `rss`, `github_release`, and `sports_schedule`. The `rss`
+kind auto-detects RSS and Atom documents. Fields are `key`, `label`, `kind`,
+`url`, `repo`, `section`, `threshold`, `enabled`, `url_canonicalization`,
+`outlet_extraction`, `dedup_group`, `priority_rank`, `schedule_format`,
+`schedule_filter`, and `api_key`. A `github_release` source requires `repo`
+as `owner/name` and rejects a nonempty `url`; the runner derives the public
+GitHub releases endpoint. Feed canonicalization accepts `none` or
+`google_news_article_url`; publisher extraction accepts `none` or `title_suffix`.
+A `sports_schedule` source fetches a schedule endpoint and emits recurring
+upcoming fixtures and completed results. `schedule_format` selects `espn`,
+`espn_scoreboard`, or `riot`; `api_key` carries Riot's public frontend key for
+`riot`. See `docs/architecture/schedule-source-adr.md` for sports behavior.
 
 `schedule_filter` defaults to `all`. Only Riot accepts `standings_top_two`. That
 filter emits matches involving teams in the first two standings positions and
@@ -131,8 +132,9 @@ until the operator changes them. Rejection leaves the whole collection intact.
 
 ## Briefs
 
-Every brief request can contain `action`, `dry_run`, `run_id`, `message`,
-`candidate_indexes`, and `delivery_plan_id`.
+Every brief request can contain `action`, `dry_run`, `run_id`,
+`candidate_indexes`, and `delivery_plan_id`. Caller-supplied `message` is an
+unknown request field.
 
 | Action             | Purpose                                                                          |
 | ------------------ | -------------------------------------------------------------------------------- |
@@ -140,7 +142,6 @@ Every brief request can contain `action`, `dry_run`, `run_id`, `message`,
 | `run_brief`        | Fetch configured sources, update permitted state, and return selection evidence. |
 | `prepare_delivery` | Validate candidate indexes and persist one immutable rendered delivery plan.     |
 | `confirm_delivery` | Idempotently record the exact prepared plan after transport acceptance.          |
-| `record_delivery`  | Compatibility action that records a caller-rendered exact body.                  |
 
 Brief results contain `runner_protocol`, `capabilities`, `rejected`, optional
 `rejection_reason`, `paths`, optional `run_id`, `must_include`, `candidates`, `previous_briefs`,
@@ -152,19 +153,19 @@ Brief results contain `runner_protocol`, `capabilities`, `rejected`, optional
 `deliveries`, and `final_answer`, plus `summary`. Empty optional collections may
 be omitted.
 
-`sports_section` is runner-rendered Markdown. Append it after normal brief items
-and before `health_footnote`; do not rebuild it from `sports_updates`. It does
-not count against `max_delivery_items`. Each structured sports update contains
+`sports_section` is runner-rendered Markdown for inspection. Prepared bodies
+already place it after normal items and before the health footnote; consumers
+must not append it again. It does not count against `max_delivery_items`.
+Each structured sports update contains
 `source_key`, `source_label`, `status`, `title`, `competition`, `url`, and the
 UTC RFC 3339 `starts_at` value. `status` is `upcoming` or `final`. The optional
 `images` array contains provider image URLs and labels. SiftWire accepts images
 only from `a.espncdn.com` and `static.lolesports.com`. Consumers must treat them
 as decorative because mail clients can block remote assets.
 
-Upcoming fixtures also remain in `must_include` for compatibility. Consumers
-that render manually must skip `must_include` entries whose `kind` is
-`sports_schedule` when `sports_section` is present. `prepare_delivery` performs
-that filtering and keeps sports outside `max_delivery_items` automatically.
+Upcoming fixtures also remain in `must_include` for stored evidence linkage.
+`prepare_delivery` removes this duplicate representation from the rendered body
+and keeps sports outside `max_delivery_items` automatically.
 
 `candidate_slots` is the maximum number of candidate indexes accepted by
 `prepare_delivery`. Candidate indexes are zero-based positions in the returned
@@ -182,9 +183,9 @@ linking prepared items to immutable collection evidence. Old plans without these
 references remain valid and unchanged.
 
 `paths.data_dir`, `recent_sent`, aggregate `suppressed`, and `previous_briefs`
-remain compatibility fields. New consumers should prefer typed suppression
-collections and `record_delivery.final_answer`, but must not require older
-fields to disappear.
+remain available. Recent brief context supports editorial selection; aggregate
+suppression includes same-run evidence. Confirmation returns `final_answer`
+with the current brief and recorded prior messages.
 
 ## State and retries
 
@@ -197,20 +198,13 @@ indexes, and call `prepare_delivery`. The prepared plan survives interruption
 and supplies complete transport bodies. After transport acceptance, call
 `confirm_delivery` with that plan ID.
 
-`delivery_message_scope` is `current_brief_only`. The compatibility
-`record_delivery.message` must not contain rendered `Current brief` or
-`Previous brief` history sections. That domain rejection writes nothing, so the
-caller can correct the message for the same run ID.
-
-`confirm_delivery` is retry-safe with the same database and
-`delivery_plan_id`. An identical retry returns the existing delivery. It rejects
-an unknown plan or a supplied `run_id` that does not match. A delivered run
-cannot create a new plan. Once a plan exists, compatibility `record_delivery`
-rejects the run and directs the caller to `confirm_delivery`. Without a plan,
-`record_delivery` is retry-safe only with the same database, run ID, and exact
-message. A different message for an already delivered run ID returns exit
-0 with `rejected: true`. Database corruption or an incomplete idempotency record
-remains an exit-1 runtime error.
+`delivery_message_scope` is `current_brief_only`. Send the immutable prepared
+bodies, not the final-answer history wrapper. `confirm_delivery` is retry-safe
+with the same database and `delivery_plan_id`. An identical retry returns the
+existing delivery. It rejects an unknown plan or a supplied `run_id` that does
+not match. A delivered run cannot create a new plan. `record_delivery` is no
+longer an action; old deliveries remain readable. Database corruption or an
+incomplete idempotency record remains an exit-1 runtime error.
 
 Result JSON can contain local paths, source URLs, brief text, and delivery
 history. Do not treat raw requests or results as telemetry-safe.
@@ -225,7 +219,7 @@ retain their permissions.
 
 ## Minimal consumer
 
-`examples/inspect_config.rs` is a minimal process consumer:
+`crates/siftwire/examples/inspect_config.rs` is a minimal process consumer:
 
 ```bash
 run_root="$(mktemp -d)"

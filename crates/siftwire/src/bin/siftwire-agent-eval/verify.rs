@@ -20,6 +20,8 @@ pub fn scenario(
     {
         verify_third_group(&mut checker, scenario_id, final_message);
     }
+    checker.prepared_deliveries();
+    checker.selected_evidence();
     checker.finish()
 }
 
@@ -43,15 +45,20 @@ fn verify_first_group(checker: &mut Checker<'_>, id: &str, message: &str) -> boo
             checker.minimum_count("source_state", 1);
             checker.count("delivery", 1);
             checker.count("sent_item", 1);
+            checker.recorded_delivery(message);
         }
         "rss-source-generic-processing-fields" => {
             checker.minimum_count("source_state", 1);
             checker.count("delivery", 1);
-            checker.query_count("processing-field source", "SELECT COUNT(*) FROM brief_source WHERE key = 'github-blog' AND url_canonicalization = 'none' AND outlet_extraction = 'url_host' AND dedup_group = 'news' AND priority_rank = 10", 1);
+            checker.count("sent_item", 1);
+            checker.recorded_delivery(message);
+            checker.query_count("processing-field source", "SELECT COUNT(*) FROM brief_source WHERE key = 'github-blog' AND url_canonicalization = 'none' AND outlet_extraction = 'title_suffix' AND dedup_group = 'news' AND priority_rank = 10", 1);
         }
         "outlet-policy-watch-audit" => {
             checker.query_count("successful source fetch", "SELECT COUNT(*) FROM fetch_log WHERE source_key = 'github-blog' AND status = 'ok' AND item_count = 1", 1);
-            checker.query_count("watch outlet policy", "SELECT COUNT(*) FROM outlet_policy WHERE name = 'fixture.example' AND policy = 'watch' AND enabled = 1", 1);
+            checker.query_count("watch outlet policy", "SELECT COUNT(*) FROM outlet_policy WHERE name = 'Fixture Outlet' AND policy = 'watch' AND enabled = 1", 1);
+            checker.query_count("retained watch candidate", "SELECT COUNT(*) FROM brief_run_item WHERE source_key = 'github-blog' AND category = 'candidate' AND outlet = 'Fixture Outlet'", 1);
+            checker.query_count("watch policy annotation", "SELECT COUNT(*) FROM brief_run_item WHERE source_key = 'github-blog' AND category = 'annotation' AND reason = 'outlet_policy' AND outlet = 'Fixture Outlet' AND json_extract(detail, '$.policy') = 'watch'", 1);
         }
         "configured-max-delivery-items" => {
             checker.minimum_count("brief_source", 3);
@@ -59,7 +66,7 @@ fn verify_first_group(checker: &mut Checker<'_>, id: &str, message: &str) -> boo
             checker.count("delivery", 1);
             checker.count("sent_item", 2);
             checker.runtime_value("max_delivery_items", "2");
-            checker.bullet_count(message, 2);
+            checker.query_count("two selected candidates", "SELECT COUNT(*) FROM delivery_plan WHERE json_array_length(candidate_indexes_json) = 2", 1);
             checker.recorded_delivery(message);
         }
         _ => return false,
@@ -74,26 +81,30 @@ fn verify_second_group(checker: &mut Checker<'_>, id: &str, message: &str) -> bo
             checker.minimum_count("source_state", 1);
             checker.count("delivery", 3);
             checker.count("sent_item", 3);
-            checker.bullet_count(message, 3);
-            checker.contains_any(message, &["Current brief"]);
-            checker.contains_any(message, &["Previous brief"]);
-            checker.contains_all(
-                message,
-                &[
-                    "- [SiftWire history story 1](<https://fixture.example/history-1>)",
-                    "- [SiftWire history story 2](<https://fixture.example/history-2>)",
-                    "- [SiftWire history story 3](<https://fixture.example/history-3>)",
-                ],
-            );
-            checker.latest_delivery_is(
-                "- [SiftWire history story 3](<https://fixture.example/history-3>)",
-            );
+            checker.recorded_delivery(message);
+            checker.query_count("distinct history evidence", "SELECT COUNT(DISTINCT url) FROM sent_item WHERE url IN ('https://fixture.example/history-1', 'https://fixture.example/history-2', 'https://fixture.example/history-3')", 3);
         }
-        "github-release-source-must-include" => {
-            checker.minimum_count("brief_source", 1);
+        "github-release-source-config" => {
+            checker.query_count("repository-only release source", "SELECT COUNT(*) FROM brief_source WHERE key = 'codex-releases' AND kind = 'github_release' AND repo = 'openai/codex' AND url = '' AND threshold = 'always' AND enabled = 1", 1);
+            checker.count("fetch_log", 0);
+            checker.count("brief_run", 0);
+            checker.contains_all(message, &["openai/codex"]);
+        }
+        "rss-source-must-include" => {
             checker.minimum_count("source_state", 1);
             checker.count("delivery", 1);
-            checker.contains_all(message, &["fixture release", "v1.2.3", "codex"]);
+            checker.count("sent_item", 1);
+            checker.query_count("required fixture", "SELECT COUNT(*) FROM brief_run_item WHERE source_key = 'required-feed' AND category = 'must_include' AND threshold = 'always'", 1);
+            checker.query_count(
+                "no optional selection",
+                "SELECT COUNT(*) FROM delivery_plan WHERE candidate_indexes_json = '[]'",
+                1,
+            );
+            checker.contains_all(
+                message,
+                &["SiftWire fixture story", "https://fixture.example/story"],
+            );
+            checker.recorded_delivery(message);
         }
         "repeat-run-no-new-items" => {
             checker.minimum_count("brief_source", 1);
@@ -101,11 +112,13 @@ fn verify_second_group(checker: &mut Checker<'_>, id: &str, message: &str) -> bo
             checker.count("delivery", 2);
             checker.count("sent_item", 1);
             checker.contains_all(message, &["NO_REPLY", "Previous brief"]);
+            checker.recorded_delivery(message);
         }
-        "record-delivery-suppresses-repeats" => {
+        "confirmed-delivery-suppresses-repeats" => {
             checker.minimum_count("brief_run", 2);
             checker.minimum_count("delivery", 1);
-            checker.minimum_count("sent_item", 1);
+            checker.count("sent_item", 1);
+            checker.query_count("no repeat candidates", "SELECT COUNT(*) FROM brief_run_item WHERE category = 'candidate' AND run_id = (SELECT id FROM brief_run ORDER BY started_at DESC, id DESC LIMIT 1)", 0);
             checker.contains_any(message, &["suppress"]);
         }
         _ => return false,

@@ -6,7 +6,7 @@ import {
 import { useState } from "react"
 
 import { deleteSource, saveSource } from "../api-client"
-import type { ConfigResult, ReportingMode, Source } from "../api-contracts"
+import type { ConfigResult, Source } from "../api-contracts"
 import {
   applyConfigResult,
   configQuery,
@@ -15,6 +15,7 @@ import {
 } from "./config-query"
 
 import "./config.css"
+import { sourceError } from "./source-validation"
 import SourceCollection from "./SourceCollection"
 import SourceEditor, { emptySource } from "./SourceEditor"
 import { Dialog, ErrorNote, PageHeading } from "./ui"
@@ -23,7 +24,7 @@ export default function SourcesPage() {
   const [editor, setEditor] = useState<{
     source: Source
     editing: boolean
-    reporting: ReportingMode | undefined
+    reporting: string | undefined
   } | null>(null)
   const [removing, setRemoving] = useState<Source | null>(null)
   const [notice, setNotice] = useState("")
@@ -83,6 +84,10 @@ export default function SourcesPage() {
             setRemoving(source)
           }}
           onToggle={(source, enabled) => {
+            if (sourceError(source, sources, source.key)) {
+              startEditing(source, true)
+              return
+            }
             setNotice("")
             save.mutate({ ...source, enabled })
           }}

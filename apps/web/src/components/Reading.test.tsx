@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { expect, it } from "vitest"
 
 import { RunDetailSchema, RunItemSchema } from "../api-contracts"
-import { RecordedBrief } from "./Reading"
+import { RecordedBrief, StoryReceipt } from "./Reading"
 import { Candidates, Dropped } from "./RunEvidence"
 
 function recorded(message: string | null) {
@@ -123,6 +123,35 @@ it("uses recorded policy and delivery outcomes and separates annotations from ex
     "Retained warning",
   )
 })
+
+it.each(["observe", "future_policy"])(
+  "retains historical Atom, always_report and %s without reinterpreting them",
+  (reporting) => {
+    const story = RunItemSchema.parse({
+      id: "legacy",
+      source_key: "old",
+      source_label: "Old feed",
+      kind: "atom",
+      threshold: "audit",
+      always_report: true,
+      reporting,
+      priority_rank: "-9223372036854775808",
+      title: "Old story",
+      url: "https://example.test/old",
+      selected: false,
+    })
+    expect(story.always_report).toBe(true)
+    expect(story.threshold).toBe("audit")
+    const html = renderToStaticMarkup(<StoryReceipt story={story} />)
+    expect(html).toContain("atom")
+    expect(html).toContain("-9223372036854775808")
+    expect(html).toContain(
+      reporting === "observe"
+        ? "Observe without including"
+        : "Unknown reporting: future_policy",
+    )
+  },
+)
 
 it("makes recorded images opt-in links rather than remote loads", () => {
   const html = renderToStaticMarkup(

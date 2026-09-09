@@ -110,7 +110,11 @@ it("confirms and acknowledges an empty publisher collection despite a late confi
   expect(lateRead.signal.aborted).toBe(false)
   // The runner omits empty collections, including outlets.
   write.respond(
-    Response.json({ rejected: false, summary: "Outlet policies replaced." }),
+    Response.json({
+      runner_protocol: "siftwire-runner/v3",
+      rejected: false,
+      summary: "Outlet policies replaced.",
+    }),
   )
   await settle()
   expect(host.textContent).toContain("Publishers saved.")
@@ -160,7 +164,10 @@ it("keeps settings drafts during refetch and errors, supports discard, and uses 
   })
   expect(lateRead.signal.aborted).toBe(false)
   write.respond(
-    Response.json({ runtime_config: { sports_timezone: "Etc/UTC" } }),
+    Response.json({
+      runner_protocol: "siftwire-runner/v3",
+      runtime_config: { sports_timezone: "Etc/UTC" },
+    }),
   )
   await settle()
   expect(input("Sports time zone").value).toBe("Etc/UTC")
@@ -236,7 +243,11 @@ it("adds a local publisher, freezes the collection while editing, and accepts on
     ].every((entry) => entry.disabled),
   ).toBe(true)
   write.respond(
-    Response.json({ outlets: [publisher, normalized], outlet_conflicts: [] }),
+    Response.json({
+      runner_protocol: "siftwire-runner/v3",
+      outlets: [publisher, normalized],
+      outlet_conflicts: [],
+    }),
   )
   await settle()
   expect(request).toHaveBeenCalledWith(

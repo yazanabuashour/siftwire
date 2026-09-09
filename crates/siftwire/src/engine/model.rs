@@ -6,7 +6,6 @@ pub struct FetchedItem {
     pub identity: String,
     pub feed_identity: String,
     pub outlet: String,
-    pub rss_source: String,
 }
 
 impl FetchedItem {

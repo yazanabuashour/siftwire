@@ -3,7 +3,7 @@ import {
   type ReportingMode,
   type Source,
 } from "../api-contracts"
-import { reportingLabels } from "../reporting"
+export { reportingLabel } from "../reporting"
 
 export const emptySource: Source = {
   key: "",
@@ -18,13 +18,12 @@ export const emptySource: Source = {
   outlet_extraction: "none",
   dedup_group: "",
   priority_rank: "0",
-  always_report: false,
   schedule_format: "",
   schedule_filter: "all",
   api_key: "",
 }
 
-export type FeedReportingMode = Exclude<ReportingMode, "sports">
+export type FeedReportingMode = Exclude<ReportingMode, "sports" | "observe">
 
 export function reportingPatch(mode: FeedReportingMode): Partial<Source> {
   return {
@@ -32,9 +31,7 @@ export function reportingPatch(mode: FeedReportingMode): Partial<Source> {
       required: "always",
       highlights: "medium",
       major: "high",
-      observe: "audit",
     }[mode],
-    always_report: false,
   }
 }
 
@@ -49,10 +46,6 @@ export function sourceTypePatch(type: string): Partial<Source> {
     schedule_filter: "all",
     api_key: "",
   }
-}
-
-export function reportingLabel(mode: ReportingMode | undefined): string {
-  return mode ? reportingLabels[mode] : "Reporting unavailable"
 }
 
 export function suggestKey(label: string, sources: Source[]): string {
@@ -91,11 +84,29 @@ export function sourceError(
   const priority = PriorityRankSchema.safeParse(source.priority_rank)
   if (!priority.success)
     return priority.error.issues[0]?.message ?? "Invalid priority."
-  if (source.kind === "github_release" && !source.repo && !source.url)
-    return "Enter a repository or a release URL."
+  if (!["rss", "github_release", "sports_schedule"].includes(source.kind))
+    return "Choose a supported source type."
+  if (!["always", "high", "medium"].includes(source.threshold))
+    return "Choose current reporting before saving this legacy source."
+  if (
+    !["", "none", "google_news_article_url"].includes(
+      source.url_canonicalization,
+    )
+  )
+    return "Choose a supported link resolution option."
+  if (!["", "none", "title_suffix"].includes(source.outlet_extraction))
+    return "Choose a supported publisher identification option."
+  if (
+    source.kind === "sports_schedule" &&
+    !["espn", "espn_scoreboard", "riot"].includes(source.schedule_format)
+  )
+    return "Choose a supported schedule format."
+  if (source.kind === "github_release" && source.url)
+    return "GitHub releases use a repository, not a custom URL."
+  if (!["all", "standings_top_two"].includes(source.schedule_filter))
+    return "Choose a supported schedule filter."
   if (
     source.kind === "github_release" &&
-    source.repo &&
     !/^[a-zA-Z0-9][a-zA-Z0-9-]*\/[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(source.repo)
   )
     return "Enter a repository as owner/name."
@@ -105,7 +116,7 @@ export function sourceError(
     !source.api_key.trim()
   )
     return "Enter the public frontend API key used by the League of Legends esports website."
-  if (source.kind !== "github_release" || source.url) {
+  if (source.kind !== "github_release") {
     try {
       const url = new URL(source.url)
       if (

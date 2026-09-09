@@ -31,7 +31,7 @@ requirements.
 RSS and Atom share one feed model. GitHub releases remain a separate source kind
 because they use a different fetch interface. Provider-specific feed source
 kinds do not belong in the runner when generic URL canonicalization, outlet
-extraction, deduplication, priority, and always-report fields express the task.
+extraction, deduplication, priority, and reporting thresholds express the task.
 
 ### Intake separates inspection from writes
 
@@ -52,8 +52,8 @@ can authorize focused inspection. It does not authorize a durable write.
 request shapes, source-intake guidance, and final-answer choreography. Runner
 JSON carries task data and safe rejection reasons. Eval docs own scenario and
 promotion evidence. Maintainer docs own repository, release, and security work.
-Detailed local Prooflane behavior belongs in its runbook, not in the installed
-skill.
+Prooflane owns its adapter invocation and recovery guidance, not the installed
+SiftWire skill or a SiftWire shell wrapper.
 
 ### No discovery API yet
 

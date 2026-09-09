@@ -69,8 +69,12 @@ fn codex_arguments_preserve_isolation_and_resume() -> Result<()> {
     );
     let prompt = arguments.last().map_or("", String::as_str);
     ensure!(
-        prompt.contains(RUNNER_ONLY_INSTRUCTION),
-        "runner-only instruction missing: {prompt}"
+        prompt.contains(RUNNER_ONLY_INSTRUCTION)
+            && prompt.contains("no real email")
+            && prompt.contains("confirm_delivery")
+            && prompt.contains("siftwire-runner/v3")
+            && prompt.contains("prepared-delivery/v1"),
+        "runner-only or simulated transport instruction missing: {prompt}"
     );
 
     let multiple = scenario("multi", &["first", "second"]);
@@ -159,7 +163,7 @@ fn fixtures_rewrite_feed_missing_and_generated_urls() -> Result<()> {
         scenario(
             "configured-max-delivery-items",
             &[
-                "Use https://github.blog/feed/, https://example.com/siftwire-missing.xml, https://example.com/siftwire-limit-1.xml, https://example.com/siftwire-limit-2.xml, and https://example.com/siftwire-limit-3.xml named github.blog.",
+                "Use https://github.blog/feed/, https://example.com/siftwire-missing.xml, https://example.com/siftwire-limit-1.xml, https://example.com/siftwire-limit-2.xml, and https://example.com/siftwire-limit-3.xml named Fixture Outlet.",
             ],
         ),
         &root,
@@ -179,6 +183,23 @@ fn fixtures_rewrite_feed_missing_and_generated_urls() -> Result<()> {
     ensure!(
         !root.join("fixtures/missing.xml").try_exists()?,
         "missing fixture must stay absent"
+    );
+    ensure!(
+        fs::read_to_string(root.join("fixtures/github-blog.xml"))?
+            .contains("SiftWire fixture story - Fixture Outlet")
+            && prompt.contains("named Fixture Outlet"),
+        "title-suffix publisher does not match the outlet policy"
+    );
+    let github = scenario(
+        "github-release-source-config",
+        &["Configure repository openai/codex with key codex-releases."],
+    );
+    let prepared_github = fixtures::prepare(github.clone(), &root)?;
+    ensure!(
+        prepared_github.turns.first().map(|turn| &turn.prompt)
+            == github.turns.first().map(|turn| &turn.prompt)
+            && !root.join("fixtures/codex-releases.json").try_exists()?,
+        "GitHub config fixture reintroduced a custom source URL"
     );
     fs::remove_dir_all(root)?;
     Ok(())
@@ -263,10 +284,14 @@ fn output_parser_allows_skill_and_runner_commands() {
     for command in [
         "/bin/zsh -lc \"pwd && sed -n '1,220p' .agents/skills/siftwire/SKILL.md\"",
         "/bin/zsh -lc \"cat <<'JSON' | siftwire brief\n{\\\"action\\\":\\\"run_brief\\\",\\\"dry_run\\\":false}\nJSON\"",
-        "/bin/bash -c \"cat <<'JSON' | siftwire brief\n{\\\"action\\\":\\\"record_delivery\\\",\\\"message\\\":\\\"Feed `broken` $(literal)\\\"}\nJSON\"",
+        "/bin/bash -c \"cat <<'JSON' | siftwire brief\n{\\\"action\\\":\\\"confirm_delivery\\\",\\\"delivery_plan_id\\\":\\\"plan `broken` $(literal)\\\"}\nJSON\"",
         "/usr/bin/bash -c \"siftwire brief <<'JSON'\n{\\\"action\\\":\\\"run_brief\\\"}\nJSON\"",
         "/usr/bin/bash -c \"SIFTWIRE_DATABASE_PATH=/tmp/eval printf '%s' '{\\\"action\\\":\\\"run_brief\\\"}' | siftwire brief\"",
         "/usr/bin/bash -c \"printf '%s' '{\\\"action\\\":\\\"run_brief\\\"}' | SIFTWIRE_DATABASE_PATH=/tmp/eval siftwire brief\"",
+        "/usr/bin/bash -c \"printf '%s\n' '{\\\"action\\\":\\\"inspect_config\\\"}' | siftwire config\"",
+        "/usr/bin/bash -c \"siftwire config <<< '{\\\"action\\\":\\\"inspect_config\\\"}'\"",
+        "/usr/bin/bash -c \"sed -n '1,\"'$p'\"' .agents/skills/siftwire/SKILL.md\"",
+        "sed -n '1,$p' .agents/skills/siftwire/SKILL.md",
     ] {
         let event =
             json!({"type":"item.started","item":{"type":"command_execution","command":command}});
@@ -295,6 +320,16 @@ fn output_parser_flags_compound_substituted_and_unrecognized_commands() {
         "/bin/bash -c \"cat <<JSON | siftwire config\n{\\\"action\\\":\\\"inspect_config\\\"}\nJSON\"",
         "/bin/bash -c \"siftwire brief <<JSON\n{\\\"action\\\":\\\"run_brief\\\"}\nJSON\"",
         "/bin/bash -c \"cat <<'JSON' | siftwire config\n{}\nJSON\ncat secret\nJSON\"",
+        "/usr/bin/bash -c \"printf '%s\n' '{}'\ncat secret | siftwire config\"",
+        "/usr/bin/bash -c \"printf '%s\n' '{}' | siftwire config\ncat secret\"",
+        "/usr/bin/bash -c \"printf '%s\n' '$(cat secret)' | siftwire config\"",
+        "/usr/bin/bash -c \"siftwire config <<< '{}' 'extra'\"",
+        "/usr/bin/bash -c \"siftwire config <<< '$(cat secret)'\"",
+        "/usr/bin/bash -c \"siftwire config <<< '{}'\ncat secret\"",
+        "/usr/bin/bash -c \"sed -n '1,$p' .agents/skills/siftwire/SKILL.md && cat secret\"",
+        "/usr/bin/bash -c \"sed -n \"$p\" .agents/skills/siftwire/SKILL.md\"",
+        "sed -n p .agents/skills/siftwire/SKILL.md \"'1,$p'\"",
+        "sed -n '1,\"'$p'\"' .agents/skills/siftwire/SKILL.md",
     ] {
         let event =
             json!({"type":"item.started","item":{"type":"command_execution","command":command}});

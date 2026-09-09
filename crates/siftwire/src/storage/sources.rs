@@ -2,7 +2,7 @@ use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Utc};
 use rusqlite::{Transaction, params};
 
-use crate::domain::normalize_sources;
+use crate::domain::{SOURCE_KIND_ATOM, SOURCE_KIND_RSS, THRESHOLD_ALWAYS, normalize_sources};
 
 use super::{Source, Store, bool_i64, format_timestamp, normalize_source};
 
@@ -11,11 +11,13 @@ const SOURCE_COLUMNS: &str = "key, label, kind, url, repo, section, threshold, e
     schedule_format, schedule_filter, api_key";
 
 impl Store {
-    /// Lists sources ordered by key.
+    /// Lists effective sources ordered by key without rewriting legacy rows.
+    /// Enabled-only reads reject unsupported configuration before fetching.
     ///
     /// # Errors
     ///
-    /// Returns an error when `SQLite` cannot read a source row.
+    /// Returns an error when `SQLite` cannot read a row or an enabled-only read
+    /// encounters unsupported source configuration.
     pub fn list_sources(&self, enabled_only: bool) -> Result<Vec<Source>> {
         let filter = if enabled_only {
             " WHERE enabled = 1"
@@ -30,7 +32,20 @@ impl Store {
         let rows = statement
             .query_map([], source_from_row)
             .context("query sources")?;
-        rows.map(|row| row.context("read source row")).collect()
+        rows.map(|row| {
+            let source = row.context("read source row")?;
+            if enabled_only {
+                let key = source.key.clone();
+                normalize_source(source).map_err(|error| {
+                    anyhow::anyhow!(
+                        "enabled source {key:?} is unsupported: {error}; select supported configuration or disable the source"
+                    )
+                })
+            } else {
+                Ok(source)
+            }
+        })
+        .collect()
     }
 
     /// Replaces the complete source set.
@@ -90,20 +105,31 @@ impl Store {
 fn source_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Source> {
     let enabled = row.get::<_, i64>(7)?;
     let always_report = row.get::<_, i64>(12)?;
+    let kind: String = row.get(2)?;
+    // Adapt only the effective configuration. Raw rows and their state stay intact.
+    let kind = if kind == SOURCE_KIND_ATOM {
+        SOURCE_KIND_RSS.to_owned()
+    } else {
+        kind
+    };
+    let threshold = if always_report == 1 {
+        THRESHOLD_ALWAYS.to_owned()
+    } else {
+        row.get(6)?
+    };
     Ok(Source {
         key: row.get(0)?,
         label: row.get(1)?,
-        kind: row.get(2)?,
+        kind,
         url: row.get(3)?,
         repo: row.get(4)?,
         section: row.get(5)?,
-        threshold: row.get(6)?,
+        threshold,
         enabled: enabled == 1,
         url_canonicalization: row.get(8)?,
         outlet_extraction: row.get(9)?,
         dedup_group: row.get(10)?,
         priority_rank: row.get(11)?,
-        always_report: always_report == 1,
         schedule_format: row.get(13)?,
         schedule_filter: row.get(14)?,
         api_key: row.get(15)?,
@@ -143,7 +169,7 @@ fn upsert_source_tx(
                 source.outlet_extraction,
                 source.dedup_group,
                 source.priority_rank,
-                bool_i64(source.always_report),
+                0,
                 source.schedule_format,
                 source.schedule_filter,
                 source.api_key,

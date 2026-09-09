@@ -1,12 +1,7 @@
 import { useId, useState } from "react"
 
-import type { ReportingMode, Source } from "../api-contracts"
-import {
-  sourceError,
-  sourceType,
-  suggestKey,
-  type FeedReportingMode,
-} from "./source-validation"
+import type { Source } from "../api-contracts"
+import { sourceError, sourceType, suggestKey } from "./source-validation"
 import {
   IdentityFields,
   PolicyFields,
@@ -22,7 +17,7 @@ type SourceEditorProps = {
   source: Source
   sources: Source[]
   editing: boolean
-  reporting: ReportingMode | undefined
+  reporting: string | undefined
   busy: boolean
   saveError: Error | null
   onSave: (source: Source) => void
@@ -42,7 +37,7 @@ export default function SourceEditor({
   const formId = useId()
   const [draft, setDraft] = useState(() => structuredClone(source))
   // Type changes do not change the raw feed policy or the user's selection.
-  const [feedMode, setFeedMode] = useState<FeedReportingMode | undefined>(
+  const [feedMode, setFeedMode] = useState<string | undefined>(
     !editing
       ? "highlights"
       : sourceType(source.kind) === "feed" && reporting !== "sports"
@@ -60,6 +55,7 @@ export default function SourceEditor({
     if (busy) return
     const next = {
       ...draft,
+      url: draft.kind === "github_release" ? "" : draft.url,
       key: editing
         ? source.key
         : draft.key.trim().toLowerCase() || suggestedKey,

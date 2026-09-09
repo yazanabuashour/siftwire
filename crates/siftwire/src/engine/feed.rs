@@ -5,12 +5,6 @@ use regex::Regex;
 
 use super::model::FetchedItem;
 
-#[derive(Default)]
-struct RawMetadata {
-    published_at: String,
-    rss_source: String,
-}
-
 pub fn parse_feed(body: &[u8]) -> Result<Vec<FetchedItem>> {
     let parser = feed_rs::parser::Builder::new()
         .sanitize_content(false)
@@ -20,22 +14,20 @@ pub fn parse_feed(body: &[u8]) -> Result<Vec<FetchedItem>> {
         .parse(body)
         .map_err(anyhow::Error::new)
         .context("parse feed XML")?;
-    let metadata = match feed.feed_type {
-        FeedType::Atom => raw_metadata(body, "entry", "updated", false)?,
-        FeedType::RSS0 | FeedType::RSS1 | FeedType::RSS2 => {
-            raw_metadata(body, "item", "pubDate", true)?
-        }
+    let dates = match feed.feed_type {
+        FeedType::Atom => raw_dates(body, "entry", "updated")?,
+        FeedType::RSS0 | FeedType::RSS1 | FeedType::RSS2 => raw_dates(body, "item", "pubDate")?,
         FeedType::JSON => bail!("parse feed XML: unsupported feed root \"json\""),
     };
     Ok(feed
         .entries
         .iter()
         .enumerate()
-        .filter_map(|(index, entry)| fetched_item(entry, metadata.get(index)))
+        .filter_map(|(index, entry)| fetched_item(entry, dates.get(index).map(String::as_str)))
         .collect())
 }
 
-fn fetched_item(entry: &Entry, metadata: Option<&RawMetadata>) -> Option<FetchedItem> {
+fn fetched_item(entry: &Entry, raw_date: Option<&str>) -> Option<FetchedItem> {
     let title = clean_text(entry.title.as_ref()?.content.as_str());
     if title.is_empty() {
         return None;
@@ -56,8 +48,7 @@ fn fetched_item(entry: &Entry, metadata: Option<&RawMetadata>) -> Option<Fetched
         .map_or_else(String::new, |date| {
             date.to_rfc3339_opts(SecondsFormat::AutoSi, true)
         });
-    let published_at = metadata
-        .map(|raw| raw.published_at.as_str())
+    let published_at = raw_date
         .filter(|raw| !raw.is_empty())
         .map_or(parsed_date, str::to_owned);
     Some(FetchedItem {
@@ -67,7 +58,6 @@ fn fetched_item(entry: &Entry, metadata: Option<&RawMetadata>) -> Option<Fetched
         identity: identity.clone(),
         feed_identity: identity,
         outlet: String::new(),
-        rss_source: metadata.map_or_else(String::new, |raw| raw.rss_source.clone()),
     })
 }
 
@@ -96,31 +86,18 @@ fn entry_link(links: &[Link]) -> String {
         .map_or_else(String::new, |link| link.href.trim().to_owned())
 }
 
-fn raw_metadata(
-    body: &[u8],
-    block_name: &str,
-    date_name: &str,
-    include_source: bool,
-) -> Result<Vec<RawMetadata>> {
+fn raw_dates(body: &[u8], block_name: &str, date_name: &str) -> Result<Vec<String>> {
     let block_pattern = Regex::new(&format!(
         r"(?is)<(?:[a-z0-9_-]+:)?{block_name}(?:\s[^>]*)?>(.*?)</(?:[a-z0-9_-]+:)?{block_name}\s*>"
     ))
     .context("compile feed item pattern")?;
     let date_pattern = child_pattern(date_name)?;
-    let source_pattern = child_pattern("source")?;
     let tags_pattern = Regex::new(r"(?is)<[^>]+>").context("compile XML tag pattern")?;
     let xml = String::from_utf8_lossy(body);
     Ok(block_pattern
         .captures_iter(&xml)
         .filter_map(|block| block.get(1))
-        .map(|contents| RawMetadata {
-            published_at: child_text(contents.as_str(), &date_pattern, &tags_pattern),
-            rss_source: if include_source {
-                child_text(contents.as_str(), &source_pattern, &tags_pattern)
-            } else {
-                String::new()
-            },
-        })
+        .map(|contents| child_text(contents.as_str(), &date_pattern, &tags_pattern))
         .collect())
 }
 

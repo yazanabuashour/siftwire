@@ -4,7 +4,6 @@ mod email;
 mod evidence;
 mod format;
 mod runs_cli;
-mod source_cli;
 
 use std::env;
 use std::io::{self, Read, Write};
@@ -45,7 +44,6 @@ pub fn run_process() -> ExitCode {
         }
         "config" => run_config_process(&rest),
         "brief" => run_brief_process(&rest),
-        "source" => source_cli::run(&rest),
         "runs" => runs_cli::run(&rest),
         _ => {
             eprintln!("unknown siftwire command {command:?}");
@@ -364,7 +362,7 @@ fn write_result<T: Serialize>(result: &T, label: &str) -> ExitCode {
 }
 
 fn usage(stdout: bool) {
-    let text = "usage: siftwire <version|config|brief|source|runs>\n       siftwire config [--db path] < request.json\n       siftwire brief [--db path] < request.json\n       siftwire source add [--json] [--db path] < source.json\n       siftwire source list [--enabled] [--json] [--db path]\n       siftwire runs list [--delivered] [--before run_id] [--search text] [--limit N] [--json] [--db path]\n       siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]";
+    let text = "usage: siftwire <version|config|brief|runs>\n       siftwire config [--db path] < request.json\n       siftwire brief [--db path] < request.json\n       siftwire runs list [--delivered] [--before run_id] [--search text] [--limit N] [--json] [--db path]\n       siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]";
     if stdout {
         println!("{text}");
     } else {

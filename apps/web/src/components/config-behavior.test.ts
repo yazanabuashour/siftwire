@@ -13,15 +13,14 @@ const stored: Source = {
   ...emptySource,
   key: "example-feed",
   label: "Example feed",
-  kind: "atom",
+  kind: "rss",
   section: "Engineering",
   url: "https://example.test/feed",
-  threshold: "audit",
-  always_report: true,
+  threshold: "always",
   priority_rank: "-9223372036854775808",
   dedup_group: "Stored group",
-  url_canonicalization: "feedburner_redirect",
-  outlet_extraction: "rss_source",
+  url_canonicalization: "google_news_article_url",
+  outlet_extraction: "title_suffix",
   schedule_format: "",
   schedule_filter: "all",
 }
@@ -35,6 +34,7 @@ const publisher = {
 
 function config() {
   return ConfigResultSchema.parse({
+    runner_protocol: "siftwire-runner/v3",
     rejected: false,
     paths: { data_dir: "data", database_path: "data/config.sqlite" },
     runtime_config: {
@@ -51,16 +51,11 @@ function config() {
 
 describe("configuration-owned transformations", () => {
   it("changes only reporting fields when the operator explicitly selects a mode", () => {
-    expect(reportingPatch("observe")).toEqual({
-      threshold: "audit",
-      always_report: false,
-    })
-    expect(reportingPatch("required")).toEqual({
-      threshold: "always",
-      always_report: false,
-    })
+    expect(reportingPatch("major")).toEqual({ threshold: "high" })
+    expect(reportingPatch("required")).toEqual({ threshold: "always" })
+    expect(reportingPatch("highlights")).toEqual({ threshold: "medium" })
     expect(emptySource.threshold).toBe("medium")
-    expect(emptySource.always_report).toBe(false)
+    expect(emptySource).not.toHaveProperty("always_report")
   })
 
   it("preserves optional notes and exact aliases through rename or policy edits", () => {
@@ -83,7 +78,6 @@ describe("normalized configuration mutation merges", () => {
     const normalized = {
       ...stored,
       label: "Server normalized",
-      always_report: false,
     }
     const result = {
       ...config(),

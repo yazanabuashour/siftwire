@@ -28,10 +28,11 @@ without notice. ESPN endpoints are undocumented and changeable.
 
 ## Decision
 
-Keep `sports_schedule` as a source kind beside `rss`, `atom`, and
-`github_release`. One source tracks one team, athlete event list, league, or
-competition. `schedule_format` selects the `espn`, `espn_scoreboard`,
-`espn_core`, or `riot` parser.
+Keep `sports_schedule` as a source kind beside `rss` and `github_release`.
+The `rss` kind reads RSS and Atom documents. One schedule source tracks one team,
+athlete event list, league, or competition. `schedule_format` selects `espn`,
+`espn_scoreboard`, or `riot`. Protocol v3 retires the unused ESPN Core parser;
+see `docs/runner-v3-migration.md` for the source migration boundary.
 
 A schedule fetch returns recurring sports updates separately from normal brief
 items:
@@ -48,9 +49,9 @@ inspection. Its `prepare_delivery` action owns final composition: it places
 sports after normal brief bullets and before health, keeps sports outside
 `max_delivery_items`, and persists one immutable delivery plan.
 
-For compatibility, upcoming fixtures also remain in `must_include` for older
-consumers. Prepared delivery plans remove those compatibility entries when the
-same fixtures already appear in `sports_section`.
+Upcoming fixtures also remain in `must_include` for recorded evidence linkage.
+Prepared delivery plans remove duplicate entries when the same fixtures already
+appear in `sports_section`.
 
 ESPN and Riot completed states produce result lines. Scores render when the
 provider supplies them. A completed event without scores still renders as
@@ -78,5 +79,5 @@ not errors.
   brief.
 - A Riot key rotation or standings response change degrades only Riot schedule
   coverage.
-- Existing runner consumers keep their upcoming fixture behavior until they
-  adopt `prepared-delivery/v1` or handle `sports_section` themselves.
+- Current consumers use `prepared-delivery/v1`; the runner owns sports placement
+  and exact rendering. Historical messages keep their recorded representation.

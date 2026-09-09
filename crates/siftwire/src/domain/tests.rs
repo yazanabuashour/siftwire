@@ -3,7 +3,7 @@
     reason = "behavior tests return Result for setup while assertions report contract failures"
 )]
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 
 use super::{
     OUTLET_EXTRACTION_NONE, OUTLET_POLICY_ALLOW, OutletPolicy, SCHEDULE_FILTER_ALL,
@@ -84,6 +84,96 @@ fn source_and_outlet_normalization_preserve_the_durable_contract() -> Result<()>
             .contains("duplicate source key \"example.feed\""),
         "duplicate key diagnostic changed: {error}"
     );
+    Ok(())
+}
+
+#[test]
+fn removed_source_fields_and_choices_are_not_writable() -> Result<()> {
+    for value in [
+        serde_json::json!(true),
+        serde_json::json!(false),
+        serde_json::Value::Null,
+    ] {
+        let error = serde_json::from_value::<Source>(serde_json::json!({"always_report": value}))
+            .err()
+            .context("legacy field accepted")?;
+        assert!(
+            error.to_string().contains("unknown field `always_report`"),
+            "wrong field rejection: {error}"
+        );
+    }
+    for (field, value, diagnostic) in [
+        ("kind", "atom", "kind must be"),
+        ("threshold", "audit", "threshold must be"),
+        ("threshold", "observe", "threshold must be"),
+        (
+            "url_canonicalization",
+            "feedburner_redirect",
+            "url_canonicalization must be",
+        ),
+        ("outlet_extraction", "url_host", "outlet_extraction must be"),
+        (
+            "outlet_extraction",
+            "rss_source",
+            "outlet_extraction must be",
+        ),
+        ("schedule_format", "espn_core", "schedule_format must be"),
+    ] {
+        for enabled in [false, true] {
+            let mut input = serde_json::to_value(valid_source("https://example.com/feed.xml"))?;
+            let fields = input.as_object_mut().context("source object")?;
+            if field == "schedule_format" {
+                let _old = fields.insert("kind".to_owned(), serde_json::json!("sports_schedule"));
+            }
+            let _old = fields.insert(field.to_owned(), serde_json::json!(value));
+            let _old = fields.insert("enabled".to_owned(), serde_json::json!(enabled));
+            let error = normalize_source(serde_json::from_value(input)?)
+                .err()
+                .context("removed choice accepted")?;
+            assert!(
+                error.to_string().contains(diagnostic),
+                "{field}={value}: {error}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn github_releases_require_a_repository_without_url_overrides() -> Result<()> {
+    let source = Source {
+        kind: "github_release".to_owned(),
+        repo: "owner/repository".to_owned(),
+        url: String::new(),
+        ..valid_source("")
+    };
+    normalize_source(source.clone())?;
+    for repo in [
+        "",
+        "owner",
+        "owner/repo/extra",
+        "https://github.com/owner/repo",
+    ] {
+        let _error = normalize_source(Source {
+            repo: repo.to_owned(),
+            ..source.clone()
+        })
+        .err()
+        .context("invalid GitHub repository accepted")?;
+    }
+    for repo in ["", "owner/repository"] {
+        let error = normalize_source(Source {
+            repo: repo.to_owned(),
+            url: "https://example.com/releases".to_owned(),
+            ..source.clone()
+        })
+        .err()
+        .context("GitHub URL override accepted")?;
+        assert!(
+            error.to_string().contains("url override is not supported"),
+            "wrong URL rejection: {error}"
+        );
+    }
     Ok(())
 }
 

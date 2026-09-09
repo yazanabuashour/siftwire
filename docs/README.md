@@ -15,6 +15,7 @@ Use this index to find the smallest document for the task.
   state, and retries
 - [AgentOps surface policy](architecture/agentops-surface-policy.md): public
   boundary, source intake, and interface decisions
+- [Runner v3 migration](runner-v3-migration.md): retired writes and source options
 - [Agent production eval](evals/agent-production.md): scenario protocol and
   release gate
 - [Eval evidence](agent-eval-results/README.md): committed reduced reports
@@ -25,4 +26,3 @@ Use this index to find the smallest document for the task.
 - [Maintainer notes](maintainers.md): repository administration and releases
 - [Release verification](release-verification.md): verify assets and attestations
 - [Security operations](security-operations.md): recurring security work
-- [Prooflane shadow dogfood](prooflane-shadow-dogfood.md): opt-in local adapter

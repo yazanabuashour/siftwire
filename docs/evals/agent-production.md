@@ -5,14 +5,15 @@ binary plus the shipped `skills/siftwire/SKILL.md`.
 
 ## Coverage
 
-The current harness exercises 13 scenarios from
+The current harness exercises 14 scenarios from
 `crates/siftwire/src/bin/siftwire-agent-eval/scenarios.rs`:
 
 - empty configuration rejection
 - RSS first-run selection and repeat suppression
-- GitHub release must-include behavior
-- delivery recording and recent suppression
-- generic feed processing and outlet-policy audit
+- repository-only GitHub release configuration without fetching
+- RSS required-item delivery with `threshold: "always"`
+- prepared delivery confirmation and recent suppression
+- generic feed processing with `title_suffix` and watch outlet-policy audit
 - configured delivery limits
 - brief history rendering
 - feed failure and recovery health changes
@@ -88,8 +89,26 @@ and disables login-shell profiles. Single-turn scenarios use `--ephemeral`;
 multi-turn scenarios persist only in the isolated eval home.
 
 Every prompt receives an evaluator instruction requiring runner-only production
-behavior. Reduced reports must identify this instruction; it is part of the eval
-method, not hidden product guidance.
+behavior, `siftwire-runner/v3`, and `prepared-delivery/v1`. The host fixture
+simulates successful transport of the unchanged prepared `message`, `text`, and
+`html`, then asks the agent to confirm the plan. No real email or external
+delivery occurs. The verifier requires every recorded message to equal its
+immutable plan, checks prepared and sent items against required and selected
+run evidence, and compares final brief answers with the stored current and
+prior bodies. It does not reconstruct item Markdown or score bullet counts.
+These evidence checks cover normal feed items, not sports updates. Reduced
+reports must identify the evaluator instruction; it is part of the eval method,
+not hidden product guidance.
+
+The generic-processing and watch-policy scenarios use synthetic publisher
+metadata in the feed title suffix, `Fixture Outlet`. They check retained
+candidates and watch annotations without relying on removed extraction modes.
+GitHub custom source URLs are no longer supported, so the offline GitHub
+scenario checks repository-only configuration and forbids fetching. RSS
+fixtures cover required-item delivery separately. This harness does not measure
+GitHub fetching or real transport success; do not treat its pass as evidence
+for either. Historical eval reports retain their original scenario names and
+results.
 
 ## Reports
 

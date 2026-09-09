@@ -30,20 +30,15 @@ setupConfigTest()
 const stored: Source = {
   ...emptySource,
   key: "example",
-  kind: "atom",
+  kind: "rss",
   label: "Example",
   section: "engineering",
   url: "https://example.test/feed",
-  threshold: "audit",
-  always_report: true,
+  threshold: "always",
   priority_rank: "9223372036854775807",
-  repo: "hidden/repo",
-  api_key: "hidden-key",
-  schedule_format: "riot",
-  schedule_filter: "standings_top_two",
   dedup_group: "Stored Group",
-  url_canonicalization: "feedburner_redirect",
-  outlet_extraction: "rss_source",
+  url_canonicalization: "google_news_article_url",
+  outlet_extraction: "title_suffix",
 }
 
 function editor(
@@ -67,18 +62,16 @@ function editor(
 }
 
 it.each([
-  { threshold: "audit", always_report: true, reporting: "required" },
-  { threshold: "high", always_report: true, reporting: "required" },
-  { threshold: "always", always_report: false, reporting: "required" },
-  { threshold: "audit", always_report: false, reporting: "observe" },
+  { threshold: "high", reporting: "major" },
+  { threshold: "always", reporting: "required" },
+  { threshold: "medium", reporting: "highlights" },
 ] satisfies {
   threshold: string
-  always_report: boolean
   reporting: ReportingMode
 }[])(
-  "preserves raw $threshold/$always_report, Atom, rank and hidden fields on unrelated saves",
-  ({ threshold, always_report, reporting }) => {
-    const source = { ...stored, threshold, always_report }
+  "preserves $threshold, rank and processing fields on unrelated saves",
+  ({ threshold, reporting }) => {
+    const source = { ...stored, threshold }
     const onSave = editor(source, reporting)
     expect(select("Reporting").value).toBe(reporting)
     expect(select("Type").value).toBe("feed")
@@ -109,7 +102,6 @@ it("changes raw reporting only on explicit selection and retains the feed choice
     ...stored,
     kind: "rss",
     threshold: "high",
-    always_report: false,
     schedule_format: "",
     schedule_filter: "all",
     api_key: "",
@@ -127,10 +119,14 @@ it("shows feed processing directly with its effective failure behavior and one d
   ).toBe(false)
   expect(button("Close dialog").disabled).toBe(false)
   expect(host.textContent).toContain("the original item remains eligible")
-  choose("Publisher identification", "url_host")
-  expect(host.textContent).toContain(
-    "website-address identification omits the item",
-  )
+  expect(
+    [...select("Publisher identification").options].map(
+      (option) => option.value,
+    ),
+  ).toEqual(["none", "title_suffix"])
+  expect(
+    [...select("Link resolution").options].map((option) => option.value),
+  ).toEqual(["none", "google_news_article_url"])
   expect(host.textContent).toContain("This is not article importance")
   expect(host.textContent).toContain(
     "Equal URLs can still collapse across groups",
@@ -259,7 +255,7 @@ it("pauses without rewriting raw policy and removes the last source using the se
 
 it("searches sources and treats both RSS and Atom as Feed without altering the collection", () => {
   const sources = [
-    { ...stored, label: "Zulu" },
+    { ...stored, kind: "atom", label: "Zulu" },
     { ...stored, key: "rss", kind: "rss", label: "Alpha" },
     { ...stored, key: "release", kind: "github_release", label: "Release" },
   ]

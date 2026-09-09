@@ -54,6 +54,11 @@ GitHub Releases and mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+- Narrow the process contract to `siftwire-runner/v3`: prepared-only delivery,
+  one RSS/Atom feed kind, and threshold-owned required reporting. Retire observe
+  writes, unused provider/extraction options, release URL overrides, source CLI
+  shortcuts, and the SiftWire-owned Prooflane wrapper. Preserve historical data.
+  See `docs/runner-v3-migration.md` before updating consumers.
 - Add immutable prepared delivery plans so the runner, rather than each
   consumer, owns normal-item limits, sports placement, health placement, and
   Markdown, text, and HTML rendering.

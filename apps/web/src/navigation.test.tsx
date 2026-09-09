@@ -26,6 +26,7 @@ beforeEach(() => {
       const url = new URL(String(input), window.location.origin)
       if (url.pathname === "/api/v1/config")
         return Response.json({
+          runner_protocol: "siftwire-runner/v3",
           rejected: false,
           paths: { database_path: "data/config.sqlite", data_dir: "data" },
           runtime_config: {

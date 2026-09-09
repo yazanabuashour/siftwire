@@ -43,24 +43,6 @@ impl Store {
         Ok(())
     }
 
-    /// Reports whether a successful, finished brief run exists.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when `SQLite` cannot inspect the run.
-    pub fn brief_run_exists(&self, id: &str) -> Result<bool> {
-        let exists = self
-            .connection
-            .query_row(
-                "SELECT EXISTS(SELECT 1 FROM brief_run \
-                 WHERE id = ?1 AND status = 'ok' AND finished_at IS NOT NULL)",
-                [id],
-                |row| row.get::<_, i64>(0),
-            )
-            .with_context(|| format!("inspect brief run {id}"))?;
-        Ok(exists == 1)
-    }
-
     /// Inserts one source fetch result.
     ///
     /// # Errors

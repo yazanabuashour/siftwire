@@ -4,7 +4,6 @@ use std::fmt::Write as _;
 use anyhow::{Context, Result};
 use chrono::{SecondsFormat, Utc};
 use chrono_tz::Tz;
-use regex::Regex;
 use url::Url;
 
 use crate::contract::{
@@ -91,43 +90,7 @@ pub(super) fn confirm(paths: Paths, store: &Store, request: &BriefRequest) -> Re
             sent_at: chrono::DateTime::<Utc>::default(),
         })
         .collect();
-    record_message(
-        paths,
-        store,
-        &plan.run_id,
-        &plan.message,
-        items,
-        Some(&plan),
-    )
-}
-
-pub(super) fn record(paths: Paths, store: &Store, request: &BriefRequest) -> Result<BriefResult> {
-    if request.run_id.trim().is_empty() {
-        return Ok(rejected(paths, "run_id is required"));
-    }
-    if request.message.trim().is_empty() {
-        return Ok(rejected(paths, "message is required"));
-    }
-    if contains_history_wrapper(&request.message) {
-        return Ok(rejected(
-            paths,
-            "message must contain only the current brief body, without Current brief or Previous brief sections",
-        ));
-    }
-    if !store.brief_run_exists(&request.run_id)? {
-        return Ok(rejected(
-            paths,
-            "run_id was not produced by the current SiftWire database",
-        ));
-    }
-    if store.delivery_plan_for_run(&request.run_id)?.is_some() {
-        return Ok(rejected(
-            paths,
-            "run_id has a prepared delivery plan; use confirm_delivery",
-        ));
-    }
-    let items = delivery_items(&request.message)?;
-    record_message(paths, store, &request.run_id, &request.message, items, None)
+    record_message(paths, store, &plan, items)
 }
 
 fn build_plan(
@@ -376,11 +339,11 @@ fn join_parts(parts: &[&str]) -> String {
 fn record_message(
     paths: Paths,
     store: &Store,
-    run_id: &str,
-    message: &str,
+    plan: &DeliveryPlan,
     items: Vec<StoredSentItem>,
-    plan: Option<&DeliveryPlan>,
 ) -> Result<BriefResult> {
+    let run_id = &plan.run_id;
+    let message = &plan.message;
     let stored = match store.insert_delivery(run_id, message, items) {
         Ok(value) => value,
         Err(error) if error.is_conflict() => return Ok(rejected(paths, &error.to_string())),
@@ -391,13 +354,11 @@ fn record_message(
         run_id: run_id.to_owned(),
         summary: format!("recorded delivery with {} sent items", stored.len()),
         sent_items: stored.into_iter().map(sent_item).collect(),
+        delivery_plan_id: plan.id.clone(),
+        message: plan.message.clone(),
+        prepared_items: plan.items.clone(),
         ..BriefResult::default()
     };
-    if let Some(plan) = plan {
-        result.delivery_plan_id.clone_from(&plan.id);
-        result.message.clone_from(&plan.message);
-        result.prepared_items.clone_from(&plan.items);
-    }
     let Ok(deliveries) = store.recent_deliveries(3) else {
         result.final_answer = final_answer(run_id, message, &[]);
         return Ok(result);
@@ -405,57 +366,6 @@ fn record_message(
     result.deliveries = deliveries.into_iter().map(delivery_record).collect();
     result.final_answer = final_answer(run_id, message, &result.deliveries);
     Ok(result)
-}
-
-fn contains_history_wrapper(message: &str) -> bool {
-    message
-        .lines()
-        .map(str::trim)
-        .any(|line| line == "Current brief" || line.starts_with("Previous brief ("))
-}
-
-fn delivery_items(message: &str) -> Result<Vec<StoredSentItem>> {
-    let pattern = Regex::new(
-        r"(?m)^-[ \t]+\[((?:\\.|[^\\\]])+)\]\(<([^>]+)>\)(?:[ \t]+-[ \t]+[^\r\n]*)?[ \t]*$",
-    )?;
-    let mut items = Vec::new();
-    for captures in pattern.captures_iter(message) {
-        let (Some(title), Some(url)) = (captures.get(1), captures.get(2)) else {
-            continue;
-        };
-        let title = unescape_markdown_link_text(title.as_str().trim());
-        let url = url.as_str().trim();
-        if title.is_empty() || url.is_empty() {
-            continue;
-        }
-        items.push(StoredSentItem {
-            title,
-            url: normalize_delivery_url(url)?,
-            kind: String::new(),
-            sent_at: chrono::DateTime::<Utc>::default(),
-        });
-    }
-    Ok(items)
-}
-
-fn unescape_markdown_link_text(value: &str) -> String {
-    let mut output = String::with_capacity(value.len());
-    let mut characters = value.chars();
-    while let Some(character) = characters.next() {
-        if character == '\\' {
-            match characters.next() {
-                Some(escaped @ ('\\' | '[' | ']')) => output.push(escaped),
-                Some(other) => {
-                    output.push(character);
-                    output.push(other);
-                }
-                None => output.push(character),
-            }
-        } else {
-            output.push(character);
-        }
-    }
-    output
 }
 
 pub(super) fn sent_item(item: StoredSentItem) -> SentItem {
@@ -514,7 +424,7 @@ mod tests {
     use crate::contract::DeliveryRecord;
     use crate::storage::{RUN_ITEM_MUST_INCLUDE, RunDeliveryContext, RunItemRow};
 
-    use super::{build_plan, delivery_items, final_answer};
+    use super::{build_plan, final_answer};
 
     fn delivery(run_id: &str, delivered_at: &str, message: &str) -> DeliveryRecord {
         DeliveryRecord {
@@ -548,28 +458,6 @@ mod tests {
         assert_eq!(plan.message, "- Linkless item");
         assert!(plan.html.contains(">Linkless item</span>"));
         assert!(!plan.html.contains("href=\"\""));
-        Ok(())
-    }
-
-    #[test]
-    fn delivery_parser_preserves_escaped_markdown_titles() -> anyhow::Result<()> {
-        let items = delivery_items(
-            "- [Team \\] Alpha \\[Update\\] \\\\ notes](<https://example.test/item>)\n- [Second](<https://example.test/second>)",
-        )?;
-        assert_eq!(items.len(), 2);
-        assert_eq!(
-            items.first().map(|item| item.title.as_str()),
-            Some("Team ] Alpha [Update] \\ notes")
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn delivery_parser_rejects_active_url_schemes() -> anyhow::Result<()> {
-        let Err(error) = delivery_items("- [Unsafe](<javascript:alert(1)>)") else {
-            anyhow::bail!("active URL scheme was accepted");
-        };
-        assert!(error.to_string().contains("absolute HTTP or HTTPS"));
         Ok(())
     }
 

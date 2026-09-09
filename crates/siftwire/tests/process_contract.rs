@@ -155,7 +155,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         &environment,
     )?)?;
     assert!(!configured.rejected, "source configuration was rejected");
-    assert_eq!(configured.runner_protocol, "siftwire-runner/v2");
+    assert_eq!(configured.runner_protocol, "siftwire-runner/v3");
     assert!(
         configured
             .capabilities
@@ -170,7 +170,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         &environment,
     )?)?;
     assert!(!run.rejected, "run was rejected");
-    assert_eq!(run.runner_protocol, "siftwire-runner/v2");
+    assert_eq!(run.runner_protocol, "siftwire-runner/v3");
     assert!(
         run.capabilities
             .iter()
@@ -187,7 +187,6 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         .first()
         .context("run did not return a candidate")?;
     let message = format!("- [{}](<{}>)", item.title, item.url);
-    assert_history_wrapper_rejected(&database_text, &run.run_id, &message, &environment)?;
     let prepared =
         assert_normal_prepared_plan(&database_text, &run.run_id, &message, &environment)?;
     let request = json!({
@@ -223,17 +222,6 @@ fn assert_delivery_conflict_and_followup_runs(
     run_id: &str,
     environment: &BTreeMap<&str, &str>,
 ) -> Result<()> {
-    let conflict: DeliveryResult = decode(invoke_json(
-        &["brief", "--db", database],
-        &json!({"action": "record_delivery", "run_id": run_id, "message": "different"}),
-        environment,
-    )?)?;
-    assert!(conflict.rejected, "changed delivery was accepted");
-    assert!(
-        conflict.rejection_reason.contains("use confirm_delivery"),
-        "conflict reason differs: {}",
-        conflict.rejection_reason
-    );
     let prepare_after_delivery: DeliveryResult = decode(invoke_json(
         &["brief", "--db", database],
         &json!({"action": "prepare_delivery", "run_id": run_id, "candidate_indexes": [0]}),
@@ -256,21 +244,26 @@ fn assert_delivery_conflict_and_followup_runs(
         repeat.suppressed_recent.is_empty(),
         "latest-seen repeat reached recent suppression"
     );
-    let legacy: DeliveryResult = decode(invoke_json(
+    let empty: DeliveryResult = decode(invoke_json(
         &["brief", "--db", database],
-        &json!({"action": "record_delivery", "run_id": repeat.run_id, "message": "NO_REPLY"}),
+        &json!({"action": "prepare_delivery", "run_id": repeat.run_id, "candidate_indexes": []}),
         environment,
     )?)?;
-    assert!(!legacy.rejected, "legacy delivery was rejected");
-    let detail = invoke_cli_json(
-        &["runs", "show", &repeat.run_id, "--json", "--db", database],
-        environment,
-    )?;
+    assert!(!empty.rejected, "empty preparation was rejected");
     assert_eq!(
-        detail.get("delivery_html"),
-        Some(&serde_json::Value::Null),
-        "legacy delivery without a plan must expose null HTML"
+        empty.message, "NO_REPLY",
+        "empty brief must not invent content"
     );
+    assert!(
+        empty.html.is_empty(),
+        "empty brief must not produce rich email"
+    );
+    let confirmed: DeliveryResult = decode(invoke_json(
+        &["brief", "--db", database],
+        &json!({"action": "confirm_delivery", "run_id": repeat.run_id, "delivery_plan_id": empty.delivery_plan_id}),
+        environment,
+    )?)?;
+    assert!(!confirmed.rejected, "empty delivery was rejected");
     let dry: RunResult = decode(invoke_json(
         &["brief", "--db", database],
         &json!({"action": "run_brief", "dry_run": true}),
@@ -583,33 +576,6 @@ fn default_database_rejects_empty_home_and_blank_overrides() -> Result<()> {
     Ok(())
 }
 
-fn assert_history_wrapper_rejected(
-    database: &str,
-    run_id: &str,
-    message: &str,
-    environment: &BTreeMap<&str, &str>,
-) -> Result<()> {
-    let wrapped = json!({
-        "action": "record_delivery",
-        "run_id": run_id,
-        "message": format!("Current brief\n\n{message}")
-    });
-    let result: DeliveryResult = decode(invoke_json(
-        &["brief", "--db", database],
-        &wrapped,
-        environment,
-    )?)?;
-    assert!(result.rejected, "history wrapper was recorded");
-    assert!(
-        result
-            .rejection_reason
-            .contains("only the current brief body"),
-        "wrapper rejection differs: {}",
-        result.rejection_reason
-    );
-    Ok(())
-}
-
 fn invoke_json(
     arguments: &[&str],
     request: &serde_json::Value,
@@ -672,53 +638,65 @@ fn text(bytes: &[u8]) -> String {
 }
 
 #[test]
-fn source_commands_validate_store_and_list() -> Result<()> {
+fn retired_delivery_writes_fail_but_recorded_messages_remain_readable() -> Result<()> {
     let temp = TempDir::new()?;
-    let database_text = temp
+    let database = temp
         .path()
-        .join("sources.sqlite")
+        .join("legacy.sqlite")
         .to_string_lossy()
         .into_owned();
-    let feed_url = url::Url::parse("https://fixture.test/feed.xml")?;
-
-    let invalid = invoke(
-        &["source", "add", "--db", &database_text],
-        Some(
-            r#"{"key":"Bad Key","label":"Bad","kind":"rss","url":"https://fixture.test/feed","section":"technology","enabled":true}"#,
-        ),
-        &BTreeMap::new(),
+    let environment = BTreeMap::new();
+    invoke_json(
+        &["config", "--db", &database],
+        &json!({"action":"init"}),
+        &environment,
     )?;
-    assert_eq!(invalid.status.code(), Some(1), "invalid key: {invalid:?}");
-
-    let added = invoke_json(
-        &["source", "add", "--json", "--db", &database_text],
-        &json!({
-            "key": "fixture", "label": "Fixture", "kind": "rss",
-            "url": feed_url, "section": "technology", "threshold": "medium",
-            "enabled": true
-        }),
-        &BTreeMap::new(),
+    let db = rusqlite::Connection::open(&database)?;
+    db.execute_batch("INSERT INTO brief_run (id,started_at,dry_run,status,summary) VALUES ('old','2026-01-01T00:00:00Z',0,'ok','recorded'); INSERT INTO delivery (id,run_id,message,delivered_at) VALUES (1,'old','Exact legacy body','2026-01-01T00:01:00Z'); INSERT INTO delivery_once VALUES ('old','Exact legacy body',1);")?;
+    let retired = invoke_json(
+        &["brief", "--db", &database],
+        &json!({"action":"record_delivery","run_id":"old"}),
+        &environment,
     )?;
     assert_eq!(
-        added.get("key").and_then(|key| key.as_str()),
-        Some("fixture"),
-        "stored source key differs"
+        retired.get("rejected"),
+        Some(&json!(true)),
+        "manual delivery action remained writable"
     );
-
-    let listing = invoke_cli_json(
-        &["source", "list", "--json", "--db", &database_text],
-        &BTreeMap::new(),
+    let body = invoke(
+        &["brief", "--db", &database],
+        Some(r#"{"action":"record_delivery","run_id":"old","message":"changed"}"#),
+        &environment,
     )?;
-    let keys: Vec<&str> = listing
-        .get("sources")
-        .and_then(|sources| sources.as_array())
-        .map(|sources| {
-            sources
-                .iter()
-                .filter_map(|source| source.get("key").and_then(|key| key.as_str()))
-                .collect()
-        })
-        .unwrap_or_default();
-    assert_eq!(keys, vec!["fixture"], "listed keys differ");
+    assert_eq!(
+        body.status.code(),
+        Some(1),
+        "removed message field must fail decoding"
+    );
+    assert!(body.stdout.is_empty(), "decode failure emitted a result");
+    let detail = invoke_cli_json(
+        &["runs", "show", "old", "--json", "--db", &database],
+        &environment,
+    )?;
+    assert_eq!(
+        detail.pointer("/run/message"),
+        Some(&json!("Exact legacy body")),
+        "old body changed"
+    );
+    assert_eq!(
+        detail.get("delivery_html"),
+        Some(&serde_json::Value::Null),
+        "old delivery invented HTML"
+    );
+    let removed = invoke(&["source", "list", "--db", &database], None, &environment)?;
+    assert_eq!(
+        removed.status.code(),
+        Some(2),
+        "removed source command remained available"
+    );
+    assert!(
+        removed.stdout.is_empty(),
+        "removed command emitted result JSON"
+    );
     Ok(())
 }

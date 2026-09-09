@@ -6,6 +6,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 struct ResultBody {
+    runner_protocol: String,
     rejected: bool,
     #[serde(default)]
     rejection_reason: String,
@@ -39,6 +40,9 @@ fn main() -> Result<()> {
     }
     let response: ResultBody =
         serde_json::from_slice(&output.stdout).context("decode siftwire result")?;
+    if response.runner_protocol != "siftwire-runner/v3" {
+        bail!("unsupported runner protocol: {}", response.runner_protocol);
+    }
     if response.rejected {
         bail!("siftwire rejected request: {}", response.rejection_reason);
     }

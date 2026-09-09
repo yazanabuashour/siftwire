@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::{OutletPolicy, Source};
 
-pub const RUNNER_PROTOCOL: &str = "siftwire-runner/v2";
+pub const RUNNER_PROTOCOL: &str = "siftwire-runner/v3";
 pub const CAPABILITY_PREPARED_DELIVERY: &str = "prepared-delivery/v1";
 pub const CAPABILITY_SPORTS_UPDATES: &str = "sports-updates/v1";
 
@@ -84,8 +84,6 @@ pub struct BriefRequest {
     pub dry_run: bool,
     #[serde(deserialize_with = "crate::serde_util::null_default")]
     pub run_id: String,
-    #[serde(deserialize_with = "crate::serde_util::null_default")]
-    pub message: String,
     #[serde(deserialize_with = "crate::serde_util::null_default")]
     pub candidate_indexes: Vec<usize>,
     #[serde(deserialize_with = "crate::serde_util::null_default")]

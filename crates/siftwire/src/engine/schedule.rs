@@ -10,8 +10,8 @@ use url::Url;
 
 use crate::contract::{SportsImage, SportsUpdate};
 use crate::domain::{
-    SCHEDULE_FILTER_STANDINGS_TOP_TWO, SCHEDULE_FORMAT_ESPN, SCHEDULE_FORMAT_ESPN_CORE,
-    SCHEDULE_FORMAT_ESPN_SCOREBOARD, SCHEDULE_FORMAT_RIOT, Source,
+    SCHEDULE_FILTER_STANDINGS_TOP_TWO, SCHEDULE_FORMAT_ESPN, SCHEDULE_FORMAT_ESPN_SCOREBOARD,
+    SCHEDULE_FORMAT_RIOT, Source,
 };
 
 use super::http::HttpClient;
@@ -47,7 +47,6 @@ pub(super) fn fetch_schedule(
             now,
             options,
         )?,
-        SCHEDULE_FORMAT_ESPN_CORE => espn_core_updates(client, source, now, options)?,
         SCHEDULE_FORMAT_ESPN_SCOREBOARD => espn_scoreboard_updates(client, source, now, options)?,
         SCHEDULE_FORMAT_RIOT => riot_fetch_updates(client, source, now, options)?,
         other => bail!("unsupported schedule format {other:?}"),
@@ -292,8 +291,6 @@ struct EspnStatus {
     period: i64,
     #[serde(default, rename = "type")]
     kind: EspnStatusType,
-    #[serde(rename = "$ref")]
-    reference: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -356,17 +353,6 @@ struct EspnLink {
     href: String,
     #[serde(default)]
     rel: Vec<String>,
-}
-
-#[derive(Deserialize)]
-struct EspnCoreEventList {
-    items: Vec<EspnReference>,
-}
-
-#[derive(Deserialize)]
-struct EspnReference {
-    #[serde(rename = "$ref")]
-    reference: String,
 }
 
 #[derive(Deserialize)]
@@ -523,9 +509,7 @@ fn espn_updates(
     let updates = schedule
         .events
         .iter()
-        .filter_map(|event| {
-            espn_event_update(source, event, competition.as_str(), now, options, None)
-        })
+        .filter_map(|event| espn_event_update(source, event, competition.as_str(), now, options))
         .collect();
     Ok(updates)
 }
@@ -536,15 +520,9 @@ fn espn_event_update(
     competition: &str,
     now: DateTime<Utc>,
     options: &SportsOptions,
-    completed: Option<bool>,
 ) -> Option<SportsUpdate> {
     let kickoff = parse_kickoff(&event.date)?;
-    let status = update_status(
-        kickoff,
-        completed.unwrap_or_else(|| event_completed(event)),
-        now,
-        options,
-    )?;
+    let status = update_status(kickoff, event_completed(event), now, options)?;
     let url = event_url(source, event)?;
     let title = event_title(event, status);
     Some(SportsUpdate {
@@ -961,62 +939,6 @@ fn espn_range_endpoint(endpoint: &str, now: DateTime<Utc>, options: &SportsOptio
         .format("%Y%m%d");
     let separator = if endpoint.contains('?') { '&' } else { '?' };
     format!("{endpoint}{separator}dates={start}-{horizon}")
-}
-
-fn espn_core_updates(
-    client: &HttpClient,
-    source: &Source,
-    now: DateTime<Utc>,
-    options: &SportsOptions,
-) -> Result<Vec<SportsUpdate>> {
-    let endpoint = espn_range_endpoint(&source.url, now, options);
-    let body = client.get_with_headers(&endpoint, &[("user-agent", ESPN_USER_AGENT)])?;
-    let list: EspnCoreEventList =
-        serde_json::from_slice(&body).context("parse ESPN event list JSON")?;
-    let mut updates = Vec::new();
-    for reference in &list.items {
-        let body =
-            client.get_with_headers(&reference.reference, &[("user-agent", ESPN_USER_AGENT)])?;
-        let event: EspnEvent = serde_json::from_slice(&body).context("parse ESPN event JSON")?;
-        let completed = espn_core_completed(client, &event, now)?;
-        if let Some(update) = espn_event_update(
-            source,
-            &event,
-            source.label.as_str(),
-            now,
-            options,
-            Some(completed),
-        ) {
-            updates.push(update);
-        }
-    }
-    Ok(updates)
-}
-
-fn espn_core_completed(client: &HttpClient, event: &EspnEvent, now: DateTime<Utc>) -> Result<bool> {
-    if event_completed(event) {
-        return Ok(true);
-    }
-    if parse_kickoff(&event.date).is_some_and(|kickoff| kickoff > now) {
-        return Ok(false);
-    }
-    let references = std::iter::once(event.status.reference.as_deref())
-        .chain(
-            event
-                .competitions
-                .iter()
-                .map(|competition| competition.status.reference.as_deref()),
-        )
-        .flatten();
-    for reference in references {
-        let body = client.get_with_headers(reference, &[("user-agent", ESPN_USER_AGENT)])?;
-        let status: EspnStatus =
-            serde_json::from_slice(&body).context("parse ESPN event status JSON")?;
-        if status.kind.completed {
-            return Ok(true);
-        }
-    }
-    Ok(false)
 }
 
 #[cfg(test)]

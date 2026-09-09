@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 
-import { fetchConfig, listRuns, replaceOutlets, saveSource } from "./api-client"
+import {
+  fetchConfig,
+  listRuns,
+  replaceOutlets,
+  saveSource,
+  setOptions,
+} from "./api-client"
 import {
   ConfigResultSchema,
   PriorityRankSchema,
@@ -9,6 +15,7 @@ import {
 import { sourceError } from "./components/source-validation"
 
 const configFixture = {
+  runner_protocol: "siftwire-runner/v3",
   rejected: false,
   paths: { data_dir: "/tmp", database_path: "/tmp/db.sqlite" },
   runtime_config: { max_delivery_items: "7" },
@@ -28,11 +35,43 @@ const configFixture = {
 }
 
 describe("ConfigResultSchema", () => {
-  test("fills optional collections and normalizes defaults", () => {
-    const decoded = ConfigResultSchema.parse(configFixture)
+  test("accepts v3 metadata and extra result fields while normalizing defaults", () => {
+    const decoded = ConfigResultSchema.parse({
+      ...configFixture,
+      future_metadata: { detail: "Not consumed by this console" },
+    })
+    expect(decoded.runner_protocol).toBe("siftwire-runner/v3")
     expect(decoded.sources[0]?.url_canonicalization).toBe("")
     expect(decoded.sources[0]?.priority_rank).toBe("0")
+    expect(decoded.sources[0]).not.toHaveProperty("always_report")
   })
+})
+
+test("keeps legacy and unknown source options readable without exposing the removed write flag", () => {
+  const decoded = ConfigResultSchema.parse({
+    ...configFixture,
+    sources: [
+      {
+        ...configFixture.sources[0],
+        kind: "future_feed",
+        threshold: "audit",
+        enabled: false,
+        url_canonicalization: "old_resolver",
+        outlet_extraction: "old_extractor",
+        always_report: true,
+      },
+    ],
+    source_reporting: { fixture: "future_reporting" },
+  })
+  expect(decoded.sources[0]).toMatchObject({
+    kind: "future_feed",
+    threshold: "audit",
+    enabled: false,
+    url_canonicalization: "old_resolver",
+    outlet_extraction: "old_extractor",
+  })
+  expect(decoded.sources[0]).not.toHaveProperty("always_report")
+  expect(decoded.source_reporting["fixture"]).toBe("future_reporting")
 })
 
 describe("RunDetailSchema", () => {
@@ -91,6 +130,39 @@ describe("RunDetailSchema", () => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe("runner response ownership", () => {
+  test.each([undefined, "siftwire-runner/v2", "siftwire-runner/v4"])(
+    "rejects config metadata %s before exposing legacy sources or accepting partial mutations",
+    async (protocol) => {
+      const fetch = vi.fn(() =>
+        Promise.resolve(
+          Response.json({
+            ...configFixture,
+            runner_protocol: protocol,
+            sources: [
+              {
+                ...configFixture.sources[0],
+                threshold: "high",
+                always_report: true,
+              },
+            ],
+          }),
+        ),
+      )
+      vi.stubGlobal("fetch", fetch)
+      await expect(fetchConfig()).rejects.toThrow("runner_protocol")
+      await expect(replaceOutlets([])).rejects.toThrow("runner_protocol")
+      await expect(
+        setOptions({
+          maxDeliveryItems: 7,
+          sportsPreGameDays: 7,
+          sportsPostGameDays: 3,
+          sportsTimezone: "UTC",
+        }),
+      ).rejects.toThrow("runner_protocol")
+      expect(fetch).toHaveBeenCalledTimes(3)
+    },
+  )
+
   test("rejects runner refusals before a page can treat them as saved", async () => {
     vi.stubGlobal(
       "fetch",

@@ -85,7 +85,7 @@ fn opening_an_old_schema_migrates_fields_and_latest_delivery_claims() -> Result<
     );
     assert_eq!(source.dedup_group, "", "dedup group default changed");
     assert_eq!(source.priority_rank, 0, "priority default changed");
-    assert!(!source.always_report, "always-report default changed");
+    assert_eq!(source.threshold, "medium", "legacy threshold changed");
     assert_eq!(
         source.schedule_filter, "all",
         "schedule filter migration default changed"
@@ -131,6 +131,254 @@ fn opening_an_old_schema_migrates_fields_and_latest_delivery_claims() -> Result<
         conflict.is_conflict(),
         "stale delivery returned the wrong error: {conflict}"
     );
+    Ok(())
+}
+
+const LEGACY_EMAIL: &str = "Exact email\r\n  Preserve spacing & punctuation.\n";
+const LEGACY_HTML: &str = "<p>Exact email &amp; spacing</p>\r\n";
+
+fn insert_legacy_source_evidence(store: &Store) -> Result<String> {
+    let run_id = store.start_run(false)?;
+    store.insert_run_items(
+        &run_id,
+        &[super::RunItemRow {
+            category: super::RUN_ITEM_MUST_INCLUDE.to_owned(),
+            source_key: "legacy".to_owned(),
+            kind: "atom".to_owned(),
+            threshold: "audit".to_owned(),
+            always_report: true,
+            title: "Historical evidence".to_owned(),
+            ..super::RunItemRow::default()
+        }],
+    )?;
+    let _plan = store.insert_delivery_plan(&DeliveryPlan {
+        id: format!("plan-{run_id}"),
+        run_id: run_id.clone(),
+        candidate_indexes: Vec::new(),
+        message: LEGACY_EMAIL.to_owned(),
+        text: LEGACY_EMAIL.to_owned(),
+        html: LEGACY_HTML.to_owned(),
+        items: Vec::new(),
+    })?;
+    store.insert_delivery(&run_id, LEGACY_EMAIL, Vec::new())?;
+    Ok(run_id)
+}
+
+fn assert_legacy_source_evidence(
+    store: &Store,
+    run_id: &str,
+    recorded: &serde_json::Value,
+) -> Result<()> {
+    let detail = store.run_detail(run_id)?.context("historical run")?;
+    assert_eq!(
+        &serde_json::to_value(detail.items)?,
+        recorded,
+        "historical items changed"
+    );
+    assert_eq!(
+        detail.summary.message.as_deref(),
+        Some(LEGACY_EMAIL),
+        "email text changed"
+    );
+    assert_eq!(
+        detail.delivery_html.as_deref(),
+        Some(LEGACY_HTML),
+        "email HTML changed"
+    );
+    Ok(())
+}
+
+#[test]
+fn legacy_source_reads_preserve_raw_configuration_state_and_delivery_evidence() -> Result<()> {
+    let temp = TempDir::new()?;
+    let path = temp.path().join("legacy.sqlite");
+    create_legacy_database(&path)?;
+    let store = Store::open(&path)?;
+    store.connection.execute(
+        "UPDATE brief_source SET kind = 'atom', threshold = 'audit', always_report = 1",
+        [],
+    )?;
+    let run_id = insert_legacy_source_evidence(&store)?;
+    let before = store.run_detail(&run_id)?.context("original run")?;
+    let recorded = serde_json::to_value(before.items)?;
+    let state = store.source_state("legacy")?.context("original state")?;
+    drop(store);
+
+    let store = Store::open(&path)?;
+    let sources = store.list_sources(true)?;
+    let source = sources.first().context("effective source")?;
+    assert_eq!(source.kind, "rss", "stored atom was not adapted");
+    assert_eq!(
+        source.threshold, "always",
+        "legacy required precedence changed"
+    );
+    assert_eq!(
+        source.reporting(),
+        crate::domain::Reporting::Required,
+        "legacy flag lost"
+    );
+    let raw: (String, String, i64, String) = store.connection.query_row(
+        "SELECT kind, threshold, always_report, updated_at FROM brief_source WHERE key = 'legacy'",
+        [],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+    )?;
+    assert_eq!(
+        raw,
+        (
+            "atom".to_owned(),
+            "audit".to_owned(),
+            1,
+            "2026-04-23T00:00:00Z".to_owned()
+        ),
+        "read rewrote raw source"
+    );
+    assert_legacy_source_evidence(&store, &run_id, &recorded)?;
+
+    store.upsert_source(Source {
+        threshold: "high".to_owned(),
+        ..source.clone()
+    })?;
+    let reopened = store.list_sources(true)?;
+    assert_eq!(
+        reopened.first().map(|source| source.threshold.as_str()),
+        Some("high"),
+        "legacy flag overrode explicit edit"
+    );
+    let raw_flag: i64 = store.connection.query_row(
+        "SELECT always_report FROM brief_source WHERE key = 'legacy'",
+        [],
+        |row| row.get(0),
+    )?;
+    assert_eq!(raw_flag, 0, "upsert retained legacy flag");
+    let after = store.source_state("legacy")?.context("preserved state")?;
+    assert_eq!(
+        after.latest_identity, state.latest_identity,
+        "upsert lost latest identity"
+    );
+    assert_eq!(
+        after.latest_feed_identity, state.latest_feed_identity,
+        "upsert changed feed identity"
+    );
+    assert_eq!(
+        after.checked_at, state.checked_at,
+        "upsert changed checked time"
+    );
+    assert_legacy_source_evidence(&store, &run_id, &recorded)?;
+    Ok(())
+}
+
+fn insert_unsupported_legacy_sources(store: &Store) -> Result<()> {
+    for (key, kind, threshold, canonicalization, extraction, schedule, repo) in [
+        ("audit", "rss", "audit", "none", "none", "", ""),
+        (
+            "redirect",
+            "rss",
+            "medium",
+            "feedburner_redirect",
+            "none",
+            "",
+            "",
+        ),
+        ("host", "rss", "medium", "none", "url_host", "", ""),
+        ("rss_source", "rss", "medium", "none", "rss_source", "", ""),
+        (
+            "core",
+            "sports_schedule",
+            "always",
+            "none",
+            "none",
+            "espn_core",
+            "",
+        ),
+        (
+            "github",
+            "github_release",
+            "always",
+            "none",
+            "none",
+            "",
+            "owner/repo",
+        ),
+    ] {
+        store.connection.execute(
+            "INSERT INTO brief_source (key, label, kind, url, repo, section, threshold, enabled, \
+             url_canonicalization, outlet_extraction, schedule_format, created_at, updated_at) \
+             VALUES (?1, ?1, ?2, 'https://example.test/feed', ?7, 'news', ?3, 0, ?4, ?5, ?6, 'original', 'original')",
+            rusqlite::params![key, kind, threshold, canonicalization, extraction, schedule, repo],
+        )?;
+    }
+    Ok(())
+}
+
+#[test]
+fn unsupported_stored_sources_are_readable_but_never_enabled_for_fetching() -> Result<()> {
+    let (temp, store) = test_store()?;
+    insert_unsupported_legacy_sources(&store)?;
+    drop(store);
+    let store = Store::open(temp.path().join("siftwire.sqlite"))?;
+    let sources = store.list_sources(false)?;
+    assert_eq!(
+        sources.len(),
+        6,
+        "disabled legacy configuration disappeared"
+    );
+    assert!(
+        store.list_sources(true)?.is_empty(),
+        "disabled sources became active"
+    );
+    for source in sources {
+        let _error = store
+            .upsert_source(source.clone())
+            .err()
+            .context("unsupported source was writable")?;
+        let _error = store
+            .replace_sources(vec![source.clone()])
+            .err()
+            .context("replacement accepted unsupported source")?;
+        assert_eq!(
+            store.list_sources(false)?.len(),
+            6,
+            "failed replacement deleted sources"
+        );
+        if source.key == "audit" {
+            assert_eq!(source.threshold, "audit", "disabled audit policy changed");
+            assert_eq!(
+                source.reporting(),
+                crate::domain::Reporting::Observe,
+                "disabled audit became optional delivery"
+            );
+        }
+        store.connection.execute(
+            "UPDATE brief_source SET enabled = 1 WHERE key = ?1",
+            [&source.key],
+        )?;
+        let error = store
+            .list_sources(true)
+            .err()
+            .context("unsupported enabled source reached fetching")?;
+        assert!(
+            error
+                .to_string()
+                .contains(&format!("enabled source {:?} is unsupported", source.key)),
+            "source rejection omitted the key: {error}"
+        );
+        store.connection.execute(
+            "UPDATE brief_source SET enabled = 0 WHERE key = ?1",
+            [&source.key],
+        )?;
+        let updated: String = store.connection.query_row(
+            "SELECT updated_at FROM brief_source WHERE key = ?1",
+            [&source.key],
+            |row| row.get(0),
+        )?;
+        assert_eq!(updated, "original", "rejected write changed source");
+        if source.key == "audit" {
+            store.upsert_source(Source {
+                threshold: "high".to_owned(),
+                ..source
+            })?;
+        }
+    }
     Ok(())
 }
 

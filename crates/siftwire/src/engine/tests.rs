@@ -53,9 +53,8 @@ fn collected(source: &Source, title: &str, url: &str) -> Result<CollectedItem> {
 }
 
 fn process_local(source: &Source, item: FetchedItem) -> Result<FetchedItem> {
-    let client = HttpClient::new();
-    let google = GoogleResolver::new(client.clone());
-    let (items, unresolved, truncated) = process_feed_items(&client, &google, source, vec![item])?;
+    let google = GoogleResolver::new(HttpClient::new());
+    let (items, unresolved, truncated) = process_feed_items(&google, source, vec![item])?;
     assert!(
         unresolved.is_empty(),
         "local processing produced unresolved items"
@@ -65,11 +64,11 @@ fn process_local(source: &Source, item: FetchedItem) -> Result<FetchedItem> {
 }
 
 #[test]
-fn rss_and_atom_parsing_preserve_identity_and_raw_metadata() -> Result<()> {
+fn rss_and_atom_parsing_preserve_identity_and_raw_dates() -> Result<()> {
     let rss = parse_feed(
         br#"<?xml version="1.0"?><rss version="2.0"><channel>
         <item><title><![CDATA[ RSS  Story ]]></title><link>https://example.test/rss</link>
-        <guid>rss-guid</guid><pubDate>Thu, 23 Apr 2026 01:00:00 GMT</pubDate>
+        <guid>rss-guid</guid><pubDate>Thu, 23 Apr 2026 01:00:00 G&#77;&#x54;</pubDate>
         <source>Outlet &#38; Co &#x1F680; &amp; Partners</source></item></channel></rss>"#,
     )?;
     let rss_item = rss.first().context("RSS item")?;
@@ -79,9 +78,9 @@ fn rss_and_atom_parsing_preserve_identity_and_raw_metadata() -> Result<()> {
         rss_item.published_at, "Thu, 23 Apr 2026 01:00:00 GMT",
         "RSS raw publication date changed"
     );
-    assert_eq!(
-        rss_item.rss_source, "Outlet & Co 🚀 & Partners",
-        "RSS decimal, hexadecimal, or named source decoding changed"
+    assert!(
+        rss_item.outlet.is_empty(),
+        "RSS source metadata became an outlet"
     );
 
     let atom = parse_feed(
@@ -178,18 +177,14 @@ fn outlet_extraction_and_policy_matching_work_together() -> Result<()> {
         ),
     )?;
 
-    let mut host_source = source("host");
-    host_source.outlet_extraction = "url_host".to_owned();
-    let host_item = process_local(
-        &host_source,
-        fetched("Host Story", "https://www.example.com/story", "host"),
+    let alias_item = process_local(
+        &title_source,
+        fetched("Story - example.com", "https://story.test/alias", "alias"),
     )?;
-
-    let mut rss_source = source("rss-source");
-    rss_source.outlet_extraction = "rss_source".to_owned();
-    let mut raw_rss_item = fetched("Watched Story", "https://story.test/rss", "rss");
-    raw_rss_item.rss_source = "  Watch   Outlet  ".to_owned();
-    let rss_item = process_local(&rss_source, raw_rss_item)?;
+    let watched_item = process_local(
+        &title_source,
+        fetched("Story - Watch Outlet", "https://story.test/watch", "watch"),
+    )?;
 
     let policies = vec![
         OutletPolicy {
@@ -214,7 +209,7 @@ fn outlet_extraction_and_policy_matching_work_together() -> Result<()> {
     ];
     let result = apply_outlet_policies(
         &source("combined"),
-        vec![title_item, host_item, rss_item],
+        vec![title_item, alias_item, watched_item],
         &policies,
     );
     assert_eq!(
@@ -250,39 +245,6 @@ fn same_run_exact_url_dedupes_different_titles() -> Result<()> {
             .collect::<Vec<_>>(),
         ["Incident with Github.com"],
         "exact-URL dedup did not keep only the preferred item"
-    );
-    Ok(())
-}
-
-#[test]
-fn required_reporting_overrides_observe_without_changing_duplicate_scope() -> Result<()> {
-    let mut feed = source("required");
-    feed.threshold = "audit".to_owned();
-    feed.always_report = true;
-    let mut observed = feed.clone();
-    observed.key = "observed".to_owned();
-    observed.always_report = false;
-    let url = "https://example.test/shared";
-    let classified = classify_and_dedupe(vec![
-        collected(&feed, "First required", url)?,
-        collected(&feed, "Second required", url)?,
-        collected(&observed, "Observed", url)?,
-    ]);
-    assert_eq!(
-        classified.must_include.len(),
-        2,
-        "required news bypasses ordinary URL deduplication"
-    );
-    assert!(
-        classified.candidates.is_empty(),
-        "observe must not offer a candidate"
-    );
-    assert!(
-        classified
-            .must_include
-            .iter()
-            .all(|item| item.threshold == "audit" && item.always_report),
-        "effective reporting must not rewrite the snapshot"
     );
     Ok(())
 }
@@ -417,67 +379,4 @@ fn fetch_log(source_key: &str, status: &str, error: &str) -> FetchLog {
         error: error.to_owned(),
         ..FetchLog::default()
     }
-}
-
-#[test]
-fn canonicalization_caps_relevant_items_without_network_access() -> Result<()> {
-    let mut source = source("bounded");
-    source.url_canonicalization = "feedburner_redirect".to_owned();
-    let input = vec![
-        fetched("One", "file:///nonexistent/one", "one"),
-        fetched("Two", "file:///nonexistent/two", "two"),
-        fetched("Three", "file:///nonexistent/three", "three"),
-        fetched("Four", "file:///nonexistent/four", "four"),
-        fetched("Five", "file:///nonexistent/five", "five"),
-        fetched("Six", "file:///nonexistent/six", "six"),
-    ];
-    let client = HttpClient::new();
-    let google = GoogleResolver::new(client.clone());
-    let (items, unresolved, truncated) = process_feed_items(&client, &google, &source, input)?;
-    assert!(
-        truncated,
-        "six relevant canonicalizations did not trip the source bound"
-    );
-    assert_eq!(items.len(), 5, "processed canonicalization prefix changed");
-    assert!(
-        unresolved
-            .iter()
-            .take(5)
-            .all(|item| item.disposition == crate::contract::ItemDisposition::Retained)
-    );
-    assert_eq!(
-        unresolved.last().map(|item| item.disposition),
-        Some(crate::contract::ItemDisposition::Dropped)
-    );
-    source.outlet_extraction = "url_host".to_owned();
-    let (host_items, host_unresolved, _) = process_feed_items(
-        &client,
-        &google,
-        &source,
-        vec![fetched("Host required", "file:///nonexistent/host", "host")],
-    )?;
-    assert!(host_items.is_empty());
-    assert_eq!(
-        host_unresolved.first().map(|item| item.disposition),
-        Some(crate::contract::ItemDisposition::Dropped)
-    );
-    assert_eq!(
-        unresolved.len(),
-        6,
-        "canonicalization suppression audit changed"
-    );
-    assert_eq!(
-        unresolved.last().map(|item| item.reason.as_str()),
-        Some("url canonicalization skipped after 5-item source limit"),
-        "bounded canonicalization reason changed"
-    );
-    assert_eq!(
-        items
-            .iter()
-            .map(|item| item.title.as_str())
-            .collect::<Vec<_>>(),
-        ["One", "Two", "Three", "Four", "Five"],
-        "items beyond the relevant bound affected the processed prefix"
-    );
-    Ok(())
 }

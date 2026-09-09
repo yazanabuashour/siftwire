@@ -46,7 +46,6 @@ pub(super) fn run_action(
         "run_brief" => run(paths, store, request.dry_run),
         "prepare_delivery" => delivery::prepare(paths, store, request),
         "confirm_delivery" => delivery::confirm(paths, store, request),
-        "record_delivery" => delivery::record(paths, store, request),
         _ => Ok(delivery::rejected(
             paths,
             &format!("unsupported brief action {:?}", request.action),

@@ -11,11 +11,11 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 pub const SOURCE_KIND_RSS: &str = "rss";
+// Stored configuration and historical items only; new feeds use rss.
 pub const SOURCE_KIND_ATOM: &str = "atom";
 pub const SOURCE_KIND_GITHUB_RELEASE: &str = "github_release";
 pub const SOURCE_KIND_SCHEDULE: &str = "sports_schedule";
 pub const SCHEDULE_FORMAT_ESPN: &str = "espn";
-pub const SCHEDULE_FORMAT_ESPN_CORE: &str = "espn_core";
 pub const SCHEDULE_FORMAT_ESPN_SCOREBOARD: &str = "espn_scoreboard";
 pub const SCHEDULE_FORMAT_RIOT: &str = "riot";
 pub const SCHEDULE_FILTER_ALL: &str = "all";
@@ -23,14 +23,12 @@ pub const SCHEDULE_FILTER_STANDINGS_TOP_TWO: &str = "standings_top_two";
 pub const THRESHOLD_ALWAYS: &str = "always";
 pub const THRESHOLD_MEDIUM: &str = "medium";
 pub const THRESHOLD_HIGH: &str = "high";
+// Read compatibility only; audit is never accepted by source writes.
 pub const THRESHOLD_AUDIT: &str = "audit";
 pub const URL_CANONICALIZATION_NONE: &str = "none";
-pub const URL_CANONICALIZATION_FEEDBURNER_REDIRECT: &str = "feedburner_redirect";
 pub const URL_CANONICALIZATION_GOOGLE_NEWS_ARTICLE: &str = "google_news_article_url";
 pub const OUTLET_EXTRACTION_NONE: &str = "none";
 pub const OUTLET_EXTRACTION_TITLE_SUFFIX: &str = "title_suffix";
-pub const OUTLET_EXTRACTION_URL_HOST: &str = "url_host";
-pub const OUTLET_EXTRACTION_RSS_SOURCE: &str = "rss_source";
 pub const OUTLET_POLICY_ALLOW: &str = "allow";
 pub const OUTLET_POLICY_BLOCK: &str = "block";
 pub const OUTLET_POLICY_WATCH: &str = "watch";
@@ -81,11 +79,6 @@ pub struct Source {
         skip_serializing_if = "is_default"
     )]
     pub priority_rank: i64,
-    #[serde(
-        deserialize_with = "crate::serde_util::null_default",
-        skip_serializing_if = "std::ops::Not::not"
-    )]
-    pub always_report: bool,
     #[serde(
         deserialize_with = "crate::serde_util::null_default",
         skip_serializing_if = "String::is_empty"
@@ -213,12 +206,12 @@ fn validate_source_fields(source: &mut Source) -> Result<()> {
     set_source_defaults(source);
     validate_source_options(source)?;
     match source.kind.as_str() {
-        SOURCE_KIND_RSS | SOURCE_KIND_ATOM => validate_fetch_url(&source.url)
+        SOURCE_KIND_RSS => validate_fetch_url(&source.url)
             .map_err(|error| anyhow::anyhow!("source {:?} url: {error}", source.key)),
         SOURCE_KIND_GITHUB_RELEASE => validate_github_source(source),
         SOURCE_KIND_SCHEDULE => validate_schedule_source(source),
         _ => bail!(
-            "source {:?} kind must be rss, atom, github_release, or sports_schedule",
+            "source {:?} kind must be rss, github_release, or sports_schedule",
             source.key
         ),
     }
@@ -245,33 +238,28 @@ fn set_source_defaults(source: &mut Source) {
 fn validate_source_options(source: &Source) -> Result<()> {
     if !matches!(
         source.threshold.as_str(),
-        THRESHOLD_ALWAYS | THRESHOLD_MEDIUM | THRESHOLD_HIGH | THRESHOLD_AUDIT
+        THRESHOLD_ALWAYS | THRESHOLD_MEDIUM | THRESHOLD_HIGH
     ) {
         bail!(
-            "source {:?} threshold must be always, medium, high, or audit",
+            "source {:?} threshold must be always, medium, or high",
             source.key
         );
     }
     if !matches!(
         source.url_canonicalization.as_str(),
-        URL_CANONICALIZATION_NONE
-            | URL_CANONICALIZATION_FEEDBURNER_REDIRECT
-            | URL_CANONICALIZATION_GOOGLE_NEWS_ARTICLE
+        URL_CANONICALIZATION_NONE | URL_CANONICALIZATION_GOOGLE_NEWS_ARTICLE
     ) {
         bail!(
-            "source {:?} url_canonicalization must be none, feedburner_redirect, or google_news_article_url",
+            "source {:?} url_canonicalization must be none or google_news_article_url",
             source.key
         );
     }
     if !matches!(
         source.outlet_extraction.as_str(),
-        OUTLET_EXTRACTION_NONE
-            | OUTLET_EXTRACTION_TITLE_SUFFIX
-            | OUTLET_EXTRACTION_URL_HOST
-            | OUTLET_EXTRACTION_RSS_SOURCE
+        OUTLET_EXTRACTION_NONE | OUTLET_EXTRACTION_TITLE_SUFFIX
     ) {
         bail!(
-            "source {:?} outlet_extraction must be none, title_suffix, url_host, or rss_source",
+            "source {:?} outlet_extraction must be none or title_suffix",
             source.key
         );
     }
@@ -302,13 +290,10 @@ fn validate_schedule_source(source: &Source) -> Result<()> {
         .map_err(|error| anyhow::anyhow!("source {:?} url: {error}", source.key))?;
     if !matches!(
         source.schedule_format.as_str(),
-        SCHEDULE_FORMAT_ESPN
-            | SCHEDULE_FORMAT_ESPN_CORE
-            | SCHEDULE_FORMAT_ESPN_SCOREBOARD
-            | SCHEDULE_FORMAT_RIOT
+        SCHEDULE_FORMAT_ESPN | SCHEDULE_FORMAT_ESPN_SCOREBOARD | SCHEDULE_FORMAT_RIOT
     ) {
         bail!(
-            "source {:?} schedule_format must be espn, espn_core, espn_scoreboard, or riot",
+            "source {:?} schedule_format must be espn, espn_scoreboard, or riot",
             source.key
         );
     }
@@ -365,20 +350,16 @@ fn validate_riot_league_id(source: &Source) -> Result<()> {
 }
 
 fn validate_github_source(source: &Source) -> Result<()> {
-    if source.repo.is_empty() && source.url.is_empty() {
+    if !source.url.is_empty() {
         bail!(
-            "source {:?} repo or url is required for github_release",
+            "source {:?} url override is not supported for github_release; use repo owner/name",
             source.key
         );
     }
-    if !source.repo.is_empty() && !valid_github_repo(&source.repo) {
+    if !valid_github_repo(&source.repo) {
         bail!("source {:?} repo must be owner/name", source.key);
     }
-    if source.url.is_empty() {
-        return Ok(());
-    }
-    validate_fetch_url(&source.url)
-        .map_err(|error| anyhow::anyhow!("source {:?} url: {error}", source.key))
+    Ok(())
 }
 
 fn validate_fetch_url(value: &str) -> Result<()> {

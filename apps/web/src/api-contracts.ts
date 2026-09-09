@@ -36,7 +36,6 @@ export const SourceSchema = z.object({
   outlet_extraction: z.string().optional().default(""),
   dedup_group: z.string().optional().default(""),
   priority_rank: PriorityRankSchema.optional().default("0"),
-  always_report: z.boolean().optional().default(false),
   schedule_format: z.string().optional().default(""),
   schedule_filter: z.string().optional().default("all"),
   api_key: z.string().optional().default(""),
@@ -55,15 +54,13 @@ export type OutletPolicy = z.infer<typeof OutletPolicySchema>
 const StringMapSchema = z.record(z.string(), z.string())
 
 export const ConfigResultSchema = z.object({
+  runner_protocol: z.literal("siftwire-runner/v3"),
   rejected: z.boolean(),
   paths: z.object({ data_dir: z.string(), database_path: z.string() }),
   runtime_config: StringMapSchema.optional().default({}),
   sources: z.array(SourceSchema).optional().default([]),
   outlets: z.array(OutletPolicySchema).optional().default([]),
-  source_reporting: z
-    .record(z.string(), ReportingModeSchema)
-    .optional()
-    .default({}),
+  source_reporting: z.record(z.string(), z.string()).optional().default({}),
   outlet_conflicts: z.array(OutletConflictSchema).optional().default([]),
 })
 export type ConfigResult = z.infer<typeof ConfigResultSchema>
@@ -94,7 +91,7 @@ export const RunItemSchema = z.object({
   title: z.string(),
   url: z.string(),
   selected: z.boolean(),
-  reporting: ReportingModeSchema.nullable().optional().default(null),
+  reporting: z.string().nullable().optional().default(null),
   delivery_status: z
     .enum([
       "sent",

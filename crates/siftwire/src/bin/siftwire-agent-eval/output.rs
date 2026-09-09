@@ -199,6 +199,15 @@ fn allowed_runner_command(lower: &str) -> bool {
         if body.contains('\n') {
             return allowed_direct_quoted_heredoc(body);
         }
+        if let Some((runner, payload)) = body.split_once("<<<") {
+            return !has_shell_substitution(body)
+                && runner_command_tail(runner.trim())
+                && payload
+                    .trim()
+                    .strip_prefix('\'')
+                    .and_then(|value| value.strip_suffix('\''))
+                    .is_some_and(|value| !value.contains('\''));
+        }
         return !has_shell_substitution(body) && runner_command_tail(body);
     }
     if body.matches('|').count() != 1 {
@@ -209,8 +218,9 @@ fn allowed_runner_command(lower: &str) -> bool {
     };
     let producer = trim_database_assignment(producer.trim());
     if producer.starts_with("printf ") {
+        let arguments = producer.strip_prefix("printf '%s\n' ").unwrap_or(producer);
         return !has_shell_substitution(body)
-            && !producer.contains('\n')
+            && !arguments.contains('\n')
             && runner_command_tail(trim_database_assignment(consumer.trim()));
     }
     allowed_quoted_heredoc(producer, consumer)
@@ -290,9 +300,14 @@ fn trim_shell_wrapper(command: &str) -> &str {
             break;
         }
     }
-    body.trim()
-        .trim_start_matches(['\"', '\''])
-        .trim_end_matches(['\"', '\''])
+    let body = body.trim();
+    body.strip_prefix('"')
+        .and_then(|value| value.strip_suffix('"'))
+        .or_else(|| {
+            body.strip_prefix('\'')
+                .and_then(|value| value.strip_suffix('\''))
+        })
+        .unwrap_or(body)
         .trim()
 }
 
@@ -305,6 +320,12 @@ fn runner_command_tail(command: &str) -> bool {
 }
 
 fn allowed_skill_read(lower: &str) -> bool {
+    // The dollar is literal only in these complete quoting/wrapper contexts.
+    let literal_sed_address = matches!(
+        lower,
+        "sed -n '1,$p' .agents/skills/siftwire/skill.md"
+            | "/usr/bin/bash -c \"sed -n '1,\"'$p'\"' .agents/skills/siftwire/skill.md\""
+    );
     if !lower.contains(".agents/skills/siftwire/skill.md")
         && !lower.contains("skills/.system/siftwire/skill.md")
     {
@@ -315,7 +336,7 @@ fn allowed_skill_read(lower: &str) -> bool {
     ]
     .iter()
     .any(|forbidden| lower.contains(forbidden))
-        || has_shell_substitution(lower)
+        || (has_shell_substitution(lower) && !literal_sed_address)
         || [";", "|"].iter().any(|separator| lower.contains(separator))
     {
         return false;

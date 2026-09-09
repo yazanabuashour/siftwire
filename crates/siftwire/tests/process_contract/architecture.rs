@@ -13,9 +13,9 @@ fn config_preserves_raw_sources_cursors_and_historical_reporting() -> Result<()>
     let configured = invoke_json(
         &args,
         &json!({"action":"upsert_source", "source": {
-            "key":"feed", "label":"Recorded label", "kind":"atom", "url":"https://example.test/feed",
-            "section":"technology", "threshold":"audit", "always_report":true, "enabled":true,
-            "priority_rank":i64::MIN, "dedup_group":"preserve", "url_canonicalization":"feedburner_redirect",
+            "key":"feed", "label":"Recorded label", "kind":"rss", "url":"https://example.test/feed",
+            "section":"technology", "threshold":"always", "enabled":true,
+            "priority_rank":i64::MIN, "dedup_group":"preserve", "url_canonicalization":"none",
             "outlet_extraction":"title_suffix"
         }}),
         &environment,
@@ -42,7 +42,6 @@ fn config_preserves_raw_sources_cursors_and_historical_reporting() -> Result<()>
     renamed.as_object_mut().context("source object")?.extend([
         ("label".to_owned(), json!("Current label")),
         ("threshold".to_owned(), json!("high")),
-        ("always_report".to_owned(), json!(false)),
         ("priority_rank".to_owned(), json!(i64::MAX)),
     ]);
     let updated = invoke_json(
@@ -109,17 +108,15 @@ fn configure_annotation_sources(
     )?;
     let feed_url = url::Url::from_file_path(&feed).map_err(|()| anyhow::anyhow!("fixture URL"))?;
     let args = ["config", "--db", database];
-    for (key, extraction) in [("retained", "title_suffix"), ("dropped", "url_host")] {
-        invoke_json(
-            &args,
-            &json!({"action":"upsert_source", "source": {
-                "key":key, "label":format!("Recorded {key}"), "kind":"rss", "url":feed_url,
-                "section":"technology", "threshold":"medium", "enabled":true,
-                "url_canonicalization":"feedburner_redirect", "outlet_extraction":extraction
-            }}),
-            environment,
-        )?;
-    }
+    invoke_json(
+        &args,
+        &json!({"action":"upsert_source", "source": {
+            "key":"retained", "label":"Recorded retained", "kind":"rss", "url":feed_url,
+            "section":"technology", "threshold":"medium", "enabled":true,
+            "url_canonicalization":"none", "outlet_extraction":"title_suffix"
+        }}),
+        environment,
+    )?;
     invoke_json(
         &args,
         &json!({"action":"replace_outlet_policies", "outlets":[
@@ -161,8 +158,8 @@ fn run_annotations_distinguish_retained_dropped_and_unknown_without_backfill() -
         .context("annotations")?;
     assert_eq!(
         annotations.len(),
-        5,
-        "three retained diagnostics and two publisher annotations"
+        2,
+        "Allow and Watch retain their publisher annotations"
     );
     for annotation in annotations {
         assert_eq!(
@@ -192,11 +189,7 @@ fn run_annotations_distinguish_retained_dropped_and_unknown_without_backfill() -
         .get("dropped")
         .and_then(serde_json::Value::as_array)
         .context("drops")?;
-    assert_eq!(
-        drops.len(),
-        4,
-        "three unresolved URL-host exclusions and one block"
-    );
+    assert_eq!(drops.len(), 1, "Block excludes its matched item");
     let db = rusqlite::Connection::open(&database)?;
     db.execute("INSERT INTO brief_run_item (run_id,category,source_key,source_label,kind,section,threshold,priority_rank,always_report,published_at,outlet,title,url,reason,detail) VALUES (?1,'dropped','retained','','','','',0,0,'','','Legacy warning','','unresolved','{\"reason\":\"legacy\"}')", [run_id])?;
     db.execute_batch("UPDATE brief_source SET label = 'Current label';")?;
@@ -220,7 +213,7 @@ fn run_annotations_distinguish_retained_dropped_and_unknown_without_backfill() -
     );
     assert_eq!(
         reread.pointer("/fetch/0/source_label"),
-        Some(&json!("Recorded dropped"))
+        Some(&json!("Recorded retained"))
     );
     let raw: String = db.query_row(
         "SELECT detail FROM brief_run_item WHERE title = 'Legacy warning'",

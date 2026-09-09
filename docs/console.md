@@ -68,11 +68,17 @@ configuration.
 
 ## Configure sources and publishers
 
-Normal feeds have one Reporting choice. Releases always include eligible new
-releases; schedules produce recurring sports updates. The runner computes the
-effective choice from stored fields, including older combinations. Unrelated
-edits preserve those raw fields. Observe advances seen state without offering
-items for inclusion; it does not create a review backlog.
+Normal feeds have one Reporting choice: Required, Major, or Highlights.
+Releases always include eligible new releases; schedules produce recurring sports
+updates. The feed kind reads both RSS and Atom documents. Releases require a
+repository, not a custom endpoint URL. Feed processing offers Google News link
+resolution and title-suffix publisher identification.
+
+The runner adapts old Atom/always-report configuration to effective current
+fields without rewriting stored rows. Disabled legacy Observe sources remain
+visible, but saving them requires an explicit current Reporting choice.
+Historical evidence keeps its original reporting. See
+[runner v3 migration](runner-v3-migration.md) before updating an existing setup.
 
 Source options appear directly in the editor, without an extra disclosure.
 Feed link resolution and publisher extraction appear only for feeds. The

@@ -3,12 +3,10 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
-use url::Url;
 
 use crate::domain::Source;
 
 use super::google::{GoogleResolver, is_google_news_article_url};
-use super::http::HttpClient;
 use super::model::{FetchedItem, ResolveError, UnresolvedItem};
 
 const MAX_ATTEMPTS: usize = 5;
@@ -18,7 +16,6 @@ const SKIPPED_REASON: &str = "url canonicalization skipped after 5-item source l
 #[derive(Clone, Copy)]
 enum Strategy {
     None,
-    FeedBurner,
     GoogleNews,
 }
 
@@ -28,7 +25,6 @@ struct FeedItemResult {
 }
 
 pub fn process_feed_items(
-    client: &HttpClient,
     google: &GoogleResolver,
     source: &Source,
     items: Vec<FetchedItem>,
@@ -59,11 +55,11 @@ pub fn process_feed_items(
         let mut pending = Vec::new();
         for (position, (item, item_strategy, skipped)) in work.into_iter().enumerate() {
             if skipped || matches!(item_strategy, Strategy::None) {
-                let result = process_one(client, google, source, item, item_strategy, skipped);
+                let result = process_one(google, source, item, item_strategy, skipped);
                 let _previous = results.insert(position, result);
             } else {
-                let handle = scope
-                    .spawn(move || process_one(client, google, source, item, item_strategy, false));
+                let handle =
+                    scope.spawn(move || process_one(google, source, item, item_strategy, false));
                 pending.push((position, handle));
             }
         }
@@ -92,7 +88,6 @@ pub fn process_feed_items(
 }
 
 fn process_one(
-    client: &HttpClient,
     google: &GoogleResolver,
     source: &Source,
     original: FetchedItem,
@@ -110,21 +105,19 @@ fn process_one(
     }
     let now = Instant::now();
     let deadline = now.checked_add(ITEM_TIMEOUT).unwrap_or(now);
-    match resolve(client, google, strategy, &original.url, deadline) {
+    match resolve(google, strategy, &original.url, deadline) {
         Ok(canonical_url) => resolved(source, original, canonical_url),
         Err(error) => failed(source, original, &error),
     }
 }
 
 fn resolve(
-    client: &HttpClient,
     google: &GoogleResolver,
     strategy: Strategy,
     url: &str,
     deadline: Instant,
 ) -> Result<String, ResolveError> {
     match strategy {
-        Strategy::FeedBurner => client.follow_redirect_until(url, deadline),
         Strategy::GoogleNews => google.resolve(url, deadline),
         Strategy::None => Ok(url.to_owned()),
     }
@@ -147,21 +140,11 @@ fn resolved(source: &Source, mut item: FetchedItem, canonical_url: String) -> Fe
 
 fn failed(source: &Source, mut item: FetchedItem, error: &ResolveError) -> FeedItemResult {
     let unresolved = UnresolvedItem {
-        disposition: if source.outlet_extraction == "url_host" {
-            crate::contract::ItemDisposition::Dropped
-        } else {
-            crate::contract::ItemDisposition::Retained
-        },
+        disposition: crate::contract::ItemDisposition::Retained,
         title: item.title.clone(),
         url: item.url.clone(),
         reason: error.reason(),
     };
-    if source.outlet_extraction == "url_host" {
-        return FeedItemResult {
-            item: None,
-            unresolved: Some(unresolved),
-        };
-    }
     let feed_identity = item.feed_identity().to_owned();
     item.feed_identity = feed_identity;
     FeedItemResult {
@@ -203,13 +186,6 @@ fn extract_outlet(source: &Source, item: &FetchedItem) -> String {
             .title
             .rsplit_once(" - ")
             .map_or_else(String::new, |(_title, outlet)| outlet.trim().to_owned()),
-        "url_host" => Url::parse(&item.url)
-            .ok()
-            .and_then(|url| url.host_str().map(str::to_lowercase))
-            .map_or_else(String::new, |host| {
-                host.strip_prefix("www.").unwrap_or(&host).to_owned()
-            }),
-        "rss_source" => clean_text(&item.rss_source),
         _ => String::new(),
     }
 }
@@ -217,7 +193,6 @@ fn extract_outlet(source: &Source, item: &FetchedItem) -> String {
 fn strategy(value: &str) -> Result<Strategy> {
     match value {
         "" | "none" => Ok(Strategy::None),
-        "feedburner_redirect" => Ok(Strategy::FeedBurner),
         "google_news_article_url" => Ok(Strategy::GoogleNews),
         unsupported => bail!("unsupported url canonicalization strategy {unsupported:?}"),
     }
@@ -225,12 +200,62 @@ fn strategy(value: &str) -> Result<Strategy> {
 
 fn should_attempt(strategy: Strategy, value: &str) -> bool {
     match strategy {
-        Strategy::FeedBurner => !value.trim().is_empty(),
         Strategy::GoogleNews => is_google_news_article_url(value),
         Strategy::None => false,
     }
 }
 
-fn clean_text(value: &str) -> String {
-    value.split_whitespace().collect::<Vec<_>>().join(" ")
+#[cfg(test)]
+mod tests {
+    use super::{SKIPPED_REASON, failed, unresolved_only};
+    use crate::contract::ItemDisposition;
+    use crate::domain::Source;
+    use crate::engine::model::{FetchedItem, ResolveError};
+
+    #[test]
+    fn failed_resolution_retains_the_item_but_skipped_resolution_drops_it() {
+        let source = Source {
+            outlet_extraction: "title_suffix".to_owned(),
+            ..Source::default()
+        };
+        let item = FetchedItem {
+            title: "Story - Publisher".to_owned(),
+            url: "https://news.google.com/rss/articles/fixture".to_owned(),
+            identity: "feed-id".to_owned(),
+            ..FetchedItem::default()
+        };
+        let failure = failed(&source, item.clone(), &ResolveError::Timeout);
+        let mut expected = item.clone();
+        expected.feed_identity = "feed-id".to_owned();
+        expected.outlet = "Publisher".to_owned();
+        assert_eq!(
+            failure.item,
+            Some(expected),
+            "failure changed the item identity or outlet"
+        );
+        assert_eq!(
+            failure
+                .unresolved
+                .as_ref()
+                .map(|item| (item.disposition, item.reason.as_str())),
+            Some((ItemDisposition::Retained, "url canonicalization timed out")),
+            "resolution failure must report the retained item"
+        );
+        let skipped = unresolved_only(&item, SKIPPED_REASON.to_owned());
+        assert!(
+            skipped.item.is_none(),
+            "skipped item survived the source limit"
+        );
+        assert_eq!(
+            skipped
+                .unresolved
+                .as_ref()
+                .map(|item| (item.disposition, item.reason.as_str())),
+            Some((
+                ItemDisposition::Dropped,
+                "url canonicalization skipped after 5-item source limit"
+            )),
+            "skipped item must report the source limit"
+        );
+    }
 }

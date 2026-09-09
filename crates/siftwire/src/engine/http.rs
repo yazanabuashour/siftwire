@@ -79,23 +79,6 @@ impl HttpClient {
         Ok((bytes, final_url))
     }
 
-    pub fn follow_redirect_until(
-        &self,
-        endpoint: &str,
-        deadline: Instant,
-    ) -> Result<String, ResolveError> {
-        let timeout = remaining(deadline)?;
-        let response = self
-            .agent
-            .get(endpoint)
-            .config()
-            .timeout_global(Some(timeout))
-            .build()
-            .call()
-            .map_err(|error| resolve_request_error(&error, endpoint))?;
-        Ok(response.get_uri().to_string())
-    }
-
     pub fn post_form_until(
         &self,
         endpoint: &str,

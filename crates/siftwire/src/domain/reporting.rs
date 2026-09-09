@@ -8,6 +8,7 @@ use super::{
 pub enum Reporting {
     Required,
     Sports,
+    // Read compatibility for recorded items and disabled legacy sources only.
     Observe,
     Major,
     Highlights,
@@ -46,7 +47,7 @@ impl Reporting {
 
 impl super::Source {
     pub fn reporting(&self) -> Reporting {
-        Reporting::from_fields(&self.kind, &self.threshold, self.always_report)
+        Reporting::from_fields(&self.kind, &self.threshold, false)
     }
 }
 

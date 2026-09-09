@@ -294,13 +294,39 @@ async fn invalid_archive_queries_fail_before_spawning() {
 async fn historical_priorities_are_strings_without_rewriting_other_evidence() {
     let output = json!({
         "run": {"run_id": "fixture", "dry_run": false},
+        "delivery_html": "<!doctype html>\n<html><body>Exact saved HTML &amp; legacy evidence</body></html>",
         "must_include": priority_items(), "candidates": priority_items(),
         "dropped": [{"detail": {"priority_rank": 9_007_199_254_740_993_i64}}],
         "fetch": [{"items": 7, "new_items": 3}], "sent_items": []
     });
+    let mut output = output;
+    output
+        .pointer_mut("/must_include/0")
+        .expect("historical item")
+        .as_object_mut()
+        .expect("item object")
+        .extend([
+            ("kind".to_owned(), json!("atom")),
+            ("always_report".to_owned(), json!(true)),
+            ("threshold".to_owned(), json!("audit")),
+            ("reporting".to_owned(), json!("observe")),
+        ]);
     let mut expected = output.clone();
-    *expected.get_mut("must_include").expect("must_include") = string_priority_items();
-    *expected.get_mut("candidates").expect("candidates") = string_priority_items();
+    for collection in ["must_include", "candidates"] {
+        for (item, string_item) in expected
+            .get_mut(collection)
+            .expect("collection")
+            .as_array_mut()
+            .expect("items")
+            .iter_mut()
+            .zip(string_priority_items().as_array().expect("string items"))
+        {
+            *item.get_mut("priority_rank").expect("priority") = string_item
+                .get("priority_rank")
+                .expect("string priority")
+                .clone();
+        }
+    }
     let temp = TempDir::new().expect("temp dir");
     let script = write_runner(&temp, &output.to_string(), 0);
     let app = crate::router(state_with_runner(

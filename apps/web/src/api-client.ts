@@ -45,10 +45,13 @@ export function deleteSource(
   })
 }
 
-const OptionsResultSchema = z.object({
+const OptionsResultSchema = ConfigResultSchema.pick({
+  runner_protocol: true,
+}).extend({
   runtime_config: z.record(z.string(), z.string()),
 })
 const OutletsResultSchema = ConfigResultSchema.pick({
+  runner_protocol: true,
   outlets: true,
   outlet_conflicts: true,
 })

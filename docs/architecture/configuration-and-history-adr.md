@@ -1,6 +1,15 @@
 # Configuration and history ownership
 
-## Decision
+## Protocol v3 amendment
+
+The approved removals in [runner v3 migration](../runner-v3-migration.md)
+supersede this decision's writable Atom/always-report/Observe choices. Current
+configuration reads adapt the equivalent legacy Atom and required-feed fields;
+raw stored rows and historical evidence remain untouched until an approved
+source write. New writes use the narrower contract. Archive, publisher, exact
+email, priority and partial-cache ownership decisions below remain in force.
+
+## Original decision
 
 Extend the existing runner results and operator history commands. Keep raw source
 configuration, the collection-based publisher write, and immutable delivery plans.

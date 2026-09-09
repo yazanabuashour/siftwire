@@ -1,6 +1,6 @@
 import { useState } from "react"
 
-import type { ReportingMode, Source } from "../api-contracts"
+import type { Source } from "../api-contracts"
 import { reportingLabel, sourceType } from "./source-validation"
 import { Field } from "./ui"
 
@@ -22,7 +22,7 @@ export default function SourceCollection({
   onToggle,
 }: CollectionActions & {
   sources: Source[]
-  reporting: Record<string, ReportingMode>
+  reporting: Record<string, string>
 }) {
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState("all")
@@ -146,7 +146,7 @@ function SourceRow({
   onToggle,
 }: CollectionActions & {
   source: Source
-  reporting: ReportingMode | undefined
+  reporting: string | undefined
 }) {
   return (
     <article className="folio-source-row">

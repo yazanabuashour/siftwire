@@ -177,22 +177,112 @@ fn report_name_rejects_path_traversal() {
 #[test]
 fn delivery_verification_matches_current_brief() -> Result<()> {
     let database = Connection::open_in_memory()?;
-    database.execute("CREATE TABLE delivery (id INTEGER PRIMARY KEY AUTOINCREMENT, message TEXT NOT NULL, delivered_at TEXT NOT NULL)", [])?;
+    database.execute("CREATE TABLE delivery (id INTEGER PRIMARY KEY AUTOINCREMENT, run_id TEXT NOT NULL, message TEXT NOT NULL, delivered_at TEXT NOT NULL)", [])?;
+    database.execute("CREATE TABLE delivery_plan (id TEXT PRIMARY KEY, run_id TEXT NOT NULL, message TEXT NOT NULL)", [])?;
     database.execute(
-        "INSERT INTO delivery (message, delivered_at) VALUES (?1, ?2)",
+        "INSERT INTO delivery (run_id, message, delivered_at) VALUES ('run-1', ?1, ?2)",
         ["- [One](<https://example.com/1>)", "2026-04-23T01:00:00Z"],
     )?;
-    let mut checker = Checker::new(&database);
-    checker.bullet_count(
-        "- [One](<https://example.com/1>)\n- [Two](<https://example.com/2>)",
-        2,
+    let mut missing = Checker::new(&database);
+    missing.prepared_deliveries();
+    ensure!(
+        !missing.finish().database_pass,
+        "unprepared delivery passed verification"
     );
-    checker.recorded_delivery("Current brief\n\n- [One](<https://example.com/1>)\n\nPrevious brief (2026-04-22T01:00:00Z)\n\n- [Old](<https://example.com/old>)");
+    database.execute(
+        "INSERT INTO delivery_plan VALUES ('plan-1', 'run-1', 'Different body')",
+        [],
+    )?;
+    let mut changed = Checker::new(&database);
+    changed.prepared_deliveries();
+    ensure!(
+        !changed.finish().database_pass,
+        "delivery differing from immutable plan passed verification"
+    );
+    database.execute(
+        "UPDATE delivery_plan SET message = (SELECT message FROM delivery WHERE run_id = 'run-1')",
+        [],
+    )?;
+    let mut checker = Checker::new(&database);
+    checker.prepared_deliveries();
+    checker.recorded_delivery("Current brief\n\n- [One](<https://example.com/1>)");
     let result = checker.finish();
     ensure!(
-        result.database_pass && result.assistant_pass,
+        result.passed,
         "delivery verification failed: {}",
         result.details
     );
+
+    database.execute(
+        "INSERT INTO delivery (run_id, message, delivered_at) VALUES ('old-run', 'NO_REPLY', '2026-04-22T01:00:00.1234Z')",
+        [],
+    )?;
+    let answer = "Current brief\n\n- [One](<https://example.com/1>)\n\nPrevious brief (2026-04-22T01:00:00.123400Z)\n\nNO_REPLY";
+    let mut history = Checker::new(&database);
+    history.recorded_delivery(answer);
+    ensure!(history.finish().passed, "unchanged history rejected");
+    for changed in [
+        answer.replace("One", "Rewritten"),
+        answer.replace("NO_REPLY", "No news"),
+    ] {
+        let mut checker = Checker::new(&database);
+        checker.recorded_delivery(&changed);
+        ensure!(
+            !checker.finish().assistant_pass,
+            "rewritten body/history accepted"
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn delivery_verification_matches_selected_evidence() -> Result<()> {
+    let database = Connection::open_in_memory()?;
+    database.execute_batch(
+        r#"CREATE TABLE brief_run_item (id INTEGER, run_id TEXT, category TEXT, title TEXT, url TEXT, kind TEXT);
+        CREATE TABLE delivery_plan (run_id TEXT, candidate_indexes_json TEXT, items_json TEXT);
+        CREATE TABLE delivery (id INTEGER, run_id TEXT);
+        CREATE TABLE sent_item (delivery_id INTEGER, run_id TEXT, title TEXT, url TEXT, kind TEXT);
+        INSERT INTO brief_run_item VALUES
+            (1, 'run', 'must_include', 'Required', 'https://example.com/required', 'rss'),
+            (2, 'run', 'candidate', 'Skipped', 'https://example.com/skipped', 'rss'),
+            (3, 'run', 'candidate', 'Selected', 'https://example.com/selected', 'rss');
+        INSERT INTO delivery_plan VALUES ('run', '[1]', '[
+            {"run_item_ids":["1"],"title":"Required","url":"https://example.com/required","kind":"rss"},
+            {"run_item_ids":["3"],"title":"Selected","url":"https://example.com/selected","kind":"rss"}
+        ]');
+        INSERT INTO delivery_plan VALUES ('empty-run', '[]', '[]');
+        INSERT INTO delivery VALUES (1, 'run'), (2, 'empty-run');
+        INSERT INTO sent_item VALUES
+            (1, 'run', 'Required', 'https://example.com/required', 'rss'),
+            (1, 'run', 'Selected', 'https://example.com/selected', 'rss');"#,
+    )?;
+    let mut checker = Checker::new(&database);
+    checker.selected_evidence();
+    let result = checker.finish();
+    ensure!(
+        result.passed,
+        "selected evidence rejected: {}",
+        result.details
+    );
+    for mutation in [
+        "UPDATE delivery_plan SET candidate_indexes_json = '[0]'",
+        "UPDATE delivery_plan SET items_json = json_remove(items_json, '$[0]')",
+        "UPDATE delivery_plan SET items_json = json_set(items_json, '$[1].run_item_ids[0]', '2')",
+        "UPDATE delivery_plan SET items_json = json_set(items_json, '$[1].title', 'Changed')",
+        "UPDATE sent_item SET url = 'https://example.com/wrong'",
+        "DELETE FROM sent_item",
+        "INSERT INTO sent_item VALUES (1, 'run', 'Skipped', 'https://example.com/skipped', 'rss')",
+    ] {
+        database.execute_batch("SAVEPOINT corruption")?;
+        database.execute(mutation, [])?;
+        let mut checker = Checker::new(&database);
+        checker.selected_evidence();
+        ensure!(
+            !checker.finish().database_pass,
+            "invalid evidence accepted: {mutation}"
+        );
+        database.execute_batch("ROLLBACK TO corruption; RELEASE corruption")?;
+    }
     Ok(())
 }

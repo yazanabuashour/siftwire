@@ -1,5 +1,6 @@
 import type { Source } from "../api-contracts"
-import { HandlingFields, PreferenceFields } from "./SourceFields"
+import { PreferenceFields } from "./SourceFields"
+import SourceHandling from "./SourceHandling"
 import { Field } from "./ui"
 
 export default function SourceOptions({
@@ -23,7 +24,7 @@ export default function SourceOptions({
           </div>
         </fieldset>
       )}
-      <HandlingFields draft={draft} update={update} />
+      <SourceHandling draft={draft} update={update} />
       {editing ? (
         <p className="folio-muted">
           Immutable source key: <code>{draft.key}</code>

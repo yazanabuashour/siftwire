@@ -2,7 +2,7 @@ import { createContext, useContext, type ReactNode } from "react"
 import Markdown from "react-markdown"
 
 import type { RunDetail, RunItem } from "../api-contracts"
-import { reportingLabels } from "../reporting"
+import { reportingLabel } from "../reporting"
 import EmailBrief from "./EmailBrief"
 import { dateLabel } from "./ui"
 
@@ -122,7 +122,7 @@ export function StoryReceipt({ story }: { story: RunItem }) {
           ["Type", story.kind.replaceAll("_", " ") || "Not recorded"],
           [
             "Reporting",
-            story.reporting ? reportingLabels[story.reporting] : "Not recorded",
+            story.reporting ? reportingLabel(story.reporting) : "Not recorded",
           ],
           ["Source preference", story.priority_rank],
           ["Published", dateLabel(story.published_at, true)],

@@ -46,6 +46,11 @@ sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/d
 siftwire --version
 ```
 
+The unreleased v3 protocol removes legacy writes and unused source options.
+Before upgrading a v2 installation, follow [v3 migration](docs/runner-v3-migration.md)
+and update process consumers together. Existing public release tags keep their
+original contracts.
+
 ## First use
 
 The runner reads exactly one JSON request from stdin and writes one JSON result
@@ -57,30 +62,26 @@ printf '%s\n' '{"action":"inspect_config"}' | siftwire config
 printf '%s\n' '{"action":"run_brief","dry_run":true}' | siftwire brief
 ```
 
-Configuration actions manage RSS, Atom, and GitHub release sources; generic
-feed processing; outlet policies; and brief options. Brief actions validate the
-runtime, run a brief, and record the exact delivered message for history and
-repeat suppression. See [`skills/siftwire/SKILL.md`](skills/siftwire/SKILL.md)
+Configuration actions manage RSS/Atom feeds, GitHub releases, sports schedules,
+feed processing, publisher policies, and brief options. Brief actions validate
+the runtime, collect items, prepare immutable email bodies, and confirm their
+accepted delivery for history and repeat suppression. See [`skills/siftwire/SKILL.md`](skills/siftwire/SKILL.md)
 for the installed agent policy.
 
 ## Operator commands
 
-Beside the JSON protocol, the installed runner ships operator commands for
-inspection and one configuration shortcut:
+The installed runner also ships read-only archive commands:
 
 ```bash
-siftwire source list [--enabled] [--json] [--db path]
 siftwire runs list [--delivered] [--before run_id] [--search text] [--limit N] [--json] [--db path]
 siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]
-siftwire source add [--json] [--db path] < source.json
 ```
 
-`source list`, `runs list`, and `runs show` are read-only. Each run persists its
-must-include items, candidates, exclusions, and annotations. `runs show` reports
-confirmed delivery outcomes separately from collection decisions and labels
-older outcomes unknown when the saved evidence cannot prove them. `source add` reads
-exactly one JSON source object from stdin and stores it with the same validation
-as the `upsert_source` config action; it is a durable configuration write.
+`runs list` and `runs show` are read-only. Each run persists its required items,
+candidates, exclusions, and annotations. `runs show` reports confirmed delivery
+outcomes separately from collection decisions and labels older outcomes unknown
+when the saved evidence cannot prove them. Use `config.inspect_config` and
+`config.upsert_source` for source inspection and approved writes.
 Each successfully completed non-dry run persists selection evidence. `--json`
 switches to machine-readable output; `runs show --json` returns the complete
 run detail regardless of section flags. Its nullable `delivery_html` field

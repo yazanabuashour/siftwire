@@ -11,11 +11,10 @@ export const noReflectApplyRule = defineRule({
             reflectApply: "Replace `Reflect.apply` with a typed function call. Model dynamic dispatch behind a named interface.",
         },
     },
-    create(context) {
+    createOnce(context) {
         return {
             CallExpression(node) {
-                if (node.callee.type === "Super" ||
-                    node.callee.type === "V8IntrinsicExpression")
+                if (node.callee.type === "Super" || node.callee.type === "V8IntrinsicExpression")
                     return;
                 if (isGlobalReflectMethodCall(context.sourceCode, node.callee, "apply")) {
                     context.report({ node, messageId: "reflectApply" });

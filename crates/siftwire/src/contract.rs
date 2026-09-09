@@ -5,14 +5,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::{OutletPolicy, Source};
 
-pub const RUNNER_PROTOCOL: &str = "siftwire-runner/v3";
+pub const RUNNER_PROTOCOL: &str = "siftwire-runner/v4";
 pub const CAPABILITY_PREPARED_DELIVERY: &str = "prepared-delivery/v1";
 pub const CAPABILITY_SPORTS_UPDATES: &str = "sports-updates/v1";
+pub const CAPABILITY_CURRENT_NEWS: &str = "current-news/v1";
 
 fn capabilities() -> Vec<String> {
     vec![
         CAPABILITY_PREPARED_DELIVERY.to_owned(),
         CAPABILITY_SPORTS_UPDATES.to_owned(),
+        CAPABILITY_CURRENT_NEWS.to_owned(),
     ]
 }
 
@@ -267,6 +269,16 @@ pub struct SuppressedUnresolvedItem {
     pub reason: String,
 }
 
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+pub struct CurrentNewsStatus {
+    pub since: String,
+    pub until: String,
+    pub eligible_items: usize,
+    pub stale_items: usize,
+    pub undated_items: usize,
+    pub future_items: usize,
+}
+
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct FetchStatus {
     pub source_key: String,
@@ -275,7 +287,9 @@ pub struct FetchStatus {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub error: String,
     pub items: usize,
-    pub new_items: usize,
+    pub new_items: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub current_news: Option<CurrentNewsStatus>,
     #[serde(skip_serializing_if = "is_default")]
     pub suppressed_policy: usize,
     #[serde(skip_serializing_if = "is_default")]

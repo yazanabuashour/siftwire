@@ -57,7 +57,8 @@ export const publisher = {
 }
 export const configuration = () =>
   ConfigResultSchema.parse({
-    runner_protocol: "siftwire-runner/v3",
+    runner_protocol: "siftwire-runner/v4",
+    capabilities: ["current-news/v1"],
     rejected: false,
     paths: { database_path: "data/config.sqlite", data_dir: "data" },
     outlets: [publisher],

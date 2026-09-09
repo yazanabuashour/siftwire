@@ -69,7 +69,8 @@ pub struct FetchLog {
     pub status: String,
     pub error: String,
     pub item_count: usize,
-    pub new_item_count: usize,
+    pub new_item_count: Option<usize>,
+    pub current_news: Option<crate::contract::CurrentNewsStatus>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -111,7 +112,8 @@ impl Default for FetchLog {
             status: String::new(),
             error: String::new(),
             item_count: 0,
-            new_item_count: 0,
+            new_item_count: None,
+            current_news: None,
             created_at: go_zero_time(),
         }
     }

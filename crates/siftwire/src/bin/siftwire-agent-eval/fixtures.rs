@@ -20,16 +20,17 @@ pub fn prepare(mut scenario: Scenario, run_dir: &Path) -> Result<Scenario> {
     let fixture_dir = run_dir.join("fixtures");
     create_dir_all(&fixture_dir, 0o755)?;
     let feed_path = fixture_dir.join("github-blog.xml");
+    let published = chrono::Utc::now().to_rfc2822();
     if needs_feed {
-        write_file(&feed_path, feed().as_bytes(), 0o644)?;
+        write_file(&feed_path, feed(&published).as_bytes(), 0o644)?;
     }
     let limit_urls = if needs_limits {
-        generated_feeds(&fixture_dir, "limit", "01")?
+        generated_feeds(&fixture_dir, "limit", &published)?
     } else {
         Vec::new()
     };
     let history_urls = if needs_history {
-        generated_feeds(&fixture_dir, "history", "02")?
+        generated_feeds(&fixture_dir, "history", &published)?
     } else {
         Vec::new()
     };
@@ -50,20 +51,20 @@ fn contains(scenario: &Scenario, value: &str) -> bool {
         .any(|turn| turn.prompt.contains(value))
 }
 
-fn generated_feeds(directory: &Path, kind: &str, hour: &str) -> Result<Vec<String>> {
+fn generated_feeds(directory: &Path, kind: &str, published: &str) -> Result<Vec<String>> {
     (1_u8..=3)
         .map(|number| {
             let path = directory.join(format!("{kind}-{number}.xml"));
-            let content = generated_feed(kind, hour, number);
+            let content = generated_feed(kind, published, number);
             write_file(&path, content.as_bytes(), 0o644)?;
             file_url(&path)
         })
         .collect()
 }
 
-fn generated_feed(kind: &str, hour: &str, number: u8) -> String {
+fn generated_feed(kind: &str, published: &str, number: u8) -> String {
     format!(
-        "<?xml version=\"1.0\"?>\n<rss version=\"2.0\"><channel>\n<title>SiftWire {kind} fixture {number}</title>\n<item><title>SiftWire {kind} story {number}</title><link>https://fixture.example/{kind}-{number}</link><guid>{kind}-guid-{number}</guid><pubDate>Thu, 23 Apr 2026 {hour}:0{number}:00 GMT</pubDate></item>\n</channel></rss>"
+        "<?xml version=\"1.0\"?>\n<rss version=\"2.0\"><channel>\n<title>SiftWire {kind} fixture {number}</title>\n<item><title>SiftWire {kind} story {number}</title><link>https://fixture.example/{kind}-{number}</link><guid>{kind}-guid-{number}</guid><pubDate>{published}</pubDate></item>\n</channel></rss>"
     )
 }
 
@@ -102,6 +103,8 @@ fn file_url(path: &Path) -> Result<String> {
         .map_err(|()| anyhow!("cannot convert {} to a file URL", path.display()))
 }
 
-const fn feed() -> &'static str {
-    "<?xml version=\"1.0\"?>\n<rss version=\"2.0\"><channel>\n<title>SiftWire fixture</title>\n<item><title>SiftWire fixture story - Fixture Outlet</title><link>https://fixture.example/story</link><guid>fixture-guid-1</guid><pubDate>Thu, 23 Apr 2026 01:00:00 GMT</pubDate></item>\n</channel></rss>"
+fn feed(published: &str) -> String {
+    format!(
+        "<?xml version=\"1.0\"?>\n<rss version=\"2.0\"><channel>\n<title>SiftWire fixture</title>\n<item><title>SiftWire fixture story - Fixture Outlet</title><link>https://fixture.example/story</link><guid>fixture-guid-1</guid><pubDate>{published}</pubDate></item>\n</channel></rss>"
+    )
 }

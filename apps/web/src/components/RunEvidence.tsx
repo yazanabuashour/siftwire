@@ -151,6 +151,19 @@ export function FetchStatuses({ detail }: { detail: RunDetail }) {
               {status.source_label || sourceName(detail, status.source_key)}
             </strong>
             {status.error && <p>{status.error}</p>}
+            {status.current_news && (
+              <>
+                <p className="folio-muted">
+                  Publication window: {status.current_news.since} to{" "}
+                  {status.current_news.until}
+                </p>
+                <p className="folio-muted">
+                  Excluded: {status.current_news.stale_items} stale ·{" "}
+                  {status.current_news.undated_items} undated ·{" "}
+                  {status.current_news.future_items} future-dated
+                </p>
+              </>
+            )}
           </div>
           <div>
             <span
@@ -159,7 +172,12 @@ export function FetchStatuses({ detail }: { detail: RunDetail }) {
               {status.status.replaceAll("_", " ")}
             </span>
             <span className="folio-muted">
-              {status.new_items} new · {status.items} fetched
+              {status.current_news
+                ? `${status.current_news.eligible_items} eligible`
+                : status.new_items === null
+                  ? "New count unavailable"
+                  : `${status.new_items} new`}{" "}
+              · {status.items} fetched
             </span>
           </div>
         </div>

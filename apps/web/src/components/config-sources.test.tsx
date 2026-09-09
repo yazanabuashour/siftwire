@@ -129,7 +129,7 @@ it("shows feed processing directly with its effective failure behavior and one d
   ).toEqual(["none", "google_news_article_url"])
   expect(host.textContent).toContain("This is not article importance")
   expect(host.textContent).toContain(
-    "Equal URLs can still collapse across groups",
+    "Identical absolute URLs can still collapse across groups",
   )
 })
 

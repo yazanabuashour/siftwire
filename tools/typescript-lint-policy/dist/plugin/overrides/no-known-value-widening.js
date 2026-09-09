@@ -1,5 +1,6 @@
 import { defineRule } from "@oxlint/plugins";
-import { classifyWideningTarget, createTypeEnvironment, isKnownEvidenceExpression, } from "../shared/dictionary-types.js";
+import { classifyWideningTarget, createTypeEnvironment, } from "../shared/dictionary-types.js";
+import { hasKnownEvidence, knownPredicateArgument, resolveVariable, variableDeclarator, } from "../shared/known-evidence.js";
 function unwrapExpression(expression) {
     let current = expression;
     while (current.type === "ParenthesizedExpression" ||
@@ -10,48 +11,6 @@ function unwrapExpression(expression) {
         current = current.expression;
     }
     return current;
-}
-function resolveVariable(sourceCode, identifier) {
-    let scope = sourceCode.getScope(identifier);
-    while (scope !== null) {
-        const variable = scope.set.get(identifier.name);
-        if (variable !== undefined)
-            return variable;
-        scope = scope.upper;
-    }
-    return null;
-}
-function variableDeclarator(variable) {
-    if (variable.defs.length !== 1)
-        return null;
-    const [definition] = variable.defs;
-    return definition?.type === "Variable" &&
-        definition.node.type === "VariableDeclarator"
-        ? definition.node
-        : null;
-}
-function isStableConstVariable(variable, declarator) {
-    return (declarator.parent.type === "VariableDeclaration" &&
-        declarator.parent.kind === "const" &&
-        variable.references.every((reference) => reference.init || !reference.isWrite()));
-}
-function hasKnownEvidence(sourceCode, expression, visitedVariables = new Set()) {
-    if (isKnownEvidenceExpression(expression))
-        return true;
-    const unwrapped = unwrapExpression(expression);
-    if (unwrapped.type !== "Identifier")
-        return false;
-    const variable = resolveVariable(sourceCode, unwrapped);
-    if (variable === null || visitedVariables.has(variable))
-        return false;
-    const declarator = variableDeclarator(variable);
-    if (declarator === null ||
-        declarator.init === null ||
-        !isStableConstVariable(variable, declarator)) {
-        return false;
-    }
-    visitedVariables.add(variable);
-    return hasKnownEvidence(sourceCode, declarator.init, visitedVariables);
 }
 function annotationTarget(annotation, environment) {
     return annotation === null || annotation === undefined
@@ -101,6 +60,20 @@ function hasParentAssertion(node) {
     return (node.parent?.type === "TSAsExpression" ||
         node.parent?.type === "TSTypeAssertion");
 }
+function reportFlow(context, expression, destination, subject) {
+    if (destination === null)
+        return;
+    if (isDictionaryAccumulatorTarget(destination) &&
+        isEmptyObjectExpression(expression))
+        return;
+    if (!hasKnownEvidence(context.sourceCode, expression))
+        return;
+    context.report({
+        node: expression,
+        messageId: "widening",
+        data: { subject, target: destination.kind },
+    });
+}
 /** Detect sound syntactic cases where a known value is explicitly widened and loses evidence. */
 export const noKnownValueWideningRule = defineRule({
     meta: {
@@ -114,35 +87,25 @@ export const noKnownValueWideningRule = defineRule({
     },
     createOnce(context) {
         let environment = null;
-        const reportFlow = (expression, destination, subject) => {
-            if (destination === null)
-                return;
-            if (isDictionaryAccumulatorTarget(destination) &&
-                isEmptyObjectExpression(expression)) {
-                return;
-            }
-            if (!hasKnownEvidence(context.sourceCode, expression))
-                return;
-            context.report({
-                node: expression,
-                messageId: "widening",
-                data: { subject, target: destination.kind },
-            });
-        };
         const targetFromAnnotation = (annotation) => environment === null ? null : annotationTarget(annotation, environment);
         const reportProperty = (node) => {
             if (node.value === null)
                 return;
-            reportFlow(node.value, targetFromAnnotation(node.typeAnnotation), `property \`${sourceKeyName(context.sourceCode, node.key)}\``);
+            reportFlow(context, node.value, targetFromAnnotation(node.typeAnnotation), `property \`${sourceKeyName(context.sourceCode, node.key)}\``);
+        };
+        const reportAssertion = (node) => {
+            if (environment === null || hasParentAssertion(node))
+                return;
+            reportFlow(context, node.expression, classifyWideningTarget(node.typeAnnotation, environment), "assertion");
         };
         return {
             Program(node) {
-                environment = createTypeEnvironment(node);
+                environment = createTypeEnvironment(node, context.sourceCode.visitorKeys);
             },
             VariableDeclarator(node) {
                 if (node.init === null || node.id.type !== "Identifier")
                     return;
-                reportFlow(node.init, targetFromAnnotation(node.id.typeAnnotation), `binding \`${node.id.name}\``);
+                reportFlow(context, node.init, targetFromAnnotation(node.id.typeAnnotation), `binding \`${node.id.name}\``);
             },
             PropertyDefinition: reportProperty,
             AccessorProperty: reportProperty,
@@ -155,29 +118,36 @@ export const noKnownValueWideningRule = defineRule({
                 const declarator = variableDeclarator(variable);
                 if (declarator === null || declarator.id.type !== "Identifier")
                     return;
-                reportFlow(node.right, targetFromAnnotation(declarator.id.typeAnnotation), `binding \`${declarator.id.name}\``);
+                reportFlow(context, node.right, targetFromAnnotation(declarator.id.typeAnnotation), `binding \`${declarator.id.name}\``);
+            },
+            CallExpression(node) {
+                if (environment === null)
+                    return;
+                const flow = knownPredicateArgument(context.sourceCode, node, environment);
+                if (flow === null)
+                    return;
+                context.report({
+                    node: flow.argument,
+                    messageId: "widening",
+                    data: {
+                        subject: `argument for parameter \`${flow.parameter}\` of \`${functionName(context.sourceCode, flow.owner)}\``,
+                        target: "unknown",
+                    },
+                });
             },
             ReturnStatement(node) {
                 if (node.argument === null)
                     return;
                 const owner = enclosingFunction(node);
-                reportFlow(node.argument, targetFromAnnotation(owner?.returnType), `return value of \`${functionName(context.sourceCode, owner)}\``);
+                reportFlow(context, node.argument, targetFromAnnotation(owner?.returnType), `return value of \`${functionName(context.sourceCode, owner)}\``);
             },
             ArrowFunctionExpression(node) {
                 if (node.body.type === "BlockStatement")
                     return;
-                reportFlow(node.body, targetFromAnnotation(node.returnType), `return value of \`${functionName(context.sourceCode, node)}\``);
+                reportFlow(context, node.body, targetFromAnnotation(node.returnType), `return value of \`${functionName(context.sourceCode, node)}\``);
             },
-            TSAsExpression(node) {
-                if (environment === null || hasParentAssertion(node))
-                    return;
-                reportFlow(node.expression, classifyWideningTarget(node.typeAnnotation, environment), "assertion");
-            },
-            TSTypeAssertion(node) {
-                if (environment === null || hasParentAssertion(node))
-                    return;
-                reportFlow(node.expression, classifyWideningTarget(node.typeAnnotation, environment), "assertion");
-            },
+            TSAsExpression: reportAssertion,
+            TSTypeAssertion: reportAssertion,
         };
     },
 });

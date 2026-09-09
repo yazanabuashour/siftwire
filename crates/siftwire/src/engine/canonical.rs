@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, bail};
 
-use crate::domain::Source;
+use crate::domain::{Reporting, Source};
 
 use super::google::{GoogleResolver, is_google_news_article_url};
 use super::model::{FetchedItem, ResolveError, UnresolvedItem};
@@ -29,6 +29,10 @@ pub fn process_feed_items(
     source: &Source,
     items: Vec<FetchedItem>,
 ) -> Result<(Vec<FetchedItem>, Vec<UnresolvedItem>, bool)> {
+    // Saved resolver settings affect Required only; current news keeps the whole feed.
+    if source.reporting() != Reporting::Required {
+        return Ok((process_local(source, items), Vec::new(), false));
+    }
     let strategy = strategy(&source.url_canonicalization)?;
     if matches!(strategy, Strategy::None) {
         return Ok((process_local(source, items), Vec::new(), false));

@@ -33,6 +33,9 @@ export const strictestConfig = defineConfig({
         "react/rules-of-hooks": "error",
         "typescript/no-explicit-any": "error",
         "typescript/no-non-null-assertion": "error",
+        "oxc/no-accumulating-spread": "error",
+        "project/no-array-filter-map": "error",
+        "project/no-reduce-accumulator-copy": "error",
         "project/namespace-node-imports": "error",
         "project/no-chained-type-assertions": "error",
         "project/no-conditional-empty-object-spread": "error",
@@ -62,5 +65,15 @@ export const strictestConfig = defineConfig({
             { IIFEs: true, max: 100, skipBlankLines: true, skipComments: true },
         ],
     },
+});
+/** Opt in only in repositories that depend directly on Effect. */
+export const effectConfig = defineConfig({
+    jsPlugins: [
+        {
+            name: "project-effect",
+            specifier: NodeURL.fileURLToPath(new URL(`./plugin/effect/index.${pluginExtension}`, import.meta.url)),
+        },
+    ],
+    rules: { "project-effect/no-service-constructor-imports": "error" },
 });
 export default strictestConfig;

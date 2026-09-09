@@ -1,16 +1,21 @@
-use crate::contract::{SportsUpdate, SuppressedPolicyItem, SuppressedUnresolvedItem};
+use chrono::{DateTime, Utc};
+
+use crate::contract::{
+    CurrentNewsStatus, SportsUpdate, SuppressedPolicyItem, SuppressedUnresolvedItem,
+};
 use crate::domain::{OutletPolicy, SOURCE_KIND_SCHEDULE, Source};
 use crate::storage::SourceState;
 
 use super::dedup::CollectedItem;
 use super::model::{FetchOutput, FetchedItem};
 use super::policy::apply_outlet_policies;
-use super::selection::{item_to_brief_item, select_new_items};
+use super::selection::{item_to_brief_item, select_current_news, select_new_items};
 
 #[derive(Clone, Debug, Default)]
 pub struct ProcessedSource {
     pub items: Vec<FetchedItem>,
-    pub new_items: Vec<FetchedItem>,
+    pub eligible_items: Vec<FetchedItem>,
+    pub current_news: Option<CurrentNewsStatus>,
     pub sports_updates: Vec<SportsUpdate>,
     pub suppressed_policy: Vec<SuppressedPolicyItem>,
     pub suppressed_unresolved: Vec<SuppressedUnresolvedItem>,
@@ -22,6 +27,7 @@ pub fn process_source_items(
     output: FetchOutput,
     policies: &[OutletPolicy],
     state: Option<&SourceState>,
+    now: DateTime<Utc>,
 ) -> ProcessedSource {
     let sports_updates = output.sports_updates;
     let suppressed_unresolved = output
@@ -35,17 +41,24 @@ pub fn process_source_items(
             reason: item.reason,
         })
         .collect();
-    let policy_result = apply_outlet_policies(source, output.items, policies);
+    let (items, current_news) = if source.is_current_news() {
+        let (eligible, status) = select_current_news(output.items, now);
+        (eligible, Some(status))
+    } else {
+        (output.items, None)
+    };
+    let policy_result = apply_outlet_policies(source, items, policies);
     // Legacy consumers still receive upcoming fixtures through `must_include`.
     // The dedicated sports section governs repetition for updated consumers.
-    let new_items = if source.kind == SOURCE_KIND_SCHEDULE {
+    let eligible_items = if current_news.is_some() || source.kind == SOURCE_KIND_SCHEDULE {
         policy_result.items.clone()
     } else {
         select_new_items(&policy_result.items, state, output.truncated)
     };
     ProcessedSource {
         items: policy_result.items,
-        new_items,
+        eligible_items,
+        current_news,
         sports_updates,
         suppressed_policy: policy_result.audit,
         suppressed_unresolved,
@@ -53,7 +66,7 @@ pub fn process_source_items(
 }
 
 #[must_use]
-pub fn collect_new_items(source: &Source, items: &[FetchedItem]) -> Vec<CollectedItem> {
+pub fn collect_items(source: &Source, items: &[FetchedItem]) -> Vec<CollectedItem> {
     items
         .iter()
         .map(|item| CollectedItem {

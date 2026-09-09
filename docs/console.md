@@ -1,160 +1,158 @@
-# Operator console
+# Use the local console
 
-`siftwire-console` is a local web application for viewing and configuring a
-SiftWire database. It is an operator tool, not part of the runner protocol:
-every request spawns the installed `siftwire` binary and uses the `config`
-JSON contract or the `runs` operator CLI. The console never opens
-SQLite directly.
+Use `siftwire-console` to read confirmed briefs, edit sources and publisher
+rules, and inspect recorded runs. The console calls the installed `siftwire`
+process for each request. It never opens SQLite directly.
 
-## Capabilities
+The console cannot trigger `run_brief`. Collection can change latest-seen state
+before the caller receives a result, so it is not safe to retry as a dashboard
+request. Use your agent and the [runner workflow](runner-contract.md#state-and-retries)
+for collection and delivery.
 
-- Read the latest confirmed brief and search or page through the delivery archive.
-- View configured sources and publisher rules.
-- Add, edit, and delete sources (writes through `upsert_source` and
-  `delete_source`). The source editor supports ESPN UFC scoreboards and Riot's
-  optional top-two standings filter.
-- Add, rename, edit, or remove publisher rules in a local draft. Save replaces
-  the collection; Discard leaves stored rules unchanged.
-- Set `max_delivery_items`, recurring sports windows, and the IANA sports time
-  zone. The time-zone control can fill the browser's detected value before an
-  explicit save.
-- Browse Activity with required items, candidates, exclusions, annotations,
-  source checks, and confirmed delivery evidence.
+## Install and start the console
 
-The console intentionally cannot trigger `run_brief`. A brief run mutates
-latest-seen state and is not retry-safe; exposing it behind a dashboard button
-would invite accidental duplicate-suppressed runs.
+1. Install the matching runner and put `siftwire` on `PATH`. To use another
+   executable, set `SIFTWIRE_CONSOLE_RUNNER_BIN`.
+2. From a matching checkout, install the pinned tools and frontend dependencies,
+   then build and install the console:
 
-## App and email design
+   ```bash
+   mise install
+   mise exec -- bun install
+   mise exec -- ./scripts/install-console.sh
+   ```
 
-All tabs share one application frame; brief content keeps Folio's narrower
-reading column. Navigation follows tasks: Brief, Sources, Activity, Settings.
-Sources groups feeds and publisher rules. `/deliveries` remains a Brief alias;
-`/runs` opens Activity and `/outlets` opens publisher rules.
+   The script installs `~/.local/bin/siftwire-console` and replaces the web assets
+   under `~/.local/share/siftwire-console/web`. Set `SIFTWIRE_CONSOLE_INSTALL_DIR`
+   or `SIFTWIRE_CONSOLE_WEB_INSTALL_DIR` before installation to change those paths.
+3. Start the server against the default database:
 
-The Brief and Activity pickers share keyboard navigation and archive search.
-Typing filters without selecting; Enter or an option click commits a choice,
-and Escape cancels. Search matches stored ISO dates, run IDs, and summaries.
-Load older retrieves another page, not a separate fixed-size history window.
-The selected run lives in `?run=<id>`, so reloads, links, and back/forward keep
-it. A missing explicit ID shows an error rather than another brief.
+   ```bash
+   SIFTWIRE_CONSOLE_WEB_ROOT="$HOME/.local/share/siftwire-console/web" ~/.local/bin/siftwire-console
+   ```
 
-The Brief view displays the immutable HTML saved for a confirmed
-email delivery. This preserves the email's sports cards, team and event logos,
-date columns, story layout, and health notes. The console reads the nullable
-`delivery_html` field from `siftwire runs show --json`; it never regenerates a
-historical email from current configuration. Update the runner as well as the
-console together for the current configuration and history contracts. The
-runner adds a source-label column to fetch history on open. It does not rewrite
-old labels, source state, delivery plans, or emails.
+4. Open `http://127.0.0.1:8790`.
 
-Email HTML appears in a sandboxed frame whose height follows its content, so the
-page scrolls as one document. Scripts, forms, embedded pages, and external
-stylesheets are blocked. Logos load from their original HTTP or HTTPS image
-hosts without a referrer. Story links open in new tabs without opener access.
+When upgrading, update the runner, console, and web assets together. Re-run the
+install script after pulling changes, then restart your console process or
+existing user service. Refresh open browser tabs to load the matching client.
+See [v4 migration](runner-v4-migration.md) for existing installations.
 
-Legacy deliveries without saved HTML show a labelled recorded-text fallback,
-including sports updates and health notes. Saved story links appear only when
-the message is also missing. Images in the Markdown fallback remain opt-in
-links. Configuration and storage paths remain readable in Settings under
-Technical details.
+## Read a confirmed brief
 
-`apps/web/src/styles/globals.css` owns shared styling; configuration, navigation,
-and picker styles live with those components.
-`crates/siftwire/src/runner/email.rs` owns the matching email styling. Email
-changes affect newly prepared messages, not already stored delivery plans.
-The production app contains no comparison gallery, alternate designs, or sample
-configuration.
+Open **Brief** to read the latest confirmed delivery. Use the picker to search
+or select an older brief. Typing filters the list without changing the current
+selection. Press Enter or click an option to select it. Press Escape to cancel.
+Use **Load older** to retrieve another page.
 
-## Configure sources and publishers
+Search matches stored ISO dates, run IDs, and summaries, not email bodies. For
+example, search `2026-09`, not a localized month name. The selected run stays in
+`?run=<id>` across reloads and browser navigation. An explicit ID that does not
+exist produces an error instead of showing another brief.
 
-Normal feeds have one Reporting choice: Required, Major, or Highlights.
-Releases always include eligible new releases; schedules produce recurring sports
-updates. The feed kind reads both RSS and Atom documents. Releases require a
-repository, not a custom endpoint URL. Feed processing offers Google News link
-resolution and title-suffix publisher identification.
+The reader displays the exact saved `delivery_html` from a confirmed plan. It
+does not rebuild old email from current settings. Older deliveries without HTML
+show labelled recorded text, including sports and health notes. If the saved
+message is also missing, the reader falls back to saved story links.
 
-The runner adapts old Atom/always-report configuration to effective current
-fields without rewriting stored rows. Disabled legacy Observe sources remain
-visible, but saving them requires an explicit current Reporting choice.
-Historical evidence keeps its original reporting. See
-[runner v3 migration](runner-v3-migration.md) before updating an existing setup.
+The email frame blocks scripts, forms, embedded pages, and external stylesheets.
+Logos load from their original HTTP or HTTPS hosts without a referrer. Story
+links open in new tabs without opener access. Markdown fallback images remain
+opt-in links.
 
-Source options appear directly in the editor, without an extra disclosure.
-Feed link resolution and publisher extraction appear only for feeds. The
-Selection section contains source preference and title matching. Lower preference
-wins ordinary duplicate representation, not editorial importance. Title groups
-do not isolate identical URLs or recent-delivery suppression.
+## Configure sources
 
-Edit dialogs keep Close and their save actions visible while fields scroll.
-Close, Escape, or an outside click discards that dialog's unapplied changes.
-Dismissal is disabled while a source write is pending.
+Open **Sources** to add, edit, or delete a source. These actions call
+`upsert_source` and `delete_source` through the runner. Choose reporting by the
+kind of update you want:
 
-Change a publisher's rule or Active checkbox directly in its row. Edit opens
-its name, aliases, and optional note. Notes are metadata, not runner instructions.
-Allow and Watch both retain matching items; Watch records an annotation rather
-than a review queue.
-Block excludes matches. New writes reject overlapping enabled names or aliases.
-Existing conflicts remain visible and keep their old matching order until an
-operator resolves them.
+- **Major** and **Highlights** make normal feed stories available for agent
+  selection within the rolling 24-hour publication window. Undated, invalid,
+  stale, and future publication dates are excluded. Unsent stories can recur
+  while current.
+- **Required** keeps normal feed latest-seen handling without a publication-age
+  filter.
+- Releases include eligible new GitHub releases. Supply a repository, not a
+  custom endpoint URL.
+- Schedules produce recurring sports updates. ESPN UFC scoreboards and Riot's
+  optional top-two standings filter are supported.
 
-All publisher edits belong to one draft until Save publishers. Hidden notes
-survive rule edits. The console merges each normalized mutation response into
-its own configuration collection rather than guessing what the runner stored.
+The `rss` feed kind reads both RSS and Atom documents. Feed processing offers
+Google News link resolution and title-suffix publisher identification. Only
+Required feeds apply saved Google News resolution. Optional feeds retain their
+original links. Publisher identification still applies.
 
-## Large priority values
+In **Selection**, set source preference and title matching. Newer publication
+wins duplicate representation before source preference. Lower preference values
+break ties. Title groups limit exact normalized headline matching, not identical
+absolute URL matching or recent-delivery suppression. These checks do not
+establish that two headlines describe the same event.
 
-Source priorities use the runner's full signed 64-bit integer range. The console
-keeps them as decimal text in the editor and in historical evidence. Its HTTP
-API encodes `priority_rank` as a decimal string, such as
-`"9223372036854775807"`; an omitted priority still means zero.
+Source priorities accept the runner's full signed 64-bit integer range. Enter a
+decimal integer, not a fraction or exponent. The console preserves priorities as
+text, including values beyond JavaScript's exact integer range. Its HTTP API
+uses decimal strings for `priority_rank`. The runner protocol remains numeric.
+Older clients can still send JSON integers within JavaScript's exact range.
+Larger numeric writes are rejected instead of rounded. An omitted priority means
+zero.
 
-Source writes accept decimal strings from `"-9223372036854775808"` through
-`"9223372036854775807"`. The console converts them to exact integers before
-calling the runner. Fractions, exponent notation, and values outside that range
-are rejected. Older clients may still send JSON integers within JavaScript's
-exact range, but larger numeric writes are rejected rather than silently rounded.
-Refresh console tabs after updating so they use the string contract.
+Old Atom and `always_report` configuration appears through effective current
+fields without rewriting stored rows. To save a disabled legacy Observe source,
+choose a supported reporting policy explicitly. Historical evidence retains its
+original reporting. For other retired settings, follow
+[v3 migration](runner-v3-migration.md).
 
-This changes only the console's HTTP representation. The runner JSON protocol
-and SQLite storage remain numeric and require no migration.
+Use **Close**, Escape, or an outside click to discard a dialog's unapplied
+changes. The close and save actions stay visible while fields scroll. The
+console disables dismissal while a source write is pending.
 
-## Running
+## Edit publisher rules
 
-An installed `siftwire` runner must be on `PATH` (or named through
-`SIFTWIRE_CONSOLE_RUNNER_BIN`). Build and install the console and web assets
-from a checkout:
+Under **Sources**, change a publisher's rule or **Active** checkbox in its row.
+Use **Edit** to change its name, aliases, or optional note. Notes are metadata,
+not instructions to the runner.
 
-```bash
-mise exec -- ./scripts/install-console.sh
-```
+**Allow** and **Watch** both retain matching items and record annotations.
+Watch does not create a review queue. **Block** excludes matches. New writes
+reject overlapping enabled names or aliases. Existing conflicts remain visible
+and keep their old matching order until you resolve them.
 
-This installs `~/.local/bin/siftwire-console` and the web assets under
-`~/.local/share/siftwire-console/web`. Re-run it after pulling changes; a
-systemd user service can then restart against the new files.
+Use **Save publishers** to replace the stored collection with your draft.
+Use **Discard** to leave stored rules unchanged. All publisher edits belong to
+that draft, and rule edits preserve hidden notes. The console uses the normalized
+configuration returned by each write rather than guessing what the runner stored.
 
-Start the server against the default database:
+## Set brief options
 
-```bash
-SIFTWIRE_CONSOLE_WEB_ROOT="$HOME/.local/share/siftwire-console/web" \
-  ~/.local/bin/siftwire-console
-```
+Open **Settings** to set `max_delivery_items`, the recurring sports windows, and
+the IANA sports time zone. The time-zone control can fill your browser's detected
+value, but it does not save until you confirm the change. Configuration and
+storage paths appear under **Technical details**.
 
-The server binds loopback only by default. Sharing beyond loopback is an
-explicit operator decision; there is no authentication, so expose it only on a
-trusted network. A Host-header check rejects requests addressed through foreign
-domain names, which blocks browser-based DNS rebinding against both loopback
-and LAN bindings. For LAN access, explicitly configure both the bind address
-and host firewall for the trusted network.
+## Inspect collection and delivery evidence
 
-## Configuration
+Open **Activity** to browse required items, candidates, exclusions, annotations,
+source checks, and confirmed delivery evidence. Its picker uses the same search
+and keyboard controls as Brief. Read [run history](run-history.md) for the
+meaning of `delivery_status`, unknown historical outcomes, and fetch counts.
 
-| Variable                            | Default          | Purpose                                  |
-| ----------------------------------- | ---------------- | ---------------------------------------- |
-| `SIFTWIRE_CONSOLE_BIND`             | `127.0.0.1:8790` | Listen address.                          |
-| `SIFTWIRE_CONSOLE_WEB_ROOT`         | `apps/web/dist`  | Built web assets directory.              |
-| `SIFTWIRE_CONSOLE_RUNNER_BIN`       | `siftwire`       | Runner executable to spawn.              |
-| `SIFTWIRE_CONSOLE_DATABASE`         | unset            | Optional `--db` override for every call. |
-| `SIFTWIRE_CONSOLE_RUN_TIMEOUT_SECS` | `30`             | Per-invocation tripwire.                 |
+Existing links remain valid: `/deliveries` opens Brief, `/runs` opens Activity,
+and `/outlets` opens publisher rules.
 
-Port 8790 avoids Prooflane's dashboard default of 8787.
+## Change server settings
+
+Set environment variables before starting the console:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SIFTWIRE_CONSOLE_BIND` | `127.0.0.1:8790` | Listen address. |
+| `SIFTWIRE_CONSOLE_WEB_ROOT` | `apps/web/dist` | Built web assets directory. |
+| `SIFTWIRE_CONSOLE_RUNNER_BIN` | `siftwire` | Runner executable to spawn. |
+| `SIFTWIRE_CONSOLE_DATABASE` | unset | Optional `--db` override for every call. |
+| `SIFTWIRE_CONSOLE_RUN_TIMEOUT_SECS` | `30` | Per-invocation tripwire. |
+
+The console has no authentication. Keep the default loopback binding unless you
+intend to grant access to a trusted network. For LAN access, configure both the
+bind address and host firewall. The Host-header check rejects foreign domain
+names to block browser-based DNS rebinding on loopback and LAN bindings. It does
+not authenticate users.

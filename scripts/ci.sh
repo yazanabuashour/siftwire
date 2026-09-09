@@ -8,10 +8,10 @@ scripts/check-rust-toolchain.sh
 cargo fmt --check
 cargo clippy --locked --all-targets --all-features -- -D warnings
 cargo test --locked --workspace
-bun install
+bun install --frozen-lockfile
 bunx oxfmt --check .
 bun run lint
-bun --cwd apps/web typecheck
+bun run typecheck
 bun --cwd apps/web test
 bun --cwd apps/web build
 # SC1007 misreads CDPATH assignment prefixes; SC2016 flags the printed literal $PATH guidance.

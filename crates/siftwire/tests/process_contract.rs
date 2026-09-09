@@ -5,6 +5,8 @@
 
 #[path = "process_contract/architecture.rs"]
 mod architecture;
+#[path = "process_contract/current_news.rs"]
+mod current_news;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -133,7 +135,10 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
     let feed = temp.path().join("feed.xml");
     fs::write(
         &feed,
-        r#"<?xml version="1.0"?><rss version="2.0"><channel><title>Fixture</title><item><title>Contract story</title><link>https://example.test/story</link><guid>story-1</guid><pubDate>Thu, 23 Apr 2026 01:00:00 GMT</pubDate></item></channel></rss>"#,
+        format!(
+            r#"<?xml version="1.0"?><rss version="2.0"><channel><title>Fixture</title><item><title>Contract story</title><link>https://example.test/story</link><guid>story-1</guid><pubDate>{}</pubDate></item></channel></rss>"#,
+            chrono::Utc::now().to_rfc2822()
+        ),
     )?;
     let feed_url = url::Url::from_file_path(&feed)
         .map_err(|()| anyhow::anyhow!("fixture path is not an absolute file URL"))?;
@@ -155,7 +160,13 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         &environment,
     )?)?;
     assert!(!configured.rejected, "source configuration was rejected");
-    assert_eq!(configured.runner_protocol, "siftwire-runner/v3");
+    assert_eq!(configured.runner_protocol, "siftwire-runner/v4");
+    assert!(
+        configured
+            .capabilities
+            .iter()
+            .any(|value| value == "current-news/v1")
+    );
     assert!(
         configured
             .capabilities
@@ -170,7 +181,12 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         &environment,
     )?)?;
     assert!(!run.rejected, "run was rejected");
-    assert_eq!(run.runner_protocol, "siftwire-runner/v3");
+    assert_eq!(run.runner_protocol, "siftwire-runner/v4");
+    assert!(
+        run.capabilities
+            .iter()
+            .any(|value| value == "current-news/v1")
+    );
     assert!(
         run.capabilities
             .iter()
@@ -240,9 +256,10 @@ fn assert_delivery_conflict_and_followup_runs(
         environment,
     )?)?;
     assert!(repeat.candidates.is_empty(), "repeat candidate returned");
-    assert!(
-        repeat.suppressed_recent.is_empty(),
-        "latest-seen repeat reached recent suppression"
+    assert_eq!(
+        repeat.suppressed_recent.len(),
+        1,
+        "confirmed current news must reach delivery-based suppression"
     );
     let empty: DeliveryResult = decode(invoke_json(
         &["brief", "--db", database],

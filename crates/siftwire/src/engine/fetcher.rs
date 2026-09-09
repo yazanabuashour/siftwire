@@ -60,7 +60,7 @@ impl Fetcher {
 
     fn fetch_feed(&self, source: &Source) -> Result<FetchOutput> {
         let body = self.client.get(&source.url)?;
-        let parsed = parse_feed(&body)?;
+        let parsed = parse_feed(source, &body)?;
         let (items, unresolved, truncated) = process_feed_items(&self.google, source, parsed)?;
         Ok(FetchOutput {
             items,

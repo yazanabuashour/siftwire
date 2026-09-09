@@ -1,3 +1,4 @@
+import { visibleTypeAlias } from "./type-alias-resolution.js";
 import { aliasSubstitution, isBuiltIn, isUnappliedReferenceTo, TRANSPARENT_WRAPPERS, typeReferenceName, unwrapTransparentType, } from "./type-environment.js";
 function isNeverType(type) {
     return unwrapTransparentType(type).type === "TSNeverKeyword";
@@ -51,7 +52,8 @@ function unsafeDirectValue(type, environment, substitutions, resolvingAliases) {
     const name = typeReferenceName(unwrapped);
     if (name === null)
         return null;
-    if (TRANSPARENT_WRAPPERS.has(name) && isBuiltIn(name, environment)) {
+    if (TRANSPARENT_WRAPPERS.has(name) &&
+        isBuiltIn(name, unwrapped, environment)) {
         const wrapped = unwrapped.typeArguments?.params[0];
         return wrapped === undefined
             ? null
@@ -69,8 +71,8 @@ function unsafeDirectValue(type, environment, substitutions, resolvingAliases) {
             ? "empty-object"
             : null;
     }
-    const alias = environment.aliases.get(name);
-    if (alias === undefined || resolvingAliases.has(name))
+    const alias = visibleTypeAlias(name, unwrapped, environment.typeAliases);
+    if (alias === null || resolvingAliases.has(name))
         return null;
     const nextSubstitutions = aliasSubstitution(alias, unwrapped, substitutions);
     if (nextSubstitutions === null)
@@ -102,24 +104,26 @@ export function dictionaryValueTypes(type, environment, substitutions, resolving
             ? []
             : dictionaryValueTypes(substitution, environment, substitutions, resolvingAliases);
     }
-    if (TRANSPARENT_WRAPPERS.has(name) && isBuiltIn(name, environment)) {
+    if (TRANSPARENT_WRAPPERS.has(name) &&
+        isBuiltIn(name, unwrapped, environment)) {
         const wrapped = unwrapped.typeArguments?.params[0];
         return wrapped === undefined
             ? []
             : dictionaryValueTypes(wrapped, environment, substitutions, resolvingAliases);
     }
-    if (name === "Record" && isBuiltIn(name, environment)) {
+    if (name === "Record" && isBuiltIn(name, unwrapped, environment)) {
         const value = unwrapped.typeArguments?.params[1] ?? null;
         return value === null ? [] : [{ type: value, substitutions }];
     }
-    if ((name === "Pick" || name === "Omit") && isBuiltIn(name, environment)) {
+    if ((name === "Pick" || name === "Omit") &&
+        isBuiltIn(name, unwrapped, environment)) {
         const source = unwrapped.typeArguments?.params[0];
         return source === undefined
             ? []
             : dictionaryValueTypes(source, environment, substitutions, resolvingAliases);
     }
-    const alias = environment.aliases.get(name);
-    if (alias === undefined || resolvingAliases.has(name))
+    const alias = visibleTypeAlias(name, unwrapped, environment.typeAliases);
+    if (alias === null || resolvingAliases.has(name))
         return [];
     const nextSubstitutions = aliasSubstitution(alias, unwrapped, substitutions);
     if (nextSubstitutions === null)

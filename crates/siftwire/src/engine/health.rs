@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 
-use crate::contract::{BriefItem, HealthDelta};
+use crate::contract::{BriefItem, CurrentNewsStatus, HealthDelta};
 use crate::domain::Source;
 use crate::storage::FetchLog;
 
@@ -54,6 +54,24 @@ pub fn add_fetch_failure_warning(
         format!("feed:{source_key}"),
         format!("Feed `{source_key}` failed this run ({error})"),
     );
+}
+
+pub fn add_news_date_warning(
+    source_key: &str,
+    news: Option<&CurrentNewsStatus>,
+    current_warnings: &mut BTreeMap<String, String>,
+) {
+    if let Some(news) = news
+        && (news.undated_items > 0 || news.future_items > 0)
+    {
+        current_warnings.insert(
+            format!("news_dates:{source_key}"),
+            format!(
+                "Feed `{source_key}` excluded {} undated/invalid and {} future-dated news entries",
+                news.undated_items, news.future_items
+            ),
+        );
+    }
 }
 
 pub fn add_stale_heartbeat_warning(

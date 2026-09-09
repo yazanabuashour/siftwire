@@ -18,9 +18,7 @@ function isGlobalReflect(sourceCode, expression) {
 }
 /** Reports whether a call target names one method on the global Reflect object. */
 export function isGlobalReflectMethodCall(sourceCode, callee, methodName) {
-    if (!("property" in callee) ||
-        !("object" in callee) ||
-        !("computed" in callee))
+    if (!("property" in callee) || !("object" in callee) || !("computed" in callee))
         return false;
     if (!isGlobalReflect(sourceCode, callee.object))
         return false;

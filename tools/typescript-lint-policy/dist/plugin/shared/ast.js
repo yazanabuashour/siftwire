@@ -1,3 +1,24 @@
+function isNode(value) {
+    return (typeof value === "object" &&
+        value !== null &&
+        "type" in value &&
+        typeof value.type === "string");
+}
+/** Oxlint visitor keys identify children; never follow the parent reference. */
+export function* childNodes(node, visitorKeys) {
+    const keys = visitorKeys[node.type] ?? [];
+    for (const [key, value] of Object.entries(node)) {
+        if (!keys.includes(key))
+            continue;
+        if (isNode(value))
+            yield value;
+        else if (Array.isArray(value)) {
+            for (const child of value)
+                if (isNode(child))
+                    yield child;
+        }
+    }
+}
 function isExpressionWrapper(node) {
     return (node.type === "ChainExpression" ||
         node.type === "ParenthesizedExpression" ||

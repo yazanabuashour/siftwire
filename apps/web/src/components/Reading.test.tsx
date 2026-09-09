@@ -3,7 +3,7 @@ import { expect, it } from "vitest"
 
 import { RunDetailSchema, RunItemSchema } from "../api-contracts"
 import { RecordedBrief, StoryReceipt } from "./Reading"
-import { Candidates, Dropped } from "./RunEvidence"
+import { Candidates, Dropped, FetchStatuses } from "./RunEvidence"
 
 function recorded(message: string | null) {
   return RunDetailSchema.parse({
@@ -152,6 +152,59 @@ it.each(["observe", "future_policy"])(
     )
   },
 )
+
+it("distinguishes current-news eligibility, historical new counts, and unavailable counts without archive protocol metadata", () => {
+  const currentNews = {
+    since: "2026-09-06T08:30:00Z",
+    until: "2026-09-07T08:30:00Z",
+    eligible_items: 4,
+    stale_items: 3,
+    undated_items: 2,
+    future_items: 1,
+  }
+  const detail = RunDetailSchema.parse({
+    ...recorded(null),
+    fetch: [
+      {
+        source_key: "optional",
+        status: "ok",
+        items: 10,
+        new_items: null,
+        current_news: currentNews,
+      },
+      { source_key: "legacy", status: "ok", items: 7, new_items: 3 },
+      { source_key: "required", status: "ok", items: 2, new_items: 0 },
+      {
+        source_key: "failed",
+        status: "error",
+        error: "Feed unavailable",
+        items: 0,
+        new_items: null,
+      },
+      { source_key: "unknown", status: "ok", items: 1 },
+    ],
+  })
+  expect(detail.fetch[0]?.current_news).toEqual(currentNews)
+  expect(detail.fetch[1]?.current_news).toBeUndefined()
+  const html = renderToStaticMarkup(<FetchStatuses detail={detail} />)
+  const host = document.createElement("div")
+  host.innerHTML = html
+  const rows = [...host.querySelectorAll(".folio-fetch")].map(
+    (row) => row.textContent,
+  )
+  expect(rows[0]).toContain("4 eligible · 10 fetched")
+  expect(rows[0]).toContain(
+    `Publication window: ${currentNews.since} to ${currentNews.until}`,
+  )
+  expect(rows[0]).toContain("Excluded: 3 stale · 2 undated · 1 future-dated")
+  expect(rows[0]).not.toContain(" new")
+  expect(rows[1]).toContain("3 new · 7 fetched")
+  expect(rows[1]).not.toContain("Publication window")
+  expect(rows[2]).toContain("0 new · 2 fetched")
+  expect(rows[3]).toContain("Feed unavailable")
+  expect(rows[3]).toContain("New count unavailable · 0 fetched")
+  expect(rows[4]).toContain("New count unavailable · 1 fetched")
+})
 
 it("makes recorded images opt-in links rather than remote loads", () => {
   const html = renderToStaticMarkup(

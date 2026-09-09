@@ -13,11 +13,11 @@ use crate::contract::{
 };
 use crate::domain::{OUTLET_POLICY_BLOCK, SOURCE_KIND_SCHEDULE, Source};
 use crate::engine::{
-    FetchOutput, Fetcher, RecentSuppression, SportsOptions, add_fetch_failure_warning,
-    add_recurring_failure_warnings, add_stale_heartbeat_warning, brief_summary,
-    build_health_footnote, classify_and_dedupe, collect_new_items, enabled_source_keys,
-    prepare_sports_updates, process_source_items, render_sports_section, sort_brief_items,
-    suppress_recent_candidates,
+    CURRENT_NEWS_HOURS, FetchOutput, Fetcher, RecentSuppression, SportsOptions,
+    add_fetch_failure_warning, add_news_date_warning, add_recurring_failure_warnings,
+    add_stale_heartbeat_warning, brief_summary, build_health_footnote, classify_and_dedupe,
+    collect_items, enabled_source_keys, prepare_sports_updates, process_source_items,
+    render_sports_section, sort_brief_items, suppress_recent_candidates,
 };
 use crate::storage::RUN_ITEM_ANNOTATION;
 use crate::storage::{
@@ -152,7 +152,7 @@ fn recent_sent_items(
     now: chrono::DateTime<Utc>,
 ) -> Result<Vec<crate::storage::StoredSentItem>> {
     let since = now
-        .checked_sub_signed(TimeDelta::hours(24))
+        .checked_sub_signed(TimeDelta::hours(CURRENT_NEWS_HOURS))
         .context("calculate recent delivery window")?;
     store.recent_sent_items(since)
 }
@@ -236,7 +236,11 @@ fn process_source(
     run: &SourceRun<'_>,
     accumulator: &mut Accumulator,
 ) -> Result<()> {
-    let state = run.store.source_state(&source.key)?;
+    let state = if source.is_current_news() {
+        None
+    } else {
+        run.store.source_state(&source.key)?
+    };
     let output = match output {
         Ok(value) => value,
         Err(error) => {
@@ -268,16 +272,22 @@ fn process_source(
         output.items.len()
     };
     let unresolved_count = output.unresolved.len();
-    let processed = process_source_items(source, output, run.policies, state.as_ref());
+    let processed = process_source_items(source, output, run.policies, state.as_ref(), run.now);
+    let current_news = processed.current_news.clone();
+    add_news_date_warning(
+        &source.key,
+        current_news.as_ref(),
+        &mut accumulator.warnings,
+    );
     let new_count = if source.kind == SOURCE_KIND_SCHEDULE {
         processed.sports_updates.len()
     } else {
-        processed.new_items.len()
+        processed.eligible_items.len()
     };
     let policy_count = processed.suppressed_policy.len();
     accumulator
         .collected
-        .extend(collect_new_items(source, &processed.new_items));
+        .extend(collect_items(source, &processed.eligible_items));
     accumulator.sports_updates.extend(processed.sports_updates);
     accumulator
         .suppressed_policy
@@ -286,7 +296,9 @@ fn process_source(
         .suppressed_unresolved
         .extend(processed.suppressed_unresolved);
     if !run.dry_run {
-        if let Some(top) = processed.items.first() {
+        if !source.is_current_news()
+            && let Some(top) = processed.items.first()
+        {
             run.store.upsert_source_state(&SourceState {
                 source_key: source.key.clone(),
                 latest_identity: top.identity.clone(),
@@ -303,7 +315,8 @@ fn process_source(
             source_key: source.key.clone(),
             status: "ok".to_owned(),
             item_count,
-            new_item_count: new_count,
+            new_item_count: current_news.is_none().then_some(new_count),
+            current_news: current_news.clone(),
             ..FetchLog::default()
         })?;
     }
@@ -312,7 +325,8 @@ fn process_source(
         source_key: source.key.clone(),
         status: "ok".to_owned(),
         items: item_count,
-        new_items: new_count,
+        new_items: current_news.is_none().then_some(new_count),
+        current_news,
         suppressed_policy: policy_count,
         suppressed_unresolved: unresolved_count,
         ..FetchStatus::default()

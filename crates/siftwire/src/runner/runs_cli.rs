@@ -263,10 +263,26 @@ fn render_fetch_block(detail: &RunDetail) {
             format!("{} [{}]", log.source_label, log.source_key)
         };
         if log.status == "ok" {
-            println!(
-                "  {} ok items={} new={}",
-                label, log.item_count, log.new_item_count
-            );
+            if let Some(news) = &log.current_news {
+                println!(
+                    "  {label} ok items={} eligible={} stale={} undated={} future={} window={}..={}",
+                    log.item_count,
+                    news.eligible_items,
+                    news.stale_items,
+                    news.undated_items,
+                    news.future_items,
+                    news.since,
+                    news.until
+                );
+            } else {
+                println!(
+                    "  {} ok items={} new={}",
+                    label,
+                    log.item_count,
+                    log.new_item_count
+                        .map_or_else(|| "unknown".to_owned(), |count| count.to_string())
+                );
+            }
         } else {
             println!(
                 "  {} {} {}",
@@ -422,6 +438,7 @@ fn fetch_json(detail: &RunDetail) -> Vec<FetchStatus> {
             error: log.error.clone(),
             items: log.item_count,
             new_items: log.new_item_count,
+            current_news: log.current_news.clone(),
             ..FetchStatus::default()
         })
         .collect()

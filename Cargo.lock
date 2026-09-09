@@ -1189,7 +1189,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "siftwire"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1198,6 +1198,7 @@ dependencies = [
  "fs2",
  "getrandom 0.4.3",
  "path-clean",
+ "quick-xml",
  "regex",
  "rusqlite",
  "serde",

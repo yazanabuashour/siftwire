@@ -1,3 +1,3 @@
-/** Generic Oxlint rules that reject low-evidence and low-signal implementation patterns. */
+/** Keep consumer waiver names stable across upstream and local implementations. */
 declare const projectRulesPlugin: import("@oxlint/plugins").Plugin;
 export default projectRulesPlugin;

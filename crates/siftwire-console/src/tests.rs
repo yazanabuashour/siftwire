@@ -187,6 +187,8 @@ fn string_priority_items() -> Value {
 #[tokio::test]
 async fn every_configuration_response_stringifies_source_priorities() {
     let mut output = json!({
+        "runner_protocol": "siftwire-runner/v4",
+        "capabilities": ["current-news/v1"],
         "sources": priority_items(), "summary": "stored", "rejected": false,
         "runtime_config": {"max_delivery_items": "7"},
         "outlets": [{"name": "fixture", "extra": {"priority_rank": 23}}],
@@ -297,7 +299,14 @@ async fn historical_priorities_are_strings_without_rewriting_other_evidence() {
         "delivery_html": "<!doctype html>\n<html><body>Exact saved HTML &amp; legacy evidence</body></html>",
         "must_include": priority_items(), "candidates": priority_items(),
         "dropped": [{"detail": {"priority_rank": 9_007_199_254_740_993_i64}}],
-        "fetch": [{"items": 7, "new_items": 3}], "sent_items": []
+        "fetch": [
+            {"items": 7, "new_items": 3},
+            {"items": 10, "new_items": null, "current_news": {
+                "since": "2026-09-06T08:30:00Z", "until": "2026-09-07T08:30:00Z",
+                "eligible_items": 4, "stale_items": 3, "undated_items": 2, "future_items": 1
+            }},
+            {"items": 0, "new_items": null, "status": "error"}
+        ], "sent_items": []
     });
     let mut output = output;
     output

@@ -18,8 +18,7 @@ function isConstAssertion(node) {
 function isOutermostAssertionInChain(node) {
     let current = node;
     let parent = node.parent;
-    while (parent.type === "ParenthesizedExpression" &&
-        parent.expression === current) {
+    while (parent.type === "ParenthesizedExpression" && parent.expression === current) {
         current = parent;
         parent = parent.parent;
     }
@@ -47,10 +46,9 @@ export const noChainedTypeAssertionsRule = defineRule({
             chained: "This assertion chain discards type evidence. Keep the original precise type, or parse untrusted input at its boundary before narrowing it.",
         },
     },
-    create(context) {
+    createOnce(context) {
         const checkTypeAssertion = (node) => {
-            if (!isOutermostAssertionInChain(node) ||
-                !isForbiddenAssertionChain(node))
+            if (!isOutermostAssertionInChain(node) || !isForbiddenAssertionChain(node))
                 return;
             context.report({ node, messageId: "chained" });
         };

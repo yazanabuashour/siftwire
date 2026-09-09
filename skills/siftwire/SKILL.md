@@ -2,7 +2,7 @@
 name: siftwire
 description: Use SiftWire through the installed JSON runner for local brief and configuration tasks. Reject direct SQLite, HTTP, MCP, source-built runner, and unreviewed private-state import substitutes. Inspect only user-named legacy inputs, draft configuration for review, and write it only after approval.
 license: MIT
-compatibility: Requires local filesystem access and an installed SiftWire binary on PATH with siftwire-runner/v3 and prepared-delivery/v1.
+compatibility: Requires local filesystem access and an installed SiftWire binary on PATH with siftwire-runner/v4, prepared-delivery/v1, and current-news/v1.
 ---
 
 # SiftWire
@@ -17,8 +17,9 @@ siftwire brief
 Pipe exactly one JSON request to one command and answer only from its JSON
 result. The runner honors `SIFTWIRE_DATABASE_PATH`; do not pass `--db` unless
 the user names a specific dataset. Do not maintain repo-local state files.
-Require `runner_protocol: "siftwire-runner/v3"` in every config and brief result.
-Stop and report incompatibility when it is absent or different.
+Require `runner_protocol: "siftwire-runner/v4"` and `current-news/v1` in
+`capabilities` in every config and brief result. Stop and report incompatibility
+when either is absent or different.
 
 ## Production Boundary
 
@@ -58,7 +59,7 @@ operational-state import.
 ## Config Tasks
 
 Before configuration writes, call `inspect_config` with the same installed
-binary and dataset and verify protocol v3. Do not send a new source shape to an
+binary and dataset and verify protocol v4 and `current-news/v1`. Do not send a new source shape to an
 older runner: omitting a retired field can change that runner's behavior.
 Inspection does not authorize a write; user approval remains required.
 
@@ -87,10 +88,10 @@ GitHub API endpoint.
 
 Optional feed-processing fields:
 
-- `url_canonicalization`: `none` or `google_news_article_url`
+- `url_canonicalization`: `none` or `google_news_article_url`, applied only to Required feeds
 - `outlet_extraction`: `none` or `title_suffix`
 - `dedup_group`: same-topic grouping across sources
-- `priority_rank`: lower values win duplicate selection
+- `priority_rank`: lower values win duplicate selection after publication recency
 
 Use `threshold: "always"` for required items. Replacement actions replace the
 entire corresponding set; an empty array clears it. Feed URLs, thresholds,
@@ -117,7 +118,17 @@ compose a manual delivery body or fall back to an older delivery action.
 
 Choose optional candidates by zero-based index from `run_brief.candidates`.
 Select at most `candidate_slots`, using each candidate's section, threshold,
-title, summary, source, and recent brief context. Then invoke:
+title, summary, source, and recent brief context. Optional RSS candidates are
+current stories published within the preceding 24 hours, not proven first-seen
+items. Unsent stories can recur while current. Missing, invalid, stale and future
+publication dates are excluded with fetch counts. Required feeds keep latest-seen
+handling and have no publication-age filter.
+
+News links remain the original feed links. Exact duplicate suppression does not
+establish story identity or prove that a headline changed because facts changed.
+Compare recent brief context and select meaningful developments rather than
+cosmetic rewrites or repeated coverage. Do not claim article-body verification
+from feed metadata alone. Then invoke:
 
 ```json
 {"action":"prepare_delivery","run_id":"run_id_from_run_brief","candidate_indexes":[0,3]}

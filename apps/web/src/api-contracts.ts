@@ -54,7 +54,13 @@ export type OutletPolicy = z.infer<typeof OutletPolicySchema>
 const StringMapSchema = z.record(z.string(), z.string())
 
 export const ConfigResultSchema = z.object({
-  runner_protocol: z.literal("siftwire-runner/v3"),
+  runner_protocol: z.literal("siftwire-runner/v4"),
+  capabilities: z
+    .array(z.string())
+    .refine(
+      (capabilities) => capabilities.includes("current-news/v1"),
+      "The runner must support current-news/v1.",
+    ),
   rejected: z.boolean(),
   paths: z.object({ data_dir: z.string(), database_path: z.string() }),
   runtime_config: StringMapSchema.optional().default({}),
@@ -119,13 +125,23 @@ const DroppedSchema = z.object({
   detail: z.unknown(),
 })
 
+const CurrentNewsSchema = z.object({
+  since: z.string(),
+  until: z.string(),
+  eligible_items: z.number(),
+  stale_items: z.number(),
+  undated_items: z.number(),
+  future_items: z.number(),
+})
+
 const FetchStatusSchema = z.object({
   source_key: z.string(),
   source_label: z.string().optional().default(""),
   status: z.string(),
   error: z.string().optional().default(""),
-  items: z.number().optional().default(0),
-  new_items: z.number().optional().default(0),
+  items: z.number(),
+  new_items: z.number().nullable().optional().default(null),
+  current_news: CurrentNewsSchema.optional(),
 })
 
 export const RunsListSchema = z.object({

@@ -15,7 +15,8 @@ import {
 import { sourceError } from "./components/source-validation"
 
 const configFixture = {
-  runner_protocol: "siftwire-runner/v3",
+  runner_protocol: "siftwire-runner/v4",
+  capabilities: ["current-news/v1"],
   rejected: false,
   paths: { data_dir: "/tmp", database_path: "/tmp/db.sqlite" },
   runtime_config: { max_delivery_items: "7" },
@@ -35,12 +36,13 @@ const configFixture = {
 }
 
 describe("ConfigResultSchema", () => {
-  test("accepts v3 metadata and extra result fields while normalizing defaults", () => {
+  test("accepts v4 metadata and extra result fields while normalizing defaults", () => {
     const decoded = ConfigResultSchema.parse({
       ...configFixture,
+      capabilities: ["future-capability/v1", "current-news/v1"],
       future_metadata: { detail: "Not consumed by this console" },
     })
-    expect(decoded.runner_protocol).toBe("siftwire-runner/v3")
+    expect(decoded.runner_protocol).toBe("siftwire-runner/v4")
     expect(decoded.sources[0]?.url_canonicalization).toBe("")
     expect(decoded.sources[0]?.priority_rank).toBe("0")
     expect(decoded.sources[0]).not.toHaveProperty("always_report")
@@ -109,7 +111,7 @@ describe("RunDetailSchema", () => {
           detail: {},
         },
       ],
-      fetch: [{ source_key: "fixture", status: "ok" }],
+      fetch: [{ source_key: "fixture", status: "ok", items: 7, new_items: 3 }],
       sent_items: [
         {
           title: "Story",
@@ -119,7 +121,7 @@ describe("RunDetailSchema", () => {
       ],
     }
     const decoded = RunDetailSchema.parse(fixture)
-    expect(decoded.fetch[0]?.items).toBe(0)
+    expect(decoded.fetch[0]?.items).toBe(7)
     expect(decoded.candidates[0]?.priority_rank).toBe("9223372036854775807")
     expect(decoded.candidates[0]?.delivery_status).toBe("unknown")
     expect(decoded.candidates[0]?.reporting).toBeNull()
@@ -130,14 +132,36 @@ describe("RunDetailSchema", () => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe("runner response ownership", () => {
-  test.each([undefined, "siftwire-runner/v2", "siftwire-runner/v4"])(
-    "rejects config metadata %s before exposing legacy sources or accepting partial mutations",
-    async (protocol) => {
-      const fetch = vi.fn(() =>
-        Promise.resolve(
+  test.each([
+    { metadata: { runner_protocol: undefined }, field: "runner_protocol" },
+    {
+      metadata: { runner_protocol: "siftwire-runner/v3" },
+      field: "runner_protocol",
+    },
+    {
+      metadata: { runner_protocol: "siftwire-runner/v5" },
+      field: "runner_protocol",
+    },
+    { metadata: { capabilities: undefined }, field: "capabilities" },
+    { metadata: { capabilities: [] }, field: "capabilities" },
+    {
+      metadata: { capabilities: ["current-news/v2"] },
+      field: "capabilities",
+    },
+  ])(
+    "rejects config metadata $metadata before exposing legacy sources or accepting partial mutations",
+    async ({ metadata: invalidMetadata, field }) => {
+      const metadata = {
+        runner_protocol: configFixture.runner_protocol,
+        capabilities: configFixture.capabilities,
+        ...invalidMetadata,
+      }
+      const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(
           Response.json({
             ...configFixture,
-            runner_protocol: protocol,
+            ...metadata,
             sources: [
               {
                 ...configFixture.sources[0],
@@ -146,11 +170,17 @@ describe("runner response ownership", () => {
               },
             ],
           }),
-        ),
-      )
+        )
+        .mockResolvedValueOnce(Response.json({ ...metadata, outlets: [] }))
+        .mockResolvedValueOnce(
+          Response.json({
+            ...metadata,
+            runtime_config: configFixture.runtime_config,
+          }),
+        )
       vi.stubGlobal("fetch", fetch)
-      await expect(fetchConfig()).rejects.toThrow("runner_protocol")
-      await expect(replaceOutlets([])).rejects.toThrow("runner_protocol")
+      await expect(fetchConfig()).rejects.toThrow(field)
+      await expect(replaceOutlets([])).rejects.toThrow(field)
       await expect(
         setOptions({
           maxDeliveryItems: 7,
@@ -158,7 +188,7 @@ describe("runner response ownership", () => {
           sportsPostGameDays: 3,
           sportsTimezone: "UTC",
         }),
-      ).rejects.toThrow("runner_protocol")
+      ).rejects.toThrow(field)
       expect(fetch).toHaveBeenCalledTimes(3)
     },
   )

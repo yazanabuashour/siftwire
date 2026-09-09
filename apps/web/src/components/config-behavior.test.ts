@@ -34,7 +34,8 @@ const publisher = {
 
 function config() {
   return ConfigResultSchema.parse({
-    runner_protocol: "siftwire-runner/v3",
+    runner_protocol: "siftwire-runner/v4",
+    capabilities: ["current-news/v1"],
     rejected: false,
     paths: { data_dir: "data", database_path: "data/config.sqlite" },
     runtime_config: {

@@ -187,7 +187,7 @@ export function PreferenceFields({ draft, update }: SourceFieldsProps) {
     <>
       <Field
         label="Source preference"
-        hint="Lower numbers prefer this source for duplicate stories and sort ordinary items. The default is 0. This is not article importance."
+        hint="Lower numbers sort ordinary items first and break ties between equally recent duplicate stories. The default is 0. This is not article importance."
       >
         <input
           type="text"
@@ -200,7 +200,7 @@ export function PreferenceFields({ draft, update }: SourceFieldsProps) {
         <Field
           label="Title-matching group"
           wide
-          hint="Restricts fuzzy same-run title/topic matching for optional feeds. Equal URLs can still collapse across groups. Recent-delivery suppression ignores groups and preference. Required items bypass these ordinary filters."
+          hint="Limits exact normalized headline matches to this group. Identical absolute URLs can still collapse across groups. Recent-delivery suppression ignores groups and preference. Required items bypass these filters."
         >
           <input
             value={draft.dedup_group}

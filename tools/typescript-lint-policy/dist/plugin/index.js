@@ -1,46 +1,36 @@
 import { definePlugin } from "@oxlint/plugins";
+import { noKnownValueWideningRule } from "./overrides/no-known-value-widening.js";
+import { noObjectParametersRule } from "./overrides/no-object-parameters.js";
+import { noRuntimeTypeofRule } from "./overrides/no-runtime-typeof.js";
+import { noUnknownParametersRule } from "./overrides/no-unknown-parameters.js";
+import { noUnknownReturnsRule } from "./overrides/no-unknown-returns.js";
+import { noUnknownTypeAliasesRule } from "./overrides/no-unknown-type-aliases.js";
+import { noUnsafeDictionaryTypeRule } from "./overrides/no-unsafe-dictionary-type.js";
+import { noWidenThenAssertRule } from "./overrides/no-widen-then-assert.js";
+import { requireSafetyCommentForTypeAssertionRule } from "./overrides/require-safety-comment-for-type-assertion.js";
 import { namespaceNodeImportsRule } from "./rules/namespace-node-imports.js";
-import { noChainedTypeAssertionsRule } from "./rules/no-chained-type-assertions.js";
-import { noConditionalEmptyObjectSpreadRule } from "./rules/no-conditional-empty-object-spread.js";
 import { noGlobalProcessRuntimeRule } from "./rules/no-global-process-runtime.js";
 import { noInlineSchemaCompileRule } from "./rules/no-inline-schema-compile.js";
-import { noKnownValueWideningRule } from "./rules/no-known-value-widening.js";
 import { noManualEffectRuntimeInTestsRule } from "./rules/no-manual-effect-runtime-in-tests.js";
-import { noModuleMockingRule } from "./rules/no-module-mocking.js";
-import { noObjectParametersRule } from "./rules/no-object-parameters.js";
-import { noReflectApplyRule } from "./rules/no-reflect-apply.js";
-import { noReflectGetRule } from "./rules/no-reflect-get.js";
-import { noRuntimeTypeofRule } from "./rules/no-runtime-typeof.js";
-import { noForbiddenTermInSymbolNamesRule } from "./rules/no-shape-in-symbol-names.js";
-import { noUnknownParametersRule } from "./rules/no-unknown-parameters.js";
-import { noUnknownReturnsRule } from "./rules/no-unknown-returns.js";
-import { noUnknownTypeAliasesRule } from "./rules/no-unknown-type-aliases.js";
-import { noUnsafeDictionaryTypeRule } from "./rules/no-unsafe-dictionary-type.js";
-import { noWidenThenAssertRule } from "./rules/no-widen-then-assert.js";
-import { requireSafetyCommentForTypeAssertionRule } from "./rules/require-safety-comment-for-type-assertion.js";
-/** Generic Oxlint rules that reject low-evidence and low-signal implementation patterns. */
+import { upstreamRules } from "./upstream.js";
+/** Keep consumer waiver names stable across upstream and local implementations. */
 const projectRulesPlugin = definePlugin({
     meta: { name: "project" },
     rules: {
-        "no-chained-type-assertions": noChainedTypeAssertionsRule,
-        "no-conditional-empty-object-spread": noConditionalEmptyObjectSpreadRule,
+        ...upstreamRules,
         "no-known-value-widening": noKnownValueWideningRule,
-        "no-module-mocking": noModuleMockingRule,
+        "no-object-parameters": noObjectParametersRule,
+        "no-runtime-typeof": noRuntimeTypeofRule,
+        "no-unknown-parameters": noUnknownParametersRule,
+        "no-unknown-returns": noUnknownReturnsRule,
+        "no-unknown-type-aliases": noUnknownTypeAliasesRule,
+        "no-unsafe-dictionary-type": noUnsafeDictionaryTypeRule,
+        "no-widen-then-assert": noWidenThenAssertRule,
+        "require-safety-comment-for-type-assertion": requireSafetyCommentForTypeAssertionRule,
         "namespace-node-imports": namespaceNodeImportsRule,
         "no-global-process-runtime": noGlobalProcessRuntimeRule,
         "no-inline-schema-compile": noInlineSchemaCompileRule,
         "no-manual-effect-runtime-in-tests": noManualEffectRuntimeInTestsRule,
-        "no-object-parameters": noObjectParametersRule,
-        "no-reflect-apply": noReflectApplyRule,
-        "no-reflect-get": noReflectGetRule,
-        "no-runtime-typeof": noRuntimeTypeofRule,
-        "no-unsafe-dictionary-type": noUnsafeDictionaryTypeRule,
-        "no-shape-in-symbol-names": noForbiddenTermInSymbolNamesRule,
-        "no-unknown-parameters": noUnknownParametersRule,
-        "no-unknown-returns": noUnknownReturnsRule,
-        "no-unknown-type-aliases": noUnknownTypeAliasesRule,
-        "no-widen-then-assert": noWidenThenAssertRule,
-        "require-safety-comment-for-type-assertion": requireSafetyCommentForTypeAssertionRule,
     },
 });
 export default projectRulesPlugin;

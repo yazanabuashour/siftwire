@@ -11,11 +11,11 @@
   "scripts": {
     "build": "cargo build --locked --release -p siftwire-console && bun --cwd apps/web build",
     "dev:web": "bun --cwd apps/web dev",
-    "typecheck": "bun --cwd apps/web typecheck",
+    "typecheck": "bun --cwd apps/web typecheck && bun node_modules/@typescript/native/bin/tsc -p tsconfig.tooling.json --noEmit",
     "test:web": "vitest run",
     "format": "oxfmt --check .",
     "format:write": "oxfmt .",
-    "lint": "oxlint --deny-warnings --report-unused-disable-directives apps/web/src apps/web/vite.config.ts vitest.config.ts oxlint.config.ts",
+    "lint": "oxlint --deny-warnings --report-unused-disable-directives .",
     "check": "bash scripts/ci.sh"
   },
   "devDependencies": {

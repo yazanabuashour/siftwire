@@ -47,11 +47,13 @@ export function deleteSource(
 
 const OptionsResultSchema = ConfigResultSchema.pick({
   runner_protocol: true,
+  capabilities: true,
 }).extend({
   runtime_config: z.record(z.string(), z.string()),
 })
 const OutletsResultSchema = ConfigResultSchema.pick({
   runner_protocol: true,
+  capabilities: true,
   outlets: true,
   outlet_conflicts: true,
 })

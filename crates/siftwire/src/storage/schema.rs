@@ -202,6 +202,12 @@ impl Store {
             "source_label",
             "TEXT NOT NULL DEFAULT ''",
         )?;
+        ensure_column(
+            &transaction,
+            "fetch_log",
+            "selection_json",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
         backfill_sports_delivery_kinds(&transaction)?;
         backfill_delivery_idempotency(&transaction)?;
         seed_runtime_config(&transaction, &format_timestamp(self.timestamp()))?;

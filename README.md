@@ -1,143 +1,97 @@
 # SiftWire
 
-SiftWire is a local-first brief runtime for agents. Its supported production
-surface is one installed `siftwire` JSON runner plus one single-file skill.
-Runtime configuration and mutable state stay in the operator's SQLite database,
-not in this repository.
+SiftWire turns your chosen feeds, GitHub releases, and sports schedules into a
+brief. Your agent chooses the optional stories and sends the prepared message
+through its own tools.
+
+![Example SiftWire brief with linked stories, release updates, sports, and source health notes](docs/assets/example-brief.webp)
+
+*Synthetic example. Not a live brief or a record of delivery.*
+
+Major and Highlights feeds supply stories published in the last 24 hours, with
+original feed links. Required feeds track new entries instead. GitHub releases
+are always Required. Sports have separate upcoming-fixture and result windows.
+Exact duplicate checks and confirmed-delivery history help reduce repeats.
+They do not identify every version of an event or verify article contents.
+
+SiftWire saves the selected brief as immutable Markdown, plain text, and HTML.
+It records delivery after your agent confirms transport acceptance, so you can
+inspect what was collected, excluded, selected, and sent. The optional
+[console](docs/console.md) reads saved briefs and edits configuration.
+
+The runner and its SQLite database stay local. Your agent supplies editorial
+judgment, scheduling, and delivery tools. SiftWire has no scheduler or email
+service. Feed coverage depends on what your sources publish and retain.
 
 ## Install
 
-Tell your agent:
-
-```text
-Install SiftWire from https://github.com/yazanabuashour/siftwire.
-Complete both steps before reporting success:
-1. Install and verify the runner with `siftwire --version`.
-2. Register skills/siftwire/SKILL.md with the agent's native skill system.
-```
-
-Install the latest runner:
-
-```bash
-sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/download/install.sh)"
-```
-
-Install a pinned runner:
-
-```bash
-SIFTWIRE_VERSION=v0.2.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.2.0/install.sh)"
-```
-
-Set `SIFTWIRE_INSTALL_DIR` to choose another executable directory. The installer
-accepts no arguments; these two environment variables are its configuration.
-
-The skill must come from the same tag as the runner. Register it from
-`skills/siftwire/SKILL.md`, the matching repository tag, or the release's
-`siftwire_<version>_skill.tar.gz`. SiftWire does not require a particular
-agent implementation or skill directory.
-
-## Upgrade
-
-Upgrade the runner with the latest installer, verify it, then re-register the
-matching skill:
+Install the latest published runner:
 
 ```bash
 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/download/install.sh)"
 siftwire --version
 ```
 
-The unreleased v3 protocol removes legacy writes and unused source options.
-Before upgrading a v2 installation, follow [v3 migration](docs/runner-v3-migration.md)
-and update process consumers together. Existing public release tags keep their
-original contracts.
+These docs target v0.8.0. Its pinned installer is available once the release is
+published:
 
-## First use
+```bash
+SIFTWIRE_VERSION=v0.8.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.8.0/install.sh)"
+siftwire --version
+```
 
-The runner reads exactly one JSON request from stdin and writes one JSON result
-to stdout:
+Register the matching `skills/siftwire/SKILL.md` with your agent's native skill
+system. For v0.8.0, use the `v0.8.0` repository tag or the release asset
+`siftwire_0.8.0_skill.tar.gz`. Installation is not complete until both the runner
+and its matching skill are installed. No particular agent or skill directory is
+required.
+
+The installer accepts no arguments. `SIFTWIRE_VERSION` selects the release.
+`SIFTWIRE_INSTALL_DIR` selects the executable directory. Follow any printed
+`PATH` instruction before verifying the runner.
+
+## Configure your brief
+
+Ask your agent to propose sources and reporting choices, then approve the
+configuration before it writes anything. A fresh database has no sources.
+The [agent skill](skills/siftwire/SKILL.md) covers configuration and delivery.
+
+For direct process integration, each command reads one JSON request from stdin
+and returns one JSON result:
 
 ```bash
 printf '%s\n' '{"action":"init"}' | siftwire config
 printf '%s\n' '{"action":"inspect_config"}' | siftwire config
-printf '%s\n' '{"action":"run_brief","dry_run":true}' | siftwire brief
 ```
-
-Configuration actions manage RSS/Atom feeds, GitHub releases, sports schedules,
-feed processing, publisher policies, and brief options. Brief actions validate
-the runtime, collect items, prepare immutable email bodies, and confirm their
-accepted delivery for history and repeat suppression. See [`skills/siftwire/SKILL.md`](skills/siftwire/SKILL.md)
-for the installed agent policy.
-
-## Operator commands
-
-The installed runner also ships read-only archive commands:
-
-```bash
-siftwire runs list [--delivered] [--before run_id] [--search text] [--limit N] [--json] [--db path]
-siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]
-```
-
-`runs list` and `runs show` are read-only. Each run persists its required items,
-candidates, exclusions, and annotations. `runs show` reports confirmed delivery
-outcomes separately from collection decisions and labels older outcomes unknown
-when the saved evidence cannot prove them. Use `config.inspect_config` and
-`config.upsert_source` for source inspection and approved writes.
-Each successfully completed non-dry run persists selection evidence. `--json`
-switches to machine-readable output; `runs show --json` returns the complete
-run detail regardless of section flags. Its nullable `delivery_html` field
-contains the exact saved HTML for a confirmed delivery, or `null` when no
-confirmed HTML is available. Reading history never regenerates an email.
-See [run history](docs/run-history.md) for archive cursors, search, and evidence.
-
-## Console
-
-The optional local web console has one brief reader with a searchable archive,
-source and publisher configuration, and a separate Activity view for recorded
-runs. It reads and writes through the runner process contract.
-See [`docs/console.md`](docs/console.md).
-
-## Storage
 
 The default database is
-`${XDG_DATA_HOME:-~/.local/share}/siftwire/siftwire.sqlite`. `XDG_DATA_HOME`
-is used only when it is absolute. Select another database with:
+`${XDG_DATA_HOME:-~/.local/share}/siftwire/siftwire.sqlite`. `XDG_DATA_HOME` must be
+absolute. Use `SIFTWIRE_DATABASE_PATH` for another database, or `--db` for an
+explicit dataset. Keep configuration, databases, and delivery history outside
+this repository. See the [runner contract](docs/runner-contract.md) for actions,
+result fields, and retry rules.
 
-- `SIFTWIRE_DATABASE_PATH`
-- `--db` for explicit datasets and tests
+## Upgrade to v0.8.0
 
-SiftWire does not support a data-directory variable, workspace state, or
-repo-local runtime files. This repository must not contain personal source
-inventories, outlet policies, delivery logs, `.openclaw` content, workspace
-backups, run history, or local SQLite databases.
+Before replacing an installed runner, follow the
+[v4 migration guide](docs/runner-v4-migration.md). If you are upgrading from
+v0.6.1 or another v2 release, also apply the
+[v3 source and delivery changes](docs/runner-v3-migration.md). You can upgrade
+directly to v0.8.0.
 
-## Develop
+Update the runner, matching skill, and process consumers together. If you use
+the console, update it and its web assets too. Published release tags keep their
+original contracts.
 
-Install the pinned Rust toolchain and run the repository gate:
+## Find a task
 
-```bash
-mise install
-mise exec -- ./scripts/ci.sh
-```
+- [Read run and delivery history](docs/run-history.md)
+- [Use the optional console](docs/console.md)
+- [Integrate the JSON runner](docs/runner-contract.md)
+- [Understand current-news selection](docs/architecture/current-news.md)
+- [Develop and run checks](CONTRIBUTING.md)
+- [Verify release assets](docs/release-verification.md)
+- [Report a vulnerability privately](SECURITY.md)
 
-The gate enforces formatting, the repository's strict Rust and Clippy lint
-policy, tests, shell checks, skill validation, installer behavior, and a release
-build.
-
-Release-document changes also require:
-
-```bash
-mise exec -- ./scripts/validate-release-docs.sh <tag>
-```
-
-## Documentation
-
-- [`docs/README.md`](docs/README.md): task-oriented documentation index
-- [`docs/evals/agent-production.md`](docs/evals/agent-production.md): production
-  agent eval protocol
-- [`docs/release-verification.md`](docs/release-verification.md): release
-  verification
-- [`CONTRIBUTING.md`](CONTRIBUTING.md): contribution expectations
-- [`SECURITY.md`](SECURITY.md): private vulnerability reporting
-
-Published release assets are immutable. Fix an artifact with a new patch release
-rather than replacing an existing tag or asset.
+The [documentation index](docs/README.md) links to migration, architecture, and
+evaluation guidance.

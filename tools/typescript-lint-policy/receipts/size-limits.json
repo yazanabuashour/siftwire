@@ -1,28 +1,25 @@
 {
   "measuredAt": "2026-08-13",
   "method": "Oxlint effective-line counts with blank lines and comments skipped and IIFEs included",
+  "provenance": "Historical measurements from four private TypeScript source corpora. Corpus labels replace private repository names and revisions; these measurements are retained evidence, not publicly reproducible source links.",
   "sourceReceipts": [
     {
-      "project": "bespoke",
-      "baselineCommit": "9dcef03402ff406296931c2478d2644737b2296e",
+      "corpus": "A",
       "fileP90": 236,
       "functionP95": 62
     },
     {
-      "project": "salary-atlas",
-      "baselineCommit": "b7936b3484782138404ed14191f7efdebedea1c1",
+      "corpus": "B",
       "fileP90": 962,
       "functionP95": 61
     },
     {
-      "project": "sourcebound",
-      "baselineCommit": "57e16b4019043590ff17714a614572ab70674d31",
+      "corpus": "C",
       "fileP90": 511,
       "functionP95": 63
     },
     {
-      "project": "pi-agent",
-      "baselineCommit": "2bc95c08e6990c6fce6131311fdf3fcce824d80c",
+      "corpus": "D",
       "fileP90": 583,
       "functionP95": 60
     }

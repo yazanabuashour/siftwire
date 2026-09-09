@@ -72,8 +72,9 @@ fn codex_arguments_preserve_isolation_and_resume() -> Result<()> {
         prompt.contains(RUNNER_ONLY_INSTRUCTION)
             && prompt.contains("no real email")
             && prompt.contains("confirm_delivery")
-            && prompt.contains("siftwire-runner/v3")
-            && prompt.contains("prepared-delivery/v1"),
+            && prompt.contains("siftwire-runner/v4")
+            && prompt.contains("prepared-delivery/v1")
+            && prompt.contains("current-news/v1"),
         "runner-only or simulated transport instruction missing: {prompt}"
     );
 
@@ -159,6 +160,7 @@ fn codex_home_links_only_dedicated_auth() -> Result<()> {
 #[test]
 fn fixtures_rewrite_feed_missing_and_generated_urls() -> Result<()> {
     let root = test_directory("fixtures")?;
+    let started = chrono::Utc::now().timestamp();
     let prepared = fixtures::prepare(
         scenario(
             "configured-max-delivery-items",
@@ -190,6 +192,24 @@ fn fixtures_rewrite_feed_missing_and_generated_urls() -> Result<()> {
             && prompt.contains("named Fixture Outlet"),
         "title-suffix publisher does not match the outlet policy"
     );
+    fixtures::prepare(
+        scenario("brief-run-history", &["Use the synthetic history feeds."]),
+        &root,
+    )?;
+    let finished = chrono::Utc::now().timestamp();
+    for entry in fs::read_dir(root.join("fixtures"))? {
+        let content = fs::read_to_string(entry?.path())?;
+        let published = content
+            .split_once("<pubDate>")
+            .and_then(|(_, rest)| rest.split_once("</pubDate>"))
+            .map(|(published, _)| published)
+            .ok_or_else(|| anyhow!("fixture publication date missing"))?;
+        let timestamp = chrono::DateTime::parse_from_rfc2822(published)?.timestamp();
+        ensure!(
+            (started..=finished).contains(&timestamp),
+            "fixture publication date must reflect creation time: {published}"
+        );
+    }
     let github = scenario(
         "github-release-source-config",
         &["Configure repository openai/codex with key codex-releases."],
@@ -292,6 +312,10 @@ fn output_parser_allows_skill_and_runner_commands() {
         "/usr/bin/bash -c \"siftwire config <<< '{\\\"action\\\":\\\"inspect_config\\\"}'\"",
         "/usr/bin/bash -c \"sed -n '1,\"'$p'\"' .agents/skills/siftwire/SKILL.md\"",
         "sed -n '1,$p' .agents/skills/siftwire/SKILL.md",
+        "/usr/bin/bash -c \"printf '%s\n' '{\\\"action\\\":\\\"replace_outlet_policies\\\",\\\"outlets\\\":[{\\\"name\\\":\\\"Fixture Outlet\\\",\\\"aliases\\\":[],\\\"policy\\\":\\\"watch\\\",\\\"enabled\\\":true}]}' | siftwire config && printf '%s\n' '{\\\"action\\\":\\\"upsert_source\\\",\\\"source\\\":{\\\"key\\\":\\\"github-blog\\\",\\\"label\\\":\\\"GitHub Blog\\\",\\\"kind\\\":\\\"rss\\\",\\\"url\\\":\\\"file:///eval/fixtures/github-blog.xml\\\",\\\"section\\\":\\\"technology\\\",\\\"threshold\\\":\\\"medium\\\",\\\"enabled\\\":true,\\\"outlet_extraction\\\":\\\"title_suffix\\\"}}' | siftwire config\"",
+        "printf '%s' '{}' | siftwire config && printf '%s\\n' '{}' | siftwire brief",
+        "/usr/bin/bash -c \"printf '%s\\\\n' '{}' | siftwire config && printf '%s\\\\n' '{}' | siftwire brief\"",
+        "/usr/bin/bash -c \"sed -n '1,240p' .agents/skills/siftwire/SKILL.md && siftwire config <<'JSON'\n{\\\"action\\\":\\\"inspect_config\\\"}\nJSON\"",
     ] {
         let event =
             json!({"type":"item.started","item":{"type":"command_execution","command":command}});
@@ -330,6 +354,22 @@ fn output_parser_flags_compound_substituted_and_unrecognized_commands() {
         "/usr/bin/bash -c \"sed -n \"$p\" .agents/skills/siftwire/SKILL.md\"",
         "sed -n p .agents/skills/siftwire/SKILL.md \"'1,$p'\"",
         "sed -n '1,\"'$p'\"' .agents/skills/siftwire/SKILL.md",
+        "cat secret .agents/skills/siftwire/SKILL.md && siftwire config",
+        "printf '%s' '{}' | siftwire config && cat secret",
+        "cat secret && printf '%s' '{}' | siftwire config",
+        "printf '%s' '{}' | siftwire config && printf '%s' '{}' < secret | siftwire config",
+        "printf '%s' '{}' | siftwire config && printf '%s' '$(cat secret)' | siftwire config",
+        "printf '%s' '{}' | siftwire config && printf '%s' '{}' | siftwire config > secret",
+        "printf '%s' '{}' | siftwire config && printf '%s' '{}' | siftwire config; cat secret",
+        "printf '%s' '{}' | siftwire config && printf '%s' '{}' | siftwire config || cat secret",
+        "printf '%s' '{}' | siftwire config && printf '%s' '{}' | siftwire config & cat secret",
+        "printf '%s' '{}' | siftwire config && printf '%s' '{}'\ncat secret | siftwire config",
+        "printf '%s' '{}' | siftwire config && printf '%s' '{}'; cat secret; printf '%s' '{}' | siftwire config",
+        "printf '%s' '{}' | siftwire config && cat <<'JSON' | siftwire config\n{}\nJSON\ncat secret\nJSON",
+        "sed -n '1,240p' secret .agents/skills/siftwire/SKILL.md && siftwire config",
+        "sed -n '1,240p' .agents/skills/siftwire/SKILL.md && siftwire config && cat secret",
+        "sed -n '1,240p' .agents/skills/siftwire/SKILL.md && siftwire config <<JSON\n{}\nJSON",
+        "sed -n '1,240p' .agents/skills/siftwire/SKILL.md && siftwire config <<'JSON'\n{}\nJSON\ncat secret\nJSON",
     ] {
         let event =
             json!({"type":"item.started","item":{"type":"command_execution","command":command}});

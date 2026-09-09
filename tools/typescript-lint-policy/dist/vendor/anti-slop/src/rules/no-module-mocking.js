@@ -13,9 +13,7 @@ function resolveVariable(sourceCode, identifier) {
 function importedName(node) {
     if (node.type !== "ImportSpecifier")
         return null;
-    return node.imported.type === "Identifier"
-        ? node.imported.name
-        : node.imported.value;
+    return node.imported.type === "Identifier" ? node.imported.name : node.imported.value;
 }
 function isTestFrameworkObject(sourceCode, expression) {
     if (expression.type !== "Identifier")
@@ -29,20 +27,16 @@ function isTestFrameworkObject(sourceCode, expression) {
         return expression.name === "vi" || expression.name === "jest";
     }
     return variable.defs.some((definition) => {
-        if (definition.type !== "ImportBinding" ||
-            definition.parent?.type !== "ImportDeclaration") {
+        if (definition.type !== "ImportBinding" || definition.parent?.type !== "ImportDeclaration") {
             return false;
         }
         const source = definition.parent.source.value;
         const name = importedName(definition.node);
-        return ((source === "vitest" && name === "vi") ||
-            (source === "@jest/globals" && name === "jest"));
+        return (source === "vitest" && name === "vi") || (source === "@jest/globals" && name === "jest");
     });
 }
 function moduleMockCall(sourceCode, callee) {
-    if (!("property" in callee) ||
-        !("object" in callee) ||
-        !("computed" in callee))
+    if (!("property" in callee) || !("object" in callee) || !("computed" in callee))
         return false;
     if (!isTestFrameworkObject(sourceCode, callee.object))
         return false;
@@ -70,11 +64,10 @@ export const noModuleMockingRule = defineRule({
             moduleMock: "Replace module mocking with dependency injection through a real interface, service layer, or faithful test implementation.",
         },
     },
-    create(context) {
+    createOnce(context) {
         return {
             CallExpression(node) {
-                if (node.callee.type === "Super" ||
-                    node.callee.type === "V8IntrinsicExpression")
+                if (node.callee.type === "Super" || node.callee.type === "V8IntrinsicExpression")
                     return;
                 if (moduleMockCall(context.sourceCode, node.callee)) {
                     context.report({ node, messageId: "moduleMock" });

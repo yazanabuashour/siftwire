@@ -49,6 +49,11 @@ impl super::Source {
     pub fn reporting(&self) -> Reporting {
         Reporting::from_fields(&self.kind, &self.threshold, false)
     }
+
+    pub fn is_current_news(&self) -> bool {
+        self.kind == SOURCE_KIND_RSS
+            && matches!(self.reporting(), Reporting::Major | Reporting::Highlights)
+    }
 }
 
 #[cfg(test)]

@@ -42,19 +42,20 @@ fn verify_first_group(checker: &mut Checker<'_>, id: &str, message: &str) -> boo
         }
         "rss-source-first-run-candidate" => {
             checker.minimum_count("brief_source", 1);
-            checker.minimum_count("source_state", 1);
+            checker.count("source_state", 0);
             checker.count("delivery", 1);
             checker.count("sent_item", 1);
             checker.recorded_delivery(message);
         }
         "rss-source-generic-processing-fields" => {
-            checker.minimum_count("source_state", 1);
+            checker.count("source_state", 0);
             checker.count("delivery", 1);
             checker.count("sent_item", 1);
             checker.recorded_delivery(message);
             checker.query_count("processing-field source", "SELECT COUNT(*) FROM brief_source WHERE key = 'github-blog' AND url_canonicalization = 'none' AND outlet_extraction = 'title_suffix' AND dedup_group = 'news' AND priority_rank = 10", 1);
         }
         "outlet-policy-watch-audit" => {
+            checker.count("source_state", 0);
             checker.query_count("successful source fetch", "SELECT COUNT(*) FROM fetch_log WHERE source_key = 'github-blog' AND status = 'ok' AND item_count = 1", 1);
             checker.query_count("watch outlet policy", "SELECT COUNT(*) FROM outlet_policy WHERE name = 'Fixture Outlet' AND policy = 'watch' AND enabled = 1", 1);
             checker.query_count("retained watch candidate", "SELECT COUNT(*) FROM brief_run_item WHERE source_key = 'github-blog' AND category = 'candidate' AND outlet = 'Fixture Outlet'", 1);
@@ -62,7 +63,7 @@ fn verify_first_group(checker: &mut Checker<'_>, id: &str, message: &str) -> boo
         }
         "configured-max-delivery-items" => {
             checker.minimum_count("brief_source", 3);
-            checker.minimum_count("source_state", 3);
+            checker.count("source_state", 0);
             checker.count("delivery", 1);
             checker.count("sent_item", 2);
             checker.runtime_value("max_delivery_items", "2");
@@ -78,7 +79,7 @@ fn verify_second_group(checker: &mut Checker<'_>, id: &str, message: &str) -> bo
     match id {
         "brief-run-history" => {
             checker.minimum_count("brief_source", 1);
-            checker.minimum_count("source_state", 1);
+            checker.count("source_state", 0);
             checker.count("delivery", 3);
             checker.count("sent_item", 3);
             checker.recorded_delivery(message);
@@ -107,19 +108,15 @@ fn verify_second_group(checker: &mut Checker<'_>, id: &str, message: &str) -> bo
             checker.recorded_delivery(message);
         }
         "repeat-run-no-new-items" => {
+            checker.count("source_state", 0);
             checker.minimum_count("brief_source", 1);
             checker.minimum_count("brief_run", 2);
             checker.count("delivery", 2);
             checker.count("sent_item", 1);
+            checker.query_count("no repeat candidates", "SELECT COUNT(*) FROM brief_run_item WHERE category = 'candidate' AND run_id = (SELECT id FROM brief_run ORDER BY started_at DESC, id DESC LIMIT 1)", 0);
+            checker.query_count("confirmed repeat evidence", "SELECT COUNT(*) FROM brief_run_item WHERE reason = 'recently_sent' AND run_id = (SELECT id FROM brief_run ORDER BY started_at DESC, id DESC LIMIT 1)", 1);
             checker.contains_all(message, &["NO_REPLY", "Previous brief"]);
             checker.recorded_delivery(message);
-        }
-        "confirmed-delivery-suppresses-repeats" => {
-            checker.minimum_count("brief_run", 2);
-            checker.minimum_count("delivery", 1);
-            checker.count("sent_item", 1);
-            checker.query_count("no repeat candidates", "SELECT COUNT(*) FROM brief_run_item WHERE category = 'candidate' AND run_id = (SELECT id FROM brief_run ORDER BY started_at DESC, id DESC LIMIT 1)", 0);
-            checker.contains_any(message, &["suppress"]);
         }
         _ => return false,
     }
@@ -129,6 +126,7 @@ fn verify_second_group(checker: &mut Checker<'_>, id: &str, message: &str) -> bo
 fn verify_third_group(checker: &mut Checker<'_>, id: &str, message: &str) {
     match id {
         "feed-failure-health-footnote" => {
+            checker.count("source_state", 0);
             checker.query_count(
                 "active health warning",
                 "SELECT COUNT(*) FROM health_warning WHERE active = 1",
@@ -137,6 +135,7 @@ fn verify_third_group(checker: &mut Checker<'_>, id: &str, message: &str) {
             checker.contains_all(message, &["health", "broken-feed"]);
         }
         "feed-recovery-resolves-warning" => {
+            checker.count("source_state", 0);
             checker.minimum_count("brief_run", 2);
             checker.query_count(
                 "resolved health warning",
@@ -147,7 +146,10 @@ fn verify_third_group(checker: &mut Checker<'_>, id: &str, message: &str) {
         }
         "invalid-source-config-rejects" => {
             checker.count("brief_source", 0);
-            checker.contains_any(message, &["invalid", "Bad/Key", "rejected"]);
+            checker.contains_all(
+                message,
+                &["source key must be lowercase letters, numbers, dot, underscore, or hyphen"],
+            );
         }
         "routine-agent-hygiene" => {
             checker.contains_any(message, &["configured", "sources", "outlet"]);
@@ -173,5 +175,54 @@ fn open_failure(message: &str, metrics: &Metrics, error: &rusqlite::Error) -> Ve
         database_pass: false,
         assistant_pass,
         details: details.join("; "),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::ensure;
+
+    use super::*;
+
+    #[test]
+    fn invalid_source_reports_the_rejection_constraint() -> anyhow::Result<()> {
+        let database = Connection::open_in_memory()?;
+        database.execute("CREATE TABLE brief_source (key TEXT)", [])?;
+        let reason = "source key must be lowercase letters, numbers, dot, underscore, or hyphen";
+        for message in [
+            reason.to_owned(),
+            format!("Production runner rejection:\n\n`{reason}`"),
+            format!("Rejected Bad/Key: {reason}"),
+        ] {
+            let mut checker = Checker::new(&database);
+            verify_third_group(&mut checker, "invalid-source-config-rejects", &message);
+            ensure!(
+                checker.finish().passed,
+                "rejection was not recognized: {message}"
+            );
+        }
+        for message in [
+            "Configured Bad/Key successfully",
+            "Rejected: invalid source URL",
+            "Production runner rejection",
+            "",
+        ] {
+            let mut checker = Checker::new(&database);
+            verify_third_group(&mut checker, "invalid-source-config-rejects", message);
+            let result = checker.finish();
+            ensure!(
+                result.database_pass && !result.assistant_pass,
+                "wrong rejection accepted: {message}"
+            );
+        }
+        database.execute("INSERT INTO brief_source VALUES ('Bad/Key')", [])?;
+        let mut checker = Checker::new(&database);
+        verify_third_group(&mut checker, "invalid-source-config-rejects", reason);
+        let result = checker.finish();
+        ensure!(
+            !result.database_pass && result.assistant_pass,
+            "persisted invalid source accepted"
+        );
+        Ok(())
     }
 }

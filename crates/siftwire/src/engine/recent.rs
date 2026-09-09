@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use chrono::SecondsFormat;
 
 use crate::contract::{BriefItem, SuppressedItem, SuppressedRecentItem};
@@ -14,22 +12,20 @@ pub struct RecentSuppression {
     pub suppressed: Vec<SuppressedItem>,
 }
 
-struct RecentLookup<'a> {
-    items: &'a [StoredSentItem],
-    urls: BTreeMap<&'a str, &'a StoredSentItem>,
-}
-
 #[must_use]
 pub fn suppress_recent_candidates(
     items: Vec<CollectedItem>,
     recent: &[StoredSentItem],
 ) -> RecentSuppression {
-    let lookup = recent_lookup(recent);
     let mut candidates = Vec::new();
     let mut suppressed_recent = Vec::new();
     let mut suppressed = Vec::new();
     for item in items {
-        let Some(prior) = recently_sent_match(&item.brief_item, &lookup) else {
+        // A changed headline at a reused URL remains for the agent's recent-context judgment.
+        let Some(prior) = recent
+            .iter()
+            .find(|prior| titles_match(&item.brief_item.title, &prior.title))
+        else {
             candidates.push(item.brief_item);
             continue;
         };
@@ -48,29 +44,4 @@ pub fn suppress_recent_candidates(
         suppressed_recent,
         suppressed,
     }
-}
-
-fn recent_lookup(items: &[StoredSentItem]) -> RecentLookup<'_> {
-    let mut urls = BTreeMap::new();
-    for item in items {
-        if !item.url.is_empty() {
-            let _previous = urls.insert(item.url.as_str(), item);
-        }
-    }
-    RecentLookup { items, urls }
-}
-
-fn recently_sent_match<'a>(
-    item: &BriefItem,
-    lookup: &'a RecentLookup<'_>,
-) -> Option<&'a StoredSentItem> {
-    if !item.url.is_empty()
-        && let Some(prior) = lookup.urls.get(item.url.as_str())
-    {
-        return Some(prior);
-    }
-    lookup
-        .items
-        .iter()
-        .find(|prior| titles_match(&item.title, &prior.title))
 }

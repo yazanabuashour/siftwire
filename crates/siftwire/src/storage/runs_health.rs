@@ -55,13 +55,18 @@ impl Store {
             log.created_at
         };
         let item_count = i64::try_from(log.item_count).context("fetch item count is too large")?;
-        let new_item_count =
-            i64::try_from(log.new_item_count).context("new fetch item count is too large")?;
+        // Keep the legacy non-null column; selection_json records whether a count exists.
+        let new_item_count = i64::try_from(log.new_item_count.unwrap_or_default())
+            .context("new fetch item count is too large")?;
+        let selection_json = serde_json::to_string(&SelectionEvidence {
+            new_items: log.new_item_count,
+            current_news: log.current_news.clone(),
+        })?;
         self.connection
             .execute(
                 "INSERT INTO fetch_log \
-                 (run_id, source_key, status, error, item_count, new_item_count, created_at, source_label) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                 (run_id, source_key, status, error, item_count, new_item_count, created_at, source_label, selection_json) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
                 params![
                     log.run_id,
                     log.source_key,
@@ -71,6 +76,7 @@ impl Store {
                     new_item_count,
                     format_timestamp(created_at),
                     log.source_label,
+                    selection_json,
                 ],
             )
             .with_context(|| format!("insert fetch log for source {}", log.source_key))?;
@@ -89,7 +95,7 @@ impl Store {
         let mut statement = self
             .connection
             .prepare(
-                "SELECT run_id, source_key, status, error, item_count, new_item_count, created_at, source_label \
+                "SELECT run_id, source_key, status, error, item_count, new_item_count, created_at, source_label, selection_json \
                  FROM fetch_log ORDER BY id DESC LIMIT ?1",
             )
             .context("prepare recent fetch log query")?;
@@ -170,6 +176,12 @@ impl Store {
     }
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
+struct SelectionEvidence {
+    new_items: Option<usize>,
+    current_news: Option<crate::contract::CurrentNewsStatus>,
+}
+
 pub(super) struct RawFetchLog {
     source_label: String,
     run_id: String,
@@ -179,12 +191,23 @@ pub(super) struct RawFetchLog {
     item_count: i64,
     new_item_count: i64,
     created_at: String,
+    selection_json: String,
 }
 
 impl TryFrom<RawFetchLog> for FetchLog {
     type Error = anyhow::Error;
 
     fn try_from(raw: RawFetchLog) -> Result<Self> {
+        let selection = if raw.selection_json.is_empty() {
+            SelectionEvidence {
+                new_items: Some(
+                    usize::try_from(raw.new_item_count).context("invalid new fetch item count")?,
+                ),
+                current_news: None,
+            }
+        } else {
+            serde_json::from_str(&raw.selection_json).context("decode fetch selection evidence")?
+        };
         Ok(Self {
             source_label: raw.source_label,
             run_id: raw.run_id,
@@ -192,8 +215,8 @@ impl TryFrom<RawFetchLog> for FetchLog {
             status: raw.status,
             error: raw.error,
             item_count: usize::try_from(raw.item_count).context("invalid fetch item count")?,
-            new_item_count: usize::try_from(raw.new_item_count)
-                .context("invalid new fetch item count")?,
+            new_item_count: selection.new_items,
+            current_news: selection.current_news,
             created_at: parse_timestamp_compat(&raw.created_at),
         })
     }
@@ -202,6 +225,7 @@ impl TryFrom<RawFetchLog> for FetchLog {
 pub(super) fn raw_fetch_log(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawFetchLog> {
     Ok(RawFetchLog {
         source_label: row.get(7)?,
+        selection_json: row.get(8)?,
         run_id: row.get(0)?,
         source_key: row.get(1)?,
         status: row.get(2)?,

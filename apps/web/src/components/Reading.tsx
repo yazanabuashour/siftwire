@@ -135,7 +135,7 @@ export function StoryReceipt({ story }: { story: RunItem }) {
         ))}
       </dl>
       <p className="folio-muted">
-        Lower source preference wins ordinary duplicate selection, not editorial
+        Source preference affects duplicate selection and ordering, not article
         importance. These settings belong to this recorded run.
       </p>
     </details>

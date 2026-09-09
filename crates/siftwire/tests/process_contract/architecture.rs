@@ -104,7 +104,10 @@ fn configure_annotation_sources(
     let feed = temp.path().join("feed.xml");
     fs::write(
         &feed,
-        r#"<rss version="2.0"><channel><title>Fixture</title><item><title>One - Allowed</title><link>file:///nonexistent/siftwire-one</link><guid>one</guid></item><item><title>Two - Watched</title><link>file:///nonexistent/siftwire-two</link><guid>two</guid></item><item><title>Three - Blocked</title><link>file:///nonexistent/siftwire-three</link><guid>three</guid></item></channel></rss>"#,
+        format!(
+            r#"<rss version="2.0"><channel><title>Fixture</title><item><title>One - Allowed</title><link>file:///nonexistent/siftwire-one</link><guid>one</guid><pubDate>{published}</pubDate></item><item><title>Two - Watched</title><link>file:///nonexistent/siftwire-two</link><guid>two</guid><pubDate>{published}</pubDate></item><item><title>Three - Blocked</title><link>file:///nonexistent/siftwire-three</link><guid>three</guid><pubDate>{published}</pubDate></item></channel></rss>"#,
+            published = chrono::Utc::now().to_rfc2822()
+        ),
     )?;
     let feed_url = url::Url::from_file_path(&feed).map_err(|()| anyhow::anyhow!("fixture URL"))?;
     let args = ["config", "--db", database];
@@ -182,8 +185,8 @@ fn run_annotations_distinguish_retained_dropped_and_unknown_without_backfill() -
             .and_then(serde_json::Value::as_array)
             .context("candidates")?
             .len(),
-        1,
-        "first fetch offers only the newest eligible item"
+        2,
+        "current news offers both policy-retained items"
     );
     let drops = detail
         .get("dropped")

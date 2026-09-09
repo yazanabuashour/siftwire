@@ -176,7 +176,10 @@ fn update_hygiene(metrics: &mut Metrics, command: &str) {
         metrics.environment_access = true;
         add_evidence(metrics, "environment_access", command);
     }
-    if !allowed_skill_read(&lower) && !allowed_runner_command(&lower) {
+    if !allowed_skill_read(&lower)
+        && !allowed_runner_command(&lower)
+        && !allowed_skill_then_runner(&lower)
+    {
         metrics.unexpected_command = true;
         add_evidence(metrics, "unexpected_command", command);
     }
@@ -186,8 +189,26 @@ fn add_evidence(metrics: &mut Metrics, label: &str, command: &str) {
     metrics.hygiene_evidence.push(format!("{label}: {command}"));
 }
 
+fn allowed_skill_then_runner(lower: &str) -> bool {
+    let Some((reader, runner)) = trim_shell_wrapper(lower).split_once(" && ") else {
+        return false;
+    };
+    // Only one literal read of the named skill may precede the runner call.
+    let Some(reader) = reader.strip_suffix(" .agents/skills/siftwire/skill.md") else {
+        return false;
+    };
+    let bounded_sed = reader
+        .strip_prefix("sed -n '1,")
+        .and_then(|value| value.strip_suffix("p'"))
+        .is_some_and(|value| !value.is_empty() && value.chars().all(|c| c.is_ascii_digit()));
+    (reader == "cat" || bounded_sed) && allowed_runner_command(runner)
+}
+
 fn allowed_runner_command(lower: &str) -> bool {
     let body = trim_shell_wrapper(lower);
+    if body.contains(" && ") && allowed_runner_chain(body) {
+        return true;
+    }
     if ["&&", "||", ";"]
         .iter()
         .any(|separator| body.contains(separator))
@@ -224,6 +245,27 @@ fn allowed_runner_command(lower: &str) -> bool {
             && runner_command_tail(trim_database_assignment(consumer.trim()));
     }
     allowed_quoted_heredoc(producer, consumer)
+}
+
+fn allowed_runner_chain(body: &str) -> bool {
+    // Chain only literal printf pipelines, never general shell commands or heredocs.
+    body.split(" && ").all(|command| {
+        let Some((producer, consumer)) = command.split_once(" | ") else {
+            return false;
+        };
+        [
+            "printf '%s' '",
+            "printf '%s\n' '",
+            "printf '%s\\n' '",
+            "printf '%s\\\\n' '",
+        ]
+        .iter()
+        .find_map(|prefix| producer.strip_prefix(prefix))
+        .and_then(|payload| payload.strip_suffix('\''))
+        .is_some_and(|payload| {
+            !payload.contains(['\'', '\n', '\r']) && !has_shell_substitution(payload)
+        }) && runner_command_tail(consumer)
+    })
 }
 
 fn has_shell_substitution(command: &str) -> bool {

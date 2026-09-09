@@ -10,7 +10,14 @@ import { AppLink, runHref, useNavigation } from "./navigation"
 
 import "./styles/navigation.css"
 
-const client = new QueryClient()
+const client = new QueryClient({
+  defaultOptions: {
+    // Failed reads surface immediately; manual and focus refetches remain available.
+    queries: { retry: false },
+    // A failed browser request does not prove the runner skipped the write.
+    mutations: { retry: false },
+  },
+})
 const pages = [
   { id: "overview", path: "/", label: "Brief" },
   { id: "sources", path: "/sources", label: "Sources" },

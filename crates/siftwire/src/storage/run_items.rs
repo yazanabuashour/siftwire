@@ -189,7 +189,7 @@ fn query_run_items(connection: &Connection, run_id: &str) -> Result<Vec<RunItemR
 fn query_fetch_logs_for_run(connection: &Connection, run_id: &str) -> Result<Vec<FetchLog>> {
     let mut statement = connection
         .prepare(
-            "SELECT run_id, source_key, status, error, item_count, new_item_count, created_at, source_label \
+            "SELECT run_id, source_key, status, error, item_count, new_item_count, created_at, source_label, selection_json \
              FROM fetch_log WHERE run_id = ?1 ORDER BY id",
         )
         .context("prepare run fetch log query")?;

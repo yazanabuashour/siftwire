@@ -14,8 +14,8 @@ const RejectionSchema = z.object({
 export class HttpError extends Error {
   readonly status: number
 
-  constructor(status: number, message: string) {
-    super(message)
+  constructor(status: number, message: string, options?: ErrorOptions) {
+    super(message, options)
     this.status = status
   }
 }
@@ -55,7 +55,19 @@ export async function request<T>(
       init.body = JSON.stringify(options.body)
     }
     const response = await fetch(`${BASE}${path}`, init)
-    const payload: unknown = await response.json().catch(() => null)
+    const httpMessage = response.statusText || "request failed"
+    let payload: unknown
+    try {
+      payload = await response.json()
+    } catch (cause) {
+      if (
+        response.ok ||
+        controller.signal.aborted ||
+        (cause instanceof DOMException && cause.name === "AbortError")
+      )
+        throw cause
+      throw new HttpError(response.status, httpMessage, { cause })
+    }
     if (!response.ok) {
       const envelope = ErrorEnvelopeSchema.safeParse(payload)
       const plain = PlainMessageSchema.safeParse(payload)
@@ -63,7 +75,7 @@ export async function request<T>(
         ? envelope.data.error.message
         : plain.success
           ? plain.data.message
-          : response.statusText || "request failed"
+          : httpMessage
       throw new HttpError(response.status, message)
     }
     const rejection = RejectionSchema.safeParse(payload)

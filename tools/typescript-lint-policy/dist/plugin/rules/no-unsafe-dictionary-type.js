@@ -1,5 +1,6 @@
 import { defineRule } from "@oxlint/plugins";
 import { classifyUnsafeDictionary, classifyUnsafeDictionaryValue, createTypeEnvironment, } from "../shared/dictionary-types.js";
+import { visibleTypeAlias } from "../shared/type-alias-resolution.js";
 const typeNodeKinds = new Set([
     "JSDocNonNullableType",
     "JSDocNullableType",
@@ -59,10 +60,17 @@ function isPlainAliasConsumerUse(node, environment) {
         return false;
     const name = typeReferenceName(node);
     return (name !== null &&
-        environment.aliases.has(name) &&
+        visibleTypeAlias(name, node, environment.typeAliases) !== null &&
         !isInsideTypeAliasDeclaration(node));
 }
 function shouldReportType(node, environment) {
+    let child = node;
+    while (child.parent !== null && child.parent.type !== "Program") {
+        if (child.parent.type === "TSTypeParameter" &&
+            child.parent.constraint === child)
+            return false;
+        child = child.parent;
+    }
     if (isPlainAliasConsumerUse(node, environment))
         return false;
     if (classifyUnsafeDictionary(node, environment) === null)
@@ -102,7 +110,7 @@ export const noUnsafeDictionaryTypeRule = defineRule({
         };
         return {
             Program(node) {
-                environment = createTypeEnvironment(node);
+                environment = createTypeEnvironment(node, context.sourceCode.visitorKeys);
             },
             TSTypeReference: reportIfUnsafe,
             TSTypeLiteral: reportIfUnsafe,

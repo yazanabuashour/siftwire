@@ -1,52 +1,35 @@
 import { defineRule } from "@oxlint/plugins";
-import { collectTypeAliases, resolvesToUnknown, } from "../shared/unknown-types.js";
-function parameterAnnotation(parameter) {
-    if (parameter.type === "TSParameterProperty") {
-        return parameterAnnotation(parameter.parameter);
-    }
-    if (parameter.type === "RestElement") {
-        return parameter.typeAnnotation ?? parameterAnnotation(parameter.argument);
-    }
-    if (parameter.type === "AssignmentPattern") {
-        return parameter.typeAnnotation ?? parameter.left.typeAnnotation;
-    }
-    return parameter.typeAnnotation;
-}
-function parameterName(parameter, sourceText) {
-    if (parameter.type === "TSParameterProperty") {
-        return parameterName(parameter.parameter, sourceText);
-    }
-    if (parameter.type === "AssignmentPattern") {
-        return parameterName(parameter.left, sourceText);
-    }
-    if (parameter.type === "RestElement") {
-        return parameterName(parameter.argument, sourceText);
-    }
-    return parameter.type === "Identifier"
-        ? parameter.name
-        : sourceText.replace(/\s*:\s*unknown\s*$/u, "");
-}
-/** Disallow unknown inputs except explicitly named error-cause enrichment. */
+import { functionParameterBindingName, functionParameterTypeAnnotation, } from "../shared/function-parameters.js";
+import { createTypeAliasEnvironment, } from "../shared/type-alias-resolution.js";
+import { resolvesToUnknown } from "../shared/unknown-types.js";
+/** Disallow unknown inputs except error causes and the exact subject of a predicate. */
 export const noUnknownParametersRule = defineRule({
     meta: {
         type: "problem",
         docs: {
-            description: "Disallow explicitly unknown function parameters except `cause`; decode unknown input at its I/O boundary instead.",
+            description: "Disallow explicitly unknown function parameters except `cause` and type-predicate subjects; decode unknown input at its I/O boundary instead.",
         },
         messages: {
             unknownParameter: "Parameter `{{parameter}}` leaves input unparsed. Accept a named domain type; run the expected schema or parser at the I/O boundary before calling this function.",
         },
     },
-    create(context) {
-        let aliases = new Map();
+    createOnce(context) {
+        let environment = null;
         const checkParameters = (node) => {
+            if (environment === null)
+                return;
+            const predicate = node.returnType?.typeAnnotation;
             for (const parameter of node.params) {
-                const annotation = parameterAnnotation(parameter);
+                const annotation = functionParameterTypeAnnotation(parameter);
                 if (!annotation ||
-                    !resolvesToUnknown(annotation.typeAnnotation, aliases))
+                    !resolvesToUnknown(annotation.typeAnnotation, environment))
                     continue;
-                const name = parameterName(parameter, context.sourceCode.getText(parameter));
+                const name = functionParameterBindingName(parameter, context.sourceCode);
                 if (name === "cause")
+                    continue;
+                if (predicate?.type === "TSTypePredicate" &&
+                    predicate.parameterName.type === "Identifier" &&
+                    predicate.parameterName.name === name)
                     continue;
                 context.report({
                     node: annotation.typeAnnotation,
@@ -57,7 +40,7 @@ export const noUnknownParametersRule = defineRule({
         };
         return {
             Program(node) {
-                aliases = collectTypeAliases(node);
+                environment = createTypeAliasEnvironment(node, context.sourceCode.visitorKeys);
             },
             ArrowFunctionExpression: checkParameters,
             FunctionDeclaration: checkParameters,

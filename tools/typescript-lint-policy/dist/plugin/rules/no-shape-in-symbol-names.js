@@ -18,6 +18,11 @@ export const noForbiddenTermInSymbolNamesRule = defineRule({
         const reportForbiddenSymbolName = (node) => {
             if (!containsForbiddenSymbolName(node.name))
                 return;
+            const parent = node.parent;
+            if (parent?.type === "MemberExpression" &&
+                parent.property === node &&
+                !parent.computed)
+                return;
             context.report({
                 node,
                 messageId: "forbiddenSymbolName",

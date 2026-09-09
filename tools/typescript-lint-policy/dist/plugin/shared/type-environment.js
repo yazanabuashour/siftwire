@@ -1,75 +1,33 @@
-const BUILT_INS = new Set([
-    "Record",
-    "Readonly",
-    "Partial",
-    "Required",
-    "Pick",
-    "Omit",
-    "PropertyKey",
-    "NonNullable",
-]);
+import { createTypeAliasEnvironment, hasVisibleTypeBinding, } from "./type-alias-resolution.js";
 export const TRANSPARENT_WRAPPERS = new Set([
     "Readonly",
     "Partial",
     "Required",
     "NonNullable",
 ]);
-function declaredStatement(statement) {
-    return statement.type === "ExportNamedDeclaration" ||
-        statement.type === "ExportDefaultDeclaration"
-        ? (statement.declaration ?? null)
-        : statement;
-}
-export function createTypeEnvironment(program) {
-    const aliases = new Map();
+export function createTypeEnvironment(program, visitorKeys) {
     const interfaces = new Map();
-    const shadowedBuiltIns = new Set();
     for (const statement of program.body) {
-        const declaration = declaredStatement(statement);
-        if (declaration?.type === "ImportDeclaration") {
-            for (const specifier of declaration.specifiers) {
-                if (BUILT_INS.has(specifier.local.name))
-                    shadowedBuiltIns.add(specifier.local.name);
-            }
+        const declaration = statement.type === "ExportNamedDeclaration" ||
+            statement.type === "ExportDefaultDeclaration"
+            ? statement.declaration
+            : statement;
+        if (declaration?.type !== "TSInterfaceDeclaration")
             continue;
-        }
-        if (declaration?.type === "TSTypeAliasDeclaration") {
-            const existing = aliases.get(declaration.id.name);
-            if (existing === undefined)
-                aliases.set(declaration.id.name, declaration);
-            else
-                shadowedBuiltIns.add(declaration.id.name);
-            if (BUILT_INS.has(declaration.id.name))
-                shadowedBuiltIns.add(declaration.id.name);
-            continue;
-        }
-        if (declaration?.type === "TSInterfaceDeclaration") {
-            const declarations = interfaces.get(declaration.id.name) ?? [];
-            declarations.push(declaration);
-            interfaces.set(declaration.id.name, declarations);
-            if (BUILT_INS.has(declaration.id.name))
-                shadowedBuiltIns.add(declaration.id.name);
-            continue;
-        }
-        if (declaration?.type === "TSEnumDeclaration") {
-            if (BUILT_INS.has(declaration.id.name))
-                shadowedBuiltIns.add(declaration.id.name);
-            continue;
-        }
-        if ((declaration?.type === "ClassDeclaration" ||
-            declaration?.type === "FunctionDeclaration") &&
-            declaration.id !== null &&
-            BUILT_INS.has(declaration.id.name)) {
-            shadowedBuiltIns.add(declaration.id.name);
-        }
+        const declarations = interfaces.get(declaration.id.name) ?? [];
+        declarations.push(declaration);
+        interfaces.set(declaration.id.name, declarations);
     }
-    return { aliases, interfaces, shadowedBuiltIns };
+    return {
+        interfaces,
+        typeAliases: createTypeAliasEnvironment(program, visitorKeys),
+    };
 }
 export function typeReferenceName(type) {
     return type.typeName.type === "Identifier" ? type.typeName.name : null;
 }
-export function isBuiltIn(name, environment) {
-    return BUILT_INS.has(name) && !environment.shadowedBuiltIns.has(name);
+export function isBuiltIn(name, use, environment) {
+    return !hasVisibleTypeBinding(name, use, environment.typeAliases);
 }
 export function unwrapTransparentType(type) {
     let current = type;
@@ -83,9 +41,7 @@ export function isUnappliedReferenceTo(type, name) {
     const unwrapped = unwrapTransparentType(type);
     return (unwrapped.type === "TSTypeReference" &&
         typeReferenceName(unwrapped) === name &&
-        (unwrapped.typeArguments === null ||
-            unwrapped.typeArguments === undefined ||
-            unwrapped.typeArguments.params.length === 0));
+        !unwrapped.typeArguments?.params.length);
 }
 function resolvedSubstitutionArgument(type, base, resolving = new Set()) {
     const unwrapped = unwrapTransparentType(type);
@@ -97,9 +53,7 @@ function resolvedSubstitutionArgument(type, base, resolving = new Set()) {
     const substitution = base.get(name);
     if (substitution === undefined)
         return type;
-    const nextResolving = new Set(resolving);
-    nextResolving.add(name);
-    return resolvedSubstitutionArgument(substitution, base, nextResolving);
+    return resolvedSubstitutionArgument(substitution, base, new Set([...resolving, name]));
 }
 export function aliasSubstitution(alias, type, base) {
     const parameters = alias.typeParameters?.params ?? [];

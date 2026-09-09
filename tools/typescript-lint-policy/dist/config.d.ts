@@ -4,7 +4,7 @@ export declare const strictestConfig: {
         perf: "error";
         suspicious: "error";
     };
-    plugins: ("eslint" | "react" | "unicorn" | "typescript" | "oxc" | "jsx-a11y")[];
+    plugins: ("eslint" | "jsx-a11y" | "oxc" | "react" | "typescript" | "unicorn")[];
     jsPlugins: {
         name: string;
         specifier: string;
@@ -32,6 +32,9 @@ export declare const strictestConfig: {
         "react/rules-of-hooks": "error";
         "typescript/no-explicit-any": "error";
         "typescript/no-non-null-assertion": "error";
+        "oxc/no-accumulating-spread": "error";
+        "project/no-array-filter-map": "error";
+        "project/no-reduce-accumulator-copy": "error";
         "project/namespace-node-imports": "error";
         "project/no-chained-type-assertions": "error";
         "project/no-conditional-empty-object-spread": "error";
@@ -62,6 +65,16 @@ export declare const strictestConfig: {
             skipBlankLines: boolean;
             skipComments: boolean;
         }];
+    };
+};
+/** Opt in only in repositories that depend directly on Effect. */
+export declare const effectConfig: {
+    jsPlugins: {
+        name: string;
+        specifier: string;
+    }[];
+    rules: {
+        "project-effect/no-service-constructor-imports": "error";
     };
 };
 export default strictestConfig;

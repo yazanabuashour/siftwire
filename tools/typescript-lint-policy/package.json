@@ -2,19 +2,19 @@
   "name": "@yazanabuashour/oxlint-config",
   "version": "0.1.0",
   "private": true,
-  "description": "Project-owned strict Oxlint policy and custom rules",
   "type": "module",
+  "description": "Project-owned strict Oxlint policy and custom rules",
   "exports": {
     ".": {
       "types": "./dist/config.d.ts",
       "import": "./dist/config.js"
     }
   },
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "peerDependencies": {
     "@oxlint/plugins": "1.78.0",
     "oxlint": "1.78.0"
-  },
-  "engines": {
-    "node": ">=22.18.0"
   }
 }

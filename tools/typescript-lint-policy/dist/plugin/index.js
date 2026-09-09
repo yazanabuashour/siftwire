@@ -1,5 +1,6 @@
 import { definePlugin } from "@oxlint/plugins";
 import { namespaceNodeImportsRule } from "./rules/namespace-node-imports.js";
+import { noArrayFilterMapRule } from "./rules/no-array-filter-map.js";
 import { noChainedTypeAssertionsRule } from "./rules/no-chained-type-assertions.js";
 import { noConditionalEmptyObjectSpreadRule } from "./rules/no-conditional-empty-object-spread.js";
 import { noGlobalProcessRuntimeRule } from "./rules/no-global-process-runtime.js";
@@ -8,6 +9,7 @@ import { noKnownValueWideningRule } from "./rules/no-known-value-widening.js";
 import { noManualEffectRuntimeInTestsRule } from "./rules/no-manual-effect-runtime-in-tests.js";
 import { noModuleMockingRule } from "./rules/no-module-mocking.js";
 import { noObjectParametersRule } from "./rules/no-object-parameters.js";
+import { noReduceAccumulatorCopyRule } from "./rules/no-reduce-accumulator-copy.js";
 import { noReflectApplyRule } from "./rules/no-reflect-apply.js";
 import { noReflectGetRule } from "./rules/no-reflect-get.js";
 import { noRuntimeTypeofRule } from "./rules/no-runtime-typeof.js";
@@ -22,6 +24,8 @@ import { requireSafetyCommentForTypeAssertionRule } from "./rules/require-safety
 const projectRulesPlugin = definePlugin({
     meta: { name: "project" },
     rules: {
+        "no-array-filter-map": noArrayFilterMapRule,
+        "no-reduce-accumulator-copy": noReduceAccumulatorCopyRule,
         "no-chained-type-assertions": noChainedTypeAssertionsRule,
         "no-conditional-empty-object-spread": noConditionalEmptyObjectSpreadRule,
         "no-known-value-widening": noKnownValueWideningRule,

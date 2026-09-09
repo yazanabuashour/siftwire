@@ -15,7 +15,7 @@
     "test:web": "vitest run",
     "format": "oxfmt --check .",
     "format:write": "oxfmt .",
-    "lint": "oxlint --deny-warnings --report-unused-disable-directives apps/web/src apps/web/vite.config.ts vitest.config.ts oxlint.config.ts",
+    "lint": "oxlint --deny-warnings --report-unused-disable-directives .",
     "check": "bash scripts/ci.sh"
   },
   "devDependencies": {

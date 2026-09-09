@@ -66,8 +66,20 @@ or require unreasonable ceremony with the current surface.
 
 Decision reports record safety, capability, and user experience separately. A
 technically passing workflow can still carry taste debt when it needs many
-calls, exact prompt choreography, surprising clarification, or brittle manual
-sequencing.
+calls, long latency, exact prompt choreography, surprising clarification, or
+brittle manual sequencing. Prefer extending a natural existing runner action
+over declaring an adjacent user task unsupported. A rejected implementation
+does not by itself invalidate the need. User experience does not waive provenance,
+source authority, safety, approval, or promotion evidence.
+
+Before closing a non-promotion decision, search for existing follow-up work and
+record any missing follow-up in the decision. This includes `keep-as-reference`,
+`defer`, `more evidence`, `candidate selected`, and `none viable yet` outcomes.
+When the evaluated shape fails but a capability, usability, safety, auditability,
+or workflow need remains valid, document or propose candidate-surface comparison
+before handoff. Normally compare 2–3 plausible shapes; explain when only one is
+viable. The follow-up must choose or combine candidates, defer or kill the track,
+or record `none viable yet`.
 
 Known debt remains around exact-message delivery recording and some config
 assembly. The exact delivered message is currently load-bearing for auditability,

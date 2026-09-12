@@ -18,7 +18,7 @@ separate `source` command.
 
 Every `config` and `brief` result identifies `runner_protocol` and
 `capabilities`. Consumers must require the protocol and capabilities they use
-before acting. This checkout uses `siftwire-runner/v5` with `prepared-delivery/v1`,
+before acting. v0.9.0 uses `siftwire-runner/v5` with `prepared-delivery/v1`,
 `sports-updates/v1`, and `current-news/v1`. The binary release version does not
 replace capability checks.
 
@@ -279,7 +279,7 @@ default of `${XDG_DATA_HOME:-~/.local/share}/siftwire/siftwire.sqlite`.
 directories and files are owner-only. Existing explicit parent directories
 retain their permissions. All commands that open storage can initialize an empty
 database, including inspection and archive reads. Older database formats are
-rejected without migration; use a fresh database for this checkout. Keep the old
+rejected without migration; use a fresh database when upgrading to v0.9.0. Keep the old
 database and its matching released runner separately if you need historical reads.
 
 ## Minimal consumer

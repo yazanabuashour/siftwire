@@ -36,7 +36,7 @@ for collection and delivery.
 When upgrading, update the runner, console, and web assets together. Re-run the
 install script after pulling changes, then restart your console process or
 existing user service. Refresh open browser tabs to load the matching client.
-This checkout requires a fresh database; see the
+Upgrading from v0.8.0 or earlier to v0.9.0 requires a fresh database; see the
 [compatibility reset](runner-v5-reset.md).
 
 ## Read a confirmed brief

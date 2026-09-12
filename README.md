@@ -32,18 +32,19 @@ sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/d
 siftwire --version
 ```
 
-The latest documented release is v0.8.0. This checkout introduces an unreleased
-[compatibility reset](docs/runner-v5-reset.md); do not pair its skill or console
-with v0.8.0. The pinned release installer is:
+The latest documented release is v0.9.0. Upgrading from v0.8.0 or earlier
+requires a fresh database and matching consumers; read the
+[compatibility reset](docs/runner-v5-reset.md) before installing.
+The pinned release installer is:
 
 ```bash
-SIFTWIRE_VERSION=v0.8.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.8.0/install.sh)"
+SIFTWIRE_VERSION=v0.9.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.9.0/install.sh)"
 siftwire --version
 ```
 
 Register the matching `skills/siftwire/SKILL.md` with your agent's native skill
-system. For v0.8.0, use the `v0.8.0` repository tag or the release asset
-`siftwire_0.8.0_skill.tar.gz`. Installation is not complete until both the runner
+system. For v0.9.0, use the `v0.9.0` repository tag or the release asset
+`siftwire_0.9.0_skill.tar.gz`. Installation is not complete until both the runner
 and its matching skill are installed. No particular agent or skill directory is
 required.
 
@@ -72,9 +73,10 @@ explicit dataset. Keep configuration, databases, and delivery history outside
 this repository. See the [runner contract](docs/runner-contract.md) for actions,
 result fields, and retry rules.
 
-## Upgrade this checkout
+## Upgrade to v0.9.0
 
-This checkout removes backward compatibility and requires a fresh database.
+v0.9.0 removes backward compatibility and requires a fresh database when
+upgrading from v0.8.0 or earlier.
 Follow the [compatibility reset](docs/runner-v5-reset.md). The
 [v4 migration guide](docs/runner-v4-migration.md) describes the published v0.8.0
 release only.

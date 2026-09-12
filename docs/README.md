@@ -12,8 +12,8 @@
 
 ## Upgrade an installation
 
-- [Compatibility reset](runner-v5-reset.md): this checkout requires matching v5
-  consumers and a fresh database
+- [Upgrade to v0.9.0](runner-v5-reset.md): the compatibility reset requires
+  matching v5 consumers and a fresh database
 
 Historical release guides:
 

@@ -2,15 +2,16 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
-## Unreleased
-
-- Remove backward compatibility for old databases, configuration, CLI aliases,
-  and historical evidence formats. The runner uses `siftwire-runner/v5`; the
-  console and agent skill require matching consumers and a fresh database.
-  See the [compatibility reset](docs/runner-v5-reset.md).
-
 ## Releases
 
+- [v0.9.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.0)
+  requires runner protocol v5, matching consumers, and a fresh database instead
+  of migrating old configuration or operational state. It deepens source
+  outcomes, plan-based confirmation, and saved-plan replay without changing
+  supported source-selection semantics or adding agent calls. The optional
+  console supports explicitly configured hostnames behind trusted proxies.
+  Read the [compatibility reset](docs/runner-v5-reset.md) and
+  [release notes](docs/release-notes/v0.9.0.md) before upgrading.
 - [v0.8.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.8.0)
   collects optional RSS stories published in the past 24 hours, keeps original
   links, and reports publication-window counts. It removes legacy configuration

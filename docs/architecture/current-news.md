@@ -64,7 +64,7 @@ checks report an unknown selection count rather than zero.
 
 ## Compatibility and alternatives
 
-Current-news behavior was introduced in `siftwire-runner/v4`. This checkout
+Current-news behavior was introduced in `siftwire-runner/v4`. v0.9.0
 requires `siftwire-runner/v5` with `current-news/v1` before writes or collection.
 See the [compatibility reset](../runner-v5-reset.md).
 

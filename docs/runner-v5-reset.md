@@ -1,8 +1,9 @@
-# Use the compatibility-reset checkout
+# Upgrade to v0.9.0 with a fresh database
 
-This is an unreleased breaking change, not an automatic migration from v0.8.0.
-The runner reports `siftwire-runner/v5`. Use the runner, console, web assets, and
-agent skill from the same checkout.
+v0.9.0 is a breaking compatibility reset, not an automatic migration from
+v0.8.0 or earlier. The runner reports `siftwire-runner/v5`. Use the v0.9.0
+runner and agent skill; build the optional console and web assets from the
+matching tag or source archive.
 
 ## Keep earlier data separate
 
@@ -44,4 +45,4 @@ remain available.
 
 See the [runner contract](runner-contract.md), [run history](run-history.md), and
 [console guide](console.md) for current behavior. Earlier migration guides and
-release reports describe their published releases, not this checkout.
+release reports describe their published releases, not v0.9.0.

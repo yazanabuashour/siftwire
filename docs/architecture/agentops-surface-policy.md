@@ -19,17 +19,17 @@ The supported building block is the one-shot `siftwire config|brief` JSON
 process protocol. The skill, Prooflane adapter, and production eval harness all
 use this boundary. No production caller imports Rust modules.
 
-Keep `crates/siftwire/src/runner/`, `crates/siftwire/src/engine/`, and `crates/siftwire/src/storage/` private. A public Rust
-library, alternate store, fetch plugin, daemon, or generic client crate would
-add lifecycle and compatibility contracts without a real
-consumer. Reconsider an in-process API only when an integration cannot
-reasonably use the process protocol and supplies concrete lifecycle and error
-requirements.
+Keep `crates/siftwire/src/runner/`, `crates/siftwire/src/engine/`, and
+`crates/siftwire/src/storage/` private. A public Rust library, alternate store,
+fetch plugin, daemon, or generic client crate would add lifecycle and
+compatibility contracts without a real consumer. Reconsider an in-process API
+only when an integration cannot reasonably use the process protocol and supplies
+concrete lifecycle and error requirements.
 
 ### Private modules own complete outcomes
 
-Keep the process protocol as the reusable building block and deepen its private
-modules around existing caller tasks:
+Keep the process protocol as the reusable building block. Its private modules
+own complete caller tasks:
 
 - `crates/siftwire/src/engine/process.rs` owns each source outcome: collected
   content, the optional next marker, fetch-selection evidence, suppression, and
@@ -45,9 +45,9 @@ modules around existing caller tasks:
   plans retain storage's concurrent-insert conflict protection. Archive reads keep
   their own full-detail interface.
 
-This replaces caller-owned sequencing rather than adding forwarding modules.
+These modules replace caller-owned sequencing rather than forward calls.
 A public library or generic repository interface would add contracts without
-improving these callers; file splitting alone would leave the same knowledge
+helping these callers. Splitting files alone would leave the same knowledge
 spread across modules.
 
 Safety still requires exact immutable bodies, delivery evidence references,
@@ -91,8 +91,8 @@ SiftWire skill or a SiftWire shell wrapper.
 Replacing Codex with Pi still coupled the evaluator to an agent runtime. The
 accepted boundary is now a local executable with SiftWire-defined request and
 result objects. The production runner and `skills/siftwire/SKILL.md` remain
-unchanged and harness-independent. The Pi SDK remains one leaf implementation,
-not the evaluator's consumer boundary.
+unchanged and harness-independent. The Pi SDK remains one adapter implementation,
+not the evaluator's public boundary.
 
 | Candidate | Safety | Capability | User experience | Decision |
 | --- | --- | --- | --- | --- |
@@ -109,9 +109,9 @@ events, or session format.
 
 One request contains one entire fixed scenario. The adapter owns multi-turn
 continuity internally and returns one JSON result only after actual native
-completion; diagnostics use stderr and nonzero exit means failure. This
-scenario granularity removes needless session IDs, resume commands, and native
-file references from the neutral protocol. Strict fields, protocol and turn
+completion; diagnostics use stderr and nonzero exit means failure. One request
+per scenario removes the need for session IDs, resume commands, and native file
+references in the neutral protocol. Strict fields, protocol and turn
 counts, exact final strings, nullable assistant execution counts, and complete
 action receipts define the contract. Unknown execution counts are `null`, not
 zero. Runtime identity is adapter-reported per scenario, not a hardcoded global
@@ -174,8 +174,8 @@ technically passing workflow can still carry taste debt when it needs many
 calls, long latency, exact prompt choreography, surprising clarification, or
 brittle manual sequencing. Prefer extending a natural existing runner action
 over declaring an adjacent user task unsupported. A rejected implementation
-does not by itself invalidate the need. User experience does not waive provenance,
-source authority, safety, approval, or promotion evidence.
+does not by itself invalidate the need. User-experience improvements do not waive
+provenance, source authority, safety, approval, or promotion evidence.
 
 Before closing a non-promotion decision, search for existing follow-up work and
 record any missing follow-up in the decision. This includes `keep-as-reference`,

@@ -1,21 +1,21 @@
-# SiftWire
+# SiftWire terminology
 
-SiftWire is a local-first brief runtime: it fetches configured sources, selects
-items, and prepares briefs. Agents own scheduling and delivery.
+SiftWire fetches configured sources, selects items, and prepares briefs locally.
+Agents own scheduling and delivery.
 
-## Language
+## Terms
 
 ### Brief collection and delivery
 
 **Source outcome**:
-The result of processing one fetch: collected items, sports updates, selection
-and suppression evidence, health warnings, and an optional next source marker.
-It describes permitted state changes without writing them.
+The result of one fetch: collected items, sports updates, selection and
+suppression evidence, health warnings, and an optional next source marker.
+A source outcome describes permitted state changes without writing them.
 
 **Prepared delivery plan**:
-The immutable selection and rendered bodies saved for one durable brief run.
-Confirmation records the plan's exact message and items; it does not assemble a
-new delivery from caller-supplied content.
+The selection and rendered bodies saved for one brief run. A saved plan cannot
+change. Confirmation records the plan's exact message and items, not a new
+delivery assembled from caller-supplied content.
 
 ### Sports coverage
 

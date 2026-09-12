@@ -81,9 +81,9 @@ Google News link resolution and title-suffix publisher identification. Only
 Required feeds apply saved Google News resolution. Optional feeds retain their
 original links. Publisher identification still applies.
 
-In **Selection**, set source preference and title matching. Newer publication
-wins duplicate representation before source preference. Lower preference values
-break ties. Title groups limit exact normalized headline matching, not identical
+In **Selection**, set source preference and title matching. When items are
+duplicates, the newer publication wins. Lower source preference values break
+ties. Title groups limit exact normalized headline matching, not identical
 absolute URL matching or recent-delivery suppression. These checks do not
 establish that two headlines describe the same event.
 
@@ -117,9 +117,9 @@ configuration returned by each write rather than guessing what the runner stored
 ## Set brief options
 
 Open **Settings** to set `max_delivery_items`, the recurring sports windows, and
-the IANA sports time zone. The time-zone control can fill your browser's detected
-value, but it does not save until you confirm the change. Configuration and
-storage paths appear under **Technical details**.
+the IANA sports time zone. The time-zone control can use the value detected by
+your browser, but it does not save until you confirm the change. Configuration
+and storage paths appear under **Technical details**.
 
 ## Inspect collection and delivery evidence
 
@@ -167,7 +167,8 @@ Serve the console at its own origin root, not under a path prefix. Keep generate
 HTML on a separate origin so its scripts cannot access the console's writable API.
 Different HTTPS ports are different origins.
 
-The allowlist permits routing, not user access. Keep a private network boundary,
-or require authentication at the proxy before exposing the console publicly.
-Protect every route, including the API, and prevent direct access to the backend.
+The allowlist permits routing; it does not authenticate users. Keep a private
+network boundary, or require authentication at the proxy before exposing the
+console publicly. Protect every route, including the API, and prevent direct
+access to the backend.
 Hosting only the frontend in the cloud does not move the local runner or database.

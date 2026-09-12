@@ -52,15 +52,16 @@ legacy configuration:
    `siftwire config`.
 
 Never infer source authority, credentials, private configuration, destructive
-changes, or operational state. Legacy Migration may draft SiftWire sources and
-outlet policies from an input the user explicitly points to; it does not permit
-operational-state import.
+changes, or operational state. For legacy migration, draft sources and outlet
+policies only from an input the user explicitly names. Do not import operational
+state.
 
 ## Config Tasks
 
-Before configuration writes, call `inspect_config` with the same installed
-binary and dataset and verify protocol v5 and `current-news/v1`. Do not send a new source shape to an
-older runner: omitting a retired field can change that runner's behavior.
+Before a configuration write, call `inspect_config` with the same installed
+binary and dataset. Verify protocol v5 and `current-news/v1`. Do not send a new
+source shape to an older runner: omitting a retired field can change that
+runner's behavior.
 Inspection does not authorize a write; user approval remains required.
 
 Use `siftwire config` with one of these request shapes:
@@ -86,7 +87,7 @@ two standings positions, including boundary ties. Supported thresholds are
 `github_release`, supply `repo`, not a custom `url`; the runner generates the
 GitHub API endpoint.
 
-Optional feed-processing fields:
+These feed-processing fields are optional:
 
 - `url_canonicalization`: `none` or `google_news_article_url`, applied only to Required feeds
 - `outlet_extraction`: `none` or `title_suffix`
@@ -96,7 +97,7 @@ Optional feed-processing fields:
 Use `threshold: "always"` for required items. Replacement actions replace the
 entire corresponding set; an empty array clears it. Feed URLs, thresholds,
 priorities, outlet policies, and brief options are durable operator configuration
-and require approval before write. `max_delivery_items` defaults to 7. Sports
+and require approval before a write. `max_delivery_items` defaults to 7. Sports
 fixtures repeat for 7 days before kickoff and final results repeat for 3 days
 after kickoff by default.
 `sports_timezone` is an IANA time zone and defaults to `America/Chicago`.
@@ -113,34 +114,37 @@ Validate, then run the brief only with compatible runner metadata:
 If either result has `rejected: true`, answer with `rejection_reason`. Runtime
 failures exit nonzero and write diagnostics to stderr. After `validate`, also
 require `prepared-delivery/v1` in `capabilities` before `run_brief`. Check that
-capability in every brief response. Stop and report incompatibility if absent. Do not
-compose a manual delivery body or fall back to an older delivery action.
+capability in every brief response. If absent, stop and report incompatibility.
+Do not compose a manual delivery body or fall back to an older delivery action.
 
 Choose optional candidates by zero-based index from `run_brief.candidates`.
 Select at most `candidate_slots`, using each candidate's section, threshold,
 title, summary, source, and recent brief context. Optional RSS candidates are
 current stories published within the preceding 24 hours, not proven first-seen
-items. Unsent stories can recur while current. Missing, invalid, stale and future
-publication dates are excluded with fetch counts. Required feeds keep latest-seen
-handling and have no publication-age filter.
+items. Unsent stories can recur while current. The runner excludes items with
+missing, invalid, stale, or future publication dates and reports their fetch
+counts. Required feeds keep latest-seen handling and have no publication-age
+filter.
 
 News links remain the original feed links. Exact duplicate suppression does not
 establish story identity or prove that a headline changed because facts changed.
 Compare recent brief context and select meaningful developments rather than
 cosmetic rewrites or repeated coverage. Do not claim article-body verification
-from feed metadata alone. Then invoke:
+from feed metadata alone.
+
+Prepare the delivery with `prepare_delivery`. After transport acceptance,
+confirm it with `confirm_delivery`:
 
 ```json
 {"action":"prepare_delivery","run_id":"run_id_from_run_brief","candidate_indexes":[0,3]}
 {"action":"confirm_delivery","run_id":"run_id_from_run_brief","delivery_plan_id":"plan_id_from_prepare_delivery"}
 ```
 
-The runner keeps every required item, limits optional candidates, places sports
-outside those candidate slots, and returns
-complete `message`, `text`, and `html` bodies. Deliver those bodies unchanged
-before calling `confirm_delivery`. If confirmation returns `final_answer`,
-answer with exactly that string; otherwise answer with exactly the prepared
-`message`.
+The runner keeps every required item and limits optional candidates. Sports do
+not use candidate slots. The result includes complete `message`, `text`, and
+`html` bodies. Deliver those bodies unchanged before calling `confirm_delivery`.
+If confirmation returns `final_answer`, answer with exactly that string;
+otherwise answer with exactly the prepared `message`.
 
 Preserve the run result and prepared plan for recovery. Do not automatically
 retry `run_brief` after an interruption or uncertain result; it can already have

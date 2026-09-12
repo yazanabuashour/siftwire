@@ -15,19 +15,20 @@ The approved removals in [runner v3 migration](../runner-v3-migration.md)
 supersede this decision's writable Atom/always-report/Observe choices. Current
 configuration reads adapt the equivalent legacy Atom and required-feed fields;
 raw stored rows and historical evidence remain untouched until an approved
-source write. New writes use the narrower contract. Archive, publisher, exact
-email, priority and partial-cache ownership decisions below remain in force.
+source write. New writes use the narrower contract. The archive, publisher, exact
+email, priority, and partial-cache ownership decisions below remain in force.
 
 ## Original decision
 
 Extend the existing runner results and operator history commands. Keep raw source
 configuration, the collection-based publisher write, and immutable delivery plans.
-The console presents those contracts around reading and configuration tasks.
+The console uses those contracts for reading and configuration tasks.
 
 ## Why reopen this decision
 
 The earlier field-policy and diagnostic-handoff comparison favored guidance.
-The current implementation exposes contradictions that guidance cannot fix:
+At the time of this decision, the implementation exposed contradictions that
+guidance could not fix:
 
 - A release can be required while its raw `always_report` flag is false.
 - Sports delivery titles differ from compatibility candidate titles. Exact
@@ -87,6 +88,6 @@ delivery evidence, publisher conflicts, and picker/configuration interactions.
 Browser checks use a disposable fictional database. They establish the console
 workflow, not agent success rates or performance claims.
 
-The rejected shapes do not defer the underlying need. The adopted runner and
-console changes address it. Existing source-intake and agent workflow decisions
-remain governed by [agentops-surface-policy.md](agentops-surface-policy.md).
+The adopted runner and console changes address the underlying need; rejecting
+the alternatives does not defer it. Existing source-intake and agent workflow
+decisions remain governed by [agentops-surface-policy.md](agentops-surface-policy.md).

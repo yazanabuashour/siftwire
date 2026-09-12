@@ -12,8 +12,8 @@ The frontend separates transport, decoding, cached data, and views.
 - `apps/web/src/http-client.ts` owns HTTP requests, response parsing, timeouts,
   and cancellation cleanup.
 - `apps/web/src/api-contracts.ts` owns Zod response schemas and runner
-  compatibility checks. Successful responses cross this boundary before views
-  receive them.
+  compatibility checks. Views receive successful responses only after validation
+  against these schemas.
 - `apps/web/src/api-client.ts` supplies resource requests and their response
   schemas. Configuration mutations decode their own partial result shapes.
 - `apps/web/src/components/config-query.ts` and `run-queries.ts` own domain query
@@ -24,8 +24,8 @@ The frontend separates transport, decoding, cached data, and views.
 
 The Rust console never opens SQLite or imports runner internals. Its process
 client owns argument construction, JSON framing, and adaptation of signed
-64-bit priorities to decimal strings. JavaScript numbers cannot represent that
-whole range exactly.
+64-bit priorities to decimal strings. JavaScript numbers cannot represent the
+full signed 64-bit range exactly.
 
 ## Failures and cancellation
 
@@ -60,9 +60,9 @@ license notices. The source release archive includes these snapshots, so a
 console build does not depend on mutable upstream branches.
 
 Shared rules do not replace runtime checks. SiftWire retains Zod decoding and
-`noPropertyAccessFromIndexSignature`. Consumer runtime, JSX, build, and test
-settings stay local.
-Root tooling files are checked through `tsconfig.tooling.json`.
+`noPropertyAccessFromIndexSignature`. Runtime, JSX, build, and test settings stay
+local to each consumer.
+`tsconfig.tooling.json` checks root tooling files.
 
 ## Changes that need a caller
 

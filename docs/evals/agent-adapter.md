@@ -3,7 +3,7 @@
 SiftWire owns the evaluation request and result, not an agent runtime. An
 explicitly selected local executable runs one complete fixed scenario. Runtime,
 authentication, model selection, native events, and session infrastructure stay
-inside leaf adapters. This development boundary does not change the installed
+inside adapters. This development boundary does not change the installed
 runner or `skills/siftwire/SKILL.md`.
 
 See the [surface decision](../architecture/agentops-surface-policy.md#the-evaluator-owns-a-vendor-neutral-executable-boundary)
@@ -23,9 +23,9 @@ mise exec -- ./scripts/run-agent-eval.sh run \
 such as `./tools/agent-eval/pi`, or a bare executable name resolved through the
 host `PATH`. The evaluator launches that executable directly with no arguments;
 it does not interpolate a shell command. Use a wrapper or environment variables
-for adapter-specific configuration. Rust has no Pi configuration, Bun, model
-flags, native event types, or native session knowledge. An adapter can use any
-runtime that implements this contract.
+for adapter-specific configuration. The Rust evaluator has no Pi configuration,
+Bun dependency, model flags, or knowledge of native event types or sessions. An
+adapter can use any runtime that implements this contract.
 
 ## Exchange one scenario
 
@@ -36,9 +36,9 @@ unknown fields, malformed values, a different protocol version, or a result
 turn count different from the prompt count fail validation.
 
 One request contains the entire fixed scenario, not one turn. The adapter runs
-prompts in order and owns continuity internally. This removes a needless
-session protocol: the evaluator does not need session IDs, resume operations,
-or native session files to run its existing scenarios. Do not add those fields,
+prompts in order and owns continuity internally. The evaluator does not need
+session IDs, resume operations, or native session files to run its existing
+scenarios. Do not add those fields,
 a harness registry, or a universal model-only interface without a real caller.
 
 ### Request
@@ -107,8 +107,8 @@ actions as unexpected tools. Assistant counts aggregate across turns; an
 unknown count makes the aggregate unknown. Zero is valid for a deterministic
 adapter that makes no assistant calls, not a substitute for missing evidence.
 
-Only emit a complete result after actual native completion of every turn and
-adapter lifecycle cleanup. The adapter must validate its native terminal answer,
+Emit a complete result only after every native turn completes and the adapter
+finishes cleanup. The adapter must validate its native terminal answer,
 model evidence where available, and completed tool lifecycle before translating
 receipts. A final-only API response cannot claim agent-eval equivalence: an API
 adapter must own any necessary tool loop and produce the same complete action
@@ -126,7 +126,8 @@ Install the locked development dependencies with
 `mise exec -- bun install --frozen-lockfile`. The executable
 `tools/agent-eval/pi` owns Bun invocation. `tools/agent-eval/pi*.ts` owns Pi SDK
 integration and native event parsing; the SDK is pinned in root `package.json`
-and `bun.lock`. It is one implementation, not the evaluator's consumer boundary.
+and `bun.lock`. It is one adapter implementation, not the evaluator's public
+boundary.
 
 The adapter resolves Pi's personal agent directory itself. It reads only
 `defaultProvider` and `defaultModel` from `settings.json`, unless
@@ -139,8 +140,8 @@ SIFTWIRE_PI_MODEL='<provider>/<model-id>' mise exec -- \
 ```
 
 Missing or malformed defaults without an override fail; there is no fallback.
-Selection resolves once per scenario, not globally in Rust. Reasoning is fixed
-to `medium`; the adapter rejects a runtime that cannot retain the exact model
+The adapter selects the model once per scenario, not globally in Rust. Reasoning
+is fixed to `medium`; the adapter rejects a runtime that cannot retain the exact model
 and reasoning level. One in-memory session is shared across that scenario's
 turns. There is no persisted-session or resume contract.
 

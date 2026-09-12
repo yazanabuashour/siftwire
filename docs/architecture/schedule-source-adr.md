@@ -8,7 +8,7 @@ ordinary-item sports projection; only structured sports updates remain.
 
 ## Context
 
-Briefs cover news but scheduled sport needs different repetition rules. A normal
+Briefs cover news, but scheduled sports need different repetition rules. A normal
 item should disappear after delivery. A fixture should remain visible while it
 is approaching, and a final result should remain visible long enough to survive
 a missed brief.
@@ -26,7 +26,7 @@ location can differ.
 
 Structured schedule data comes from ESPN's keyless public API and Riot's LoL
 esports API. Riot requires the public frontend key, which Riot can rotate
-without notice. ESPN endpoints are undocumented and changeable.
+without notice. ESPN endpoints are undocumented and can change.
 
 ## Decision
 
@@ -75,8 +75,8 @@ not errors.
 ## Consequences
 
 - Sports reminders no longer displace news, blogs, or release items.
-- Fixture and result repetition follows time windows rather than latest-seen or
-  recent-delivery suppression.
+- Fixtures and results repeat within time windows rather than following
+  latest-seen or recent-delivery suppression.
 - Provider failures remain source health warnings and never break the rest of a
   brief.
 - A Riot key rotation or standings response change degrades only Riot schedule

@@ -1,16 +1,16 @@
 # Maintainer Notes
 
-This repository is public and includes a production `siftwire` runner binary and a single-file SiftWire skill. Keep maintainer docs honest about the actual supported surface.
+This public repository includes the production `siftwire` runner binary and a single-file SiftWire skill. Keep maintainer docs aligned with this supported interface.
 
-Keep `skills/siftwire/SKILL.md` thin. Substantial skill growth must first ask
+Keep `skills/siftwire/SKILL.md` thin. Before expanding it substantially, check
 whether the detail belongs in an existing runner action, a new narrow
-runner-owned workflow action, compact runner help, or maintainer/eval docs. If
+runner-owned workflow action, compact runner help, or maintainer or eval docs. If
 temporary skill text is still needed, explain why runner JSON results,
 rejections, and caller judgment are insufficient, and document follow-up work
 to remove or replace that text. Do not repair routine brief or configuration UX
 by adding long-lived workflow recipes to the skill.
 
-Recurring security operations are tracked in [docs/security-operations.md](security-operations.md). Use that runbook for dependency review cadence, advisory rehearsal, threat-model refreshes, and deeper testing expectations.
+Use [Security Operations](security-operations.md) for dependency review cadence, advisory rehearsal, threat-model refreshes, and deeper testing expectations.
 
 ## Initial Setup
 
@@ -41,9 +41,9 @@ Current readiness assumptions:
 - Release publication runs in a protected `release` environment with narrowly scoped write permissions.
 - Security reports are expected through GitHub private vulnerability reporting.
 
-Current review enforcement nuance:
+Review enforcement has these constraints:
 
-- The repository currently has a single maintainer account.
+- The repository has a single maintainer account.
 - `main` should require pull requests, status checks, conversation resolution, and one approving review, but code-owner review enforcement and admin enforcement may remain off until a second maintainer can satisfy the review requirement.
 - Tighten code-owner review enforcement, admin bypass, and maintainer isolation once a second maintainer can satisfy those controls without blocking routine maintenance.
 
@@ -52,7 +52,7 @@ Untrusted pull request policy:
 - Pull request workflows must stay fork-safe and use read-only `contents` permission unless a specific trusted workflow boundary justifies more.
 - Do not expose release, package, deployment, or private infrastructure secrets to code from untrusted forks.
 - Avoid `pull_request_target` for workflows that check out or execute contributor-controlled code.
-- Dependency review, policy checks, formatting, linting, and tests are acceptable untrusted PR validation surfaces when they run without secrets.
+- Dependency review, policy checks, formatting, linting, and tests are acceptable checks for untrusted pull requests when they run without secrets.
 
 Maintainer and automation isolation:
 
@@ -71,7 +71,7 @@ When changing GitHub settings, keep the repo aligned with:
 
 ## Release Publication
 
-Public releases use annotated semantic version tags in the `v0.y.z` range. The release contract is a tagged release for the `siftwire` binary and the single-file SiftWire skill. Tag a version like `v0.2.0`, push the tag, and let the release workflow:
+Public releases use annotated semantic version tags in the `v0.y.z` range and include the `siftwire` binary and single-file SiftWire skill. Tag a version like `v0.2.0`, then push the tag. The release workflow runs these steps:
 
 - validate release notes, formatting, lint, skill validation, and tests before publish
 - build binaries with `siftwire --version` set from the tag

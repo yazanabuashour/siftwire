@@ -2,10 +2,10 @@
 
 ## Project
 
-SiftWire is a local-first Rust brief runtime for agents. Its supported production
-boundary is the installed, one-shot `siftwire config|brief` JSON process plus
+SiftWire is a local-first Rust brief runtime for agents. Production tasks use
+the installed, one-shot `siftwire config` or `siftwire brief` JSON process with
 `skills/siftwire/SKILL.md`. Operator configuration and mutable state live in an
-external SQLite database; they never belong in this repository.
+external SQLite database, never in this repository.
 
 ## Code and architecture
 
@@ -37,9 +37,9 @@ external SQLite database; they never belong in this repository.
 
 ## Working contracts
 
-- For all committed docs, reports, and artifact references, use repo-relative paths or neutral repo-relative placeholders. Never use machine-absolute filesystem paths.
-- Do work on the current branch. Do not create or switch to another branch unless explicitly instructed.
-- For repo-pinned developer tools declared in `mise.toml`, run commands through `mise exec -- ...` so agents use the same tool versions as local docs and CI.
+- Use repo-relative paths or neutral repo-relative placeholders in committed docs, reports, and artifact references. Never use machine-absolute filesystem paths.
+- Work on the current branch. Do not create or switch branches unless explicitly instructed.
+- Run tools pinned in `mise.toml` through `mise exec -- ...` to use the same versions as local docs and CI.
 
 ## Architecture and evaluation decisions
 

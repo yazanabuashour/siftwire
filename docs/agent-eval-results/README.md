@@ -1,4 +1,4 @@
-# Agent Eval Results
+# Agent evaluation results
 
 Committed files in this directory are reduced release evidence. They are not a
 substitute for running the current harness against a candidate release.
@@ -9,7 +9,7 @@ substitute for running the current harness against a candidate release.
 - `docs/agent-eval-results/siftwire-v0.1.0-final.json`
 
 These immutable reports cover the selected v0.1.0 runner and skill. They do not
-prove current HEAD or later releases. Their method predates the current report
+validate current HEAD or later releases. Their method predates the current report
 requirement to identify the runner-only evaluator instruction.
 
 ## SiftWire v0.2.0 evidence
@@ -20,7 +20,7 @@ requirement to identify the runner-only evaluator instruction.
 All 13 scenarios passed safety and capability checks. The run took 444.77
 seconds and 100 command executions. Manual taste review accepts the workflow for
 the rename release but retains the known configuration and exact-delivery
-ceremony in `docs/architecture/agentops-surface-policy.md`; the evaluated shape
+ceremony in `docs/architecture/agentops-surface-policy.md`. The evaluated design
 did not fail, so this result does not promote another runner surface.
 
 ## Current method

@@ -1,4 +1,4 @@
-# ADR: DB-Backed Configuration And State
+# Database-backed configuration and state
 
 ## Status
 
@@ -6,7 +6,7 @@ Accepted.
 
 ## Context
 
-SiftWire is intended to be open sourced. Personal source inventories, paywall
+SiftWire is intended for open-source release. Personal source inventories, paywall
 policy, delivery history, and latest-seen state must not be committed to the
 repository or encoded in the skill.
 
@@ -18,8 +18,8 @@ repository files.
 
 ## Decision
 
-SiftWire stores runtime configuration and mutable state in SQLite. The
-database path is the storage anchor.
+SiftWire stores runtime configuration and mutable state in a SQLite database
+selected by its path.
 
 The canonical app-specific environment variable is `SIFTWIRE_DATABASE_PATH`.
 The runner also accepts `--db` for explicit datasets and tests. If neither is
@@ -52,5 +52,4 @@ settings on read.
 - Local operators can keep private configuration in host storage.
 - Repo development and migration design can inspect public repository files.
 - User-directed legacy migration can draft reviewed sources and outlet policies.
-- Operational state import remains outside the repository until it is
-  implemented as a runner-backed feature.
+- Operational state import remains unsupported until the runner provides it.

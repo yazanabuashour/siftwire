@@ -1,29 +1,33 @@
 # SiftWire
 
-SiftWire turns your chosen feeds, GitHub releases, and sports schedules into a
-brief. Your agent chooses the optional stories and sends the prepared message
-through its own tools.
+SiftWire turns feeds, GitHub releases, and sports schedules into a brief for
+your agent to deliver. You choose the sources; your agent selects the optional
+stories and sends the prepared message.
 
 ![Example SiftWire brief with linked stories, release updates, sports, and source health notes](docs/assets/example-brief.webp)
 
 *Synthetic example. Not a live brief or a record of delivery.*
 
-Major and Highlights feeds supply stories published in the last 24 hours, with
-original feed links. Required feeds track new entries instead. GitHub releases
-are always Required. Sports have separate upcoming-fixture and result windows.
-Exact duplicate checks and confirmed-delivery history help reduce repeats.
-They do not identify every version of an event or verify article contents.
+- **News:** Major and Highlights feeds supply stories from the last 24 hours,
+  with original feed links. Required feeds track new entries instead. GitHub
+  releases are always Required.
+- **Sports:** Upcoming fixtures and results have separate reporting windows.
+- **History:** Saved briefs preserve the selected Markdown, plain text, and
+  HTML. Delivery is recorded only after your agent confirms transport acceptance.
+- **Local state:** The runner and SQLite database stay on your machine. The
+  optional [console](docs/console.md) reads saved briefs and edits configuration.
 
-SiftWire saves the selected brief as immutable Markdown, plain text, and HTML.
-It records delivery after your agent confirms transport acceptance, so you can
-inspect what was collected, excluded, selected, and sent. The optional
-[console](docs/console.md) reads saved briefs and edits configuration.
-
-The runner and its SQLite database stay local. Your agent supplies editorial
-judgment, scheduling, and delivery tools. SiftWire has no scheduler or email
-service. Feed coverage depends on what your sources publish and retain.
+Your agent supplies story selection, scheduling, and delivery tools. SiftWire
+has no scheduler or email service. Duplicate checks and delivery history help
+reduce repeats, but do not recognize every version of an event or verify article
+contents. Coverage depends on what your sources publish and retain.
 
 ## Install
+
+If you are upgrading from v0.8.0 or earlier, read the
+[compatibility reset](docs/runner-v5-reset.md) first: you need a fresh database
+and matching consumers. Upgrading from v0.9.0 preserves your database and
+configuration.
 
 Install the latest published runner:
 
@@ -32,22 +36,20 @@ sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/d
 siftwire --version
 ```
 
-The latest documented release is v0.9.1. Upgrading from v0.9.0 preserves the
-existing database and configuration. Upgrading from v0.8.0 or earlier
-requires a fresh database and matching consumers; read the
-[compatibility reset](docs/runner-v5-reset.md) before installing.
-The pinned release installer is:
+To pin the latest documented release, v0.9.1:
 
 ```bash
 SIFTWIRE_VERSION=v0.9.1 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.9.1/install.sh)"
 siftwire --version
 ```
 
-Register the matching `skills/siftwire/SKILL.md` with your agent's native skill
-system. For v0.9.1, use the `v0.9.1` repository tag or the release asset
-`siftwire_0.9.1_skill.tar.gz`. Installation is not complete until both the runner
-and its matching skill are installed. No particular agent or skill directory is
-required.
+Register the matching `skills/siftwire/SKILL.md` with your agent's skill system.
+For v0.9.1, use the `v0.9.1` repository tag or the release asset
+`siftwire_0.9.1_skill.tar.gz`. You need both the runner and its matching skill;
+no particular agent or skill directory is required.
+
+When upgrading, update the runner, skill, and process consumers together. If you
+use the console, update it and its web assets too.
 
 The installer accepts no arguments. `SIFTWIRE_VERSION` selects the release.
 `SIFTWIRE_INSTALL_DIR` selects the executable directory. Follow any printed
@@ -73,18 +75,6 @@ absolute. Use `SIFTWIRE_DATABASE_PATH` for another database, or `--db` for an
 explicit dataset. Keep configuration, databases, and delivery history outside
 this repository. See the [runner contract](docs/runner-contract.md) for actions,
 result fields, and retry rules.
-
-## Upgrade to v0.9.0
-
-v0.9.0 removes backward compatibility and requires a fresh database when
-upgrading from v0.8.0 or earlier.
-Follow the [compatibility reset](docs/runner-v5-reset.md). The
-[v4 migration guide](docs/runner-v4-migration.md) describes the published v0.8.0
-release only.
-
-Update the runner, matching skill, and process consumers together. If you use
-the console, update it and its web assets too. Published release tags keep their
-original contracts.
 
 ## Find a task
 

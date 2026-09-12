@@ -5,8 +5,7 @@
 All optional `rss` sources, including Atom feeds, use publication-time selection.
 The operator chose a rolling 24-hour window for both Major and Highlights
 reporting. This is a freshness policy, not a guarantee of finding every unseen
-story.
-There is no source-level mode, article queue, or seen-ID ledger.
+story. There is no source-level mode, article queue, or seen-ID ledger.
 
 The 24-hour value is an explicit operator decision. It matches the existing
 confirmed-delivery repeat window. It is not a measured feed-retention guarantee
@@ -68,11 +67,11 @@ Current-news behavior was introduced in `siftwire-runner/v4`. v0.9.0
 requires `siftwire-runner/v5` with `current-news/v1` before writes or collection.
 See the [compatibility reset](../runner-v5-reset.md).
 
-A per-source mode would preserve optional positional intake but add a setting
-the operator explicitly declined. A persistent seen ledger would answer a
-different question and add retention and replay obligations. An aggregator can
+A per-source mode would preserve optional selection by feed position but add a
+setting the operator explicitly declined. A persistent seen ledger would track
+past observations and add retention and replay obligations. An aggregator can
 improve feed operations, but another RSS endpoint does not establish complete
-membership or fix positional selection by itself. None is required here.
+membership or fix selection by feed position by itself. None is required here.
 
 ## Evidence required for acceptance
 

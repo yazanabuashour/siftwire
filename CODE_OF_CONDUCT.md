@@ -1,17 +1,15 @@
-# Code of Conduct
+# Code of conduct
 
 ## Our standard
 
-This project expects participants to communicate professionally and respectfully.
+Communicate professionally and respectfully:
 
-Examples of expected behavior:
+- Focus discussion on the work, not the person.
+- Give concrete technical feedback that others can assess.
+- Assume good intent while challenging weak reasoning.
+- Respect privacy. Do not share sensitive information publicly.
 
-- focusing discussion on the work rather than the person
-- giving technical feedback in concrete, reviewable terms
-- assuming good intent while still challenging weak reasoning
-- respecting privacy and not sharing sensitive information publicly
-
-Examples of unacceptable behavior:
+Unacceptable behavior includes:
 
 - harassment, intimidation, or discriminatory language
 - personal attacks, insults, or repeated bad-faith escalation
@@ -26,10 +24,11 @@ This code of conduct applies in repository issues, pull requests, reviews, discu
 
 If you experience or witness behavior that violates this code of conduct, contact the maintainers privately through GitHub's repository contact paths rather than escalating publicly.
 
-Security concerns should follow [SECURITY.md](SECURITY.md) instead.
+For security concerns, follow the [security policy](SECURITY.md) instead.
 
 ## Enforcement
 
 Maintainers may remove comments, close threads, reject contributions, or limit participation when behavior materially harms the project or its participants.
 
-Enforcement decisions will be made with the goal of protecting contributors, maintainers, and the project's ability to operate in public.
+Maintainers enforce this policy to protect participants and the project's
+ability to operate in public.

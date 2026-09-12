@@ -1,6 +1,6 @@
 # Security Operations
 
-This runbook defines recurring security work for SiftWire maintainers. It complements the public reporting and response policy in [SECURITY.md](../SECURITY.md); do not put private vulnerability details in public issues, pull requests, release notes, or this document.
+This runbook defines recurring security work for SiftWire maintainers and complements [SECURITY.md](../SECURITY.md). Do not put private vulnerability details in public issues, pull requests, release notes, or this document.
 
 ## Cadence
 
@@ -24,7 +24,7 @@ This runbook defines recurring security work for SiftWire maintainers. It comple
 2. Classify findings using the severity expectations in `SECURITY.md`.
 3. Keep exploit details private until a fix or mitigation is available.
 4. For dependency updates, prefer the smallest reviewable update that clears the alert and keeps `mise exec -- cargo test --locked` passing.
-5. For workflow or release-pipeline changes, verify token permissions remain job-scoped and no release, deployment, package, or secret-bearing permission is granted to untrusted pull request execution.
+5. For workflow or release-pipeline changes, verify that token permissions remain job-scoped. Check that untrusted pull requests receive no release, deployment, package, or secret-bearing permissions.
 6. For skill or runner policy changes, confirm the public docs, skill contract, tests, and release notes remain aligned.
 
 ## Deeper Testing Expectations

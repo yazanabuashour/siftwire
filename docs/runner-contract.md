@@ -31,15 +31,15 @@ replace capability checks.
   stdout. Exit-1 and exit-2 failures do not produce result JSON.
 - Stderr contains diagnostics, never result JSON.
 - Exit 0 means the task returned a result. `rejected` identifies domain
-  validation and policy refusals within successful result transport.
+  validation and policy refusals even though transport succeeded.
 - Exit 1 means decoding, runtime initialization, orchestration, storage, or
   output encoding failed. Per-source fetch failures normally appear in an
   exit-0 brief result.
 - Exit 2 means command-line misuse.
 
-The `action` field selects the operation. Known request fields that decode
-successfully but do not apply to that action are currently ignored. Consumers
-must ignore unknown result fields. Adding a result field is compatible.
+The `action` field selects the operation. The runner ignores known request
+fields that decode successfully but do not apply to that action. Consumers must
+ignore unknown result fields. Adding a result field is compatible.
 Removing a field or changing its type or meaning is breaking. Changes to action
 names, framing, exits, or retry semantics are also breaking.
 
@@ -94,8 +94,8 @@ cached configuration.
 - `major`: high-threshold candidates for caller judgment.
 - `highlights`: medium-threshold candidates for caller judgment.
 
-The runner owns this decision. Reporting metadata is not writable. New feed
-thresholds are `always`, `high`, and `medium`. Optional RSS sources use the
+The runner determines the reporting policy. Reporting metadata is not writable.
+New feed thresholds are `always`, `high`, and `medium`. Optional RSS sources use the
 [current-news contract](architecture/current-news.md), independent of source
 markers. Unselected stories remain eligible while current, not in a durable
 backlog.
@@ -172,10 +172,10 @@ unknown request field.
 
 `run_brief` defaults to `dry_run: false`. With `dry_run: true`, it still fetches
 sources but does not save run evidence, source markers, fetch logs, or health
-changes. A successful dry run returns `run_id: "dry-run"`, which cannot be prepared for
-delivery.
-Database initialization can still occur when the command opens storage. `validate` opens the database but does not test source
-compatibility or fetchability.
+changes. A successful dry run returns `run_id: "dry-run"`; this run cannot be
+prepared for delivery. Opening storage can still initialize the database.
+`validate` opens the database but does not test source compatibility or whether
+sources can be fetched.
 
 ### Results
 
@@ -234,13 +234,15 @@ run settings, not current configuration.
 `prepare_delivery`. Candidate indexes are zero-based positions in the returned
 `candidates` array. They must be unique and in range. The first successful
 `prepare_delivery` call persists the run's only plan. Before confirmation, an
-identical retry returns that plan, while different indexes are rejected. Its `message`, `text`, and `html` are
-complete transport bodies in Markdown, plain text, and HTML, respectively.
+identical retry returns that plan, while different indexes are rejected. The plan's
+`message`, `text`, and `html` are complete transport bodies in Markdown, plain
+text, and HTML, respectively.
 Required normal items can exceed `max_delivery_items`. `candidate_slots` then
 remains explicitly zero. Consumers must send prepared bodies unchanged. Each
 `prepared_items` entry includes its source `kind`. Sports evidence remains
-auditable but does not enter normal-item recent suppression. Plans retain `run_item_ids` as strings linking normal prepared items to immutable
-collection evidence. Sports updates carry an empty reference list.
+auditable but does not enter normal-item recent suppression. Plans retain
+`run_item_ids` as strings that link normal prepared items to immutable collection
+evidence. Sports updates carry an empty reference list.
 
 ### Recent context
 
@@ -262,11 +264,11 @@ invoke `confirm_delivery` with that plan ID. The runner does not send email.
 
 `delivery_message_scope` is `current_brief_only`. Transport uses the immutable
 prepared bodies, not the `final_answer` history wrapper. `confirm_delivery` is
-retry-safe with the same database and `delivery_plan_id`. An identical retry returns the
-existing delivery. It rejects an unknown plan or a supplied `run_id` that does
-not match. A delivered run cannot create a new plan. `record_delivery` is no
-longer an action. Database corruption or an
-incomplete idempotency record remains an exit-1 runtime error.
+retry-safe with the same database and `delivery_plan_id`. An identical retry
+returns the existing delivery. The runner rejects an unknown plan or a supplied
+`run_id` that does not match. A delivered run cannot create a new plan.
+`record_delivery` is no longer an action. Database corruption or an incomplete
+idempotency record remains an exit-1 runtime error.
 
 Result JSON can contain local paths, source URLs, brief text, and delivery
 history. Do not treat raw requests or results as telemetry-safe.

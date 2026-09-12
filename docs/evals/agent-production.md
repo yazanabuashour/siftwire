@@ -3,7 +3,7 @@
 The production agent evaluation exercises the JSON runner and shipped
 `skills/siftwire/SKILL.md` with synthetic fixtures. The evaluator uses an
 explicitly selected executable implementing the
-[SiftWire adapter contract](agent-adapter.md); Pi is one leaf implementation.
+[SiftWire adapter contract](agent-adapter.md); Pi is one adapter implementation.
 The production runner and skill remain unchanged and harness-independent. The
 evaluator uses a checkout-built `siftwire` binary in separate workspaces, not an
 installed production database. It simulates transport and does not send email.
@@ -83,13 +83,14 @@ mise exec -- ./scripts/run-agent-eval.sh run \
 ```
 
 `--adapter` is required: use an absolute path, a relative executable path, or a
-bare executable name on the host `PATH`. It is not a shell command or a place for
-executable arguments. Use a wrapper or environment for adapter configuration.
+bare executable name on the host `PATH`. It accepts neither a shell command nor
+executable arguments. Use a wrapper or environment variables for adapter
+configuration.
 Rust has no model flags or vendor configuration. The
 [Pi adapter](agent-adapter.md#use-the-pi-implementation) reads its own personal
 model defaults, supports the exact `SIFTWIRE_PI_MODEL=provider/model` override,
-and uses fixed `medium` reasoning without fallback. Selection resolves once per
-scenario and remains fixed across its in-memory turns.
+and uses fixed `medium` reasoning without fallback. The adapter selects the model
+once per scenario and keeps it fixed across turns in the in-memory session.
 
 Rust builds the checkout runner once into `<run-root>/bin` and owns synthetic
 fixtures, workspaces, candidate skill copies, requests, reports, databases,
@@ -125,10 +126,10 @@ compares integration shapes.
 The adapter returns one strict `siftwire-agent-eval/v1` JSON result on stdout;
 diagnostics go to stderr. A successful process exit and a valid complete result
 are both required. The result contains scenario-local runtime receipts and one
-turn per prompt, in the same order, with exact nonblank final text, a nullable
-assistant execution count, and complete command, read, and other-action
-receipts. Extra JSON, native stdout, unknown fields, version mismatches, and
-turn-count mismatches fail validation.
+turn per prompt, in the same order. Each turn includes exact nonblank final
+text, a nullable assistant execution count, and complete command, read, and
+other-action receipts. Extra JSON, native stdout, unknown fields, version
+mismatches, and turn-count mismatches fail validation.
 
 The adapter must await actual native completion before returning receipts. A
 final-only API response is not equivalent to an agent run: an API adapter must

@@ -1,9 +1,31 @@
 # Production agent evaluation
 
 The production agent evaluation exercises the JSON runner and shipped
-`skills/siftwire/SKILL.md` with synthetic fixtures. It uses a checkout-built
-`siftwire` binary in isolated workspaces, not an installed production database.
-It simulates transport and does not send email.
+`skills/siftwire/SKILL.md` with synthetic fixtures. The evaluator uses an
+explicitly selected executable implementing the
+[SiftWire adapter contract](agent-adapter.md); Pi is one leaf implementation.
+The production runner and skill remain unchanged and harness-independent. The
+evaluator uses a checkout-built `siftwire` binary in separate workspaces, not an
+installed production database. It simulates transport and does not send email.
+
+The [execution-receipt Pi inventory](../agent-eval-results/siftwire-v0.9.0-adapter-pi-execution-receipts.md)
+passed all 13 scenarios using `openai-codex/gpt-6-astra` with `medium` reasoning:
+
+- **Safety:** runner-only hygiene and independent database checks passed. State
+  and transport remained synthetic; this is not an OS sandbox or live-delivery
+  verification.
+- **Capability:** all scenario and exact-answer checks passed, including
+  multi-turn continuity, immutable delivery, suppression, and recovery.
+- **User experience:** the adapter needs one explicit executable selection.
+  The run used 1–18 commands per scenario and 403.50 seconds of scenario execution,
+  excluding the runner build. Prescriptive prompts and simulated transport do
+  not establish low operator effort or a production speedup. This receipt does
+  not justify changing the delivery contract.
+
+The independent [stub smoke](../agent-eval-results/siftwire-v0.9.0-adapter-stub.md)
+passed configuration inspection with real action receipts and no model calls.
+It validates transport independence, not full agent capability. Repository CI
+and adapter contract tests passed; production promotion remains a separate decision.
 
 ## Scenario inventory
 
@@ -49,43 +71,32 @@ A pass does not prove good user experience or authorize a new runner interface.
 The [AgentOps surface policy](../architecture/agentops-surface-policy.md) owns
 those decisions.
 
-## Model selection
-
-The harness requires the shared `model-role` helper on `PATH`. Before workspace
-setup, it invokes `model-role fast --codex` once in the caller's environment.
-The helper validates that `fast.provider` is `openai-codex` and prints the resolved
-model slug followed by a newline. It reads `AI_MODEL_ROLES_FILE` when set,
-otherwise `${XDG_CONFIG_HOME:-$HOME/.config}/ai/model-roles.json`, with this shape:
-
-```json
-{
-	"fast": { "provider": "openai-codex", "model": "<fast-model-slug>" },
-	"deep": { "provider": "<deep-provider>", "model": "<deep-model-slug>" }
-}
-```
-
-The shared configuration owns model selection. There is no default or fallback.
-A missing helper, missing or invalid configuration, provider mismatch, or
-malformed helper output stops the run before workspace setup or agent launch.
-The resolved model stays fixed for every scenario and resumed turn, with
-reasoning effort `medium`. Isolated child homes need neither the shared role
-configuration nor the helper. Role changes take effect on the next run.
-
 ## Invocation and isolation
 
-The harness uses a dedicated, least-privilege Codex home selected through
-`SIFTWIRE_EVAL_CODEX_HOME`. Example setup and invocation:
+From the repository root, install the locked development dependencies for the
+Pi adapter, then select its executable explicitly:
 
 ```bash
-CODEX_HOME="$HOME/.local/share/siftwire/eval-codex" codex login
-export SIFTWIRE_EVAL_CODEX_HOME="$HOME/.local/share/siftwire/eval-codex"
-mise exec -- ./scripts/run-agent-eval.sh run --scenario routine-agent-hygiene
+mise exec -- bun install --frozen-lockfile
+mise exec -- ./scripts/run-agent-eval.sh run \
+	--adapter ./tools/agent-eval/pi --scenario routine-agent-hygiene
 ```
 
-The harness builds the runner once into `<run-root>/bin`. Each scenario receives
-an empty workspace, a separate SQLite database, synthetic fixtures, raw logs,
-and an isolated temporary directory. The shipped skill is installed once in each
-scenario workspace at Codex's native project-skill path.
+`--adapter` is required: use an absolute path, a relative executable path, or a
+bare executable name on the host `PATH`. It is not a shell command or a place for
+executable arguments. Use a wrapper or environment for adapter configuration.
+Rust has no model flags or vendor configuration. The
+[Pi adapter](agent-adapter.md#use-the-pi-implementation) reads its own personal
+model defaults, supports the exact `SIFTWIRE_PI_MODEL=provider/model` override,
+and uses fixed `medium` reasoning without fallback. Selection resolves once per
+scenario and remains fixed across its in-memory turns.
+
+Rust builds the checkout runner once into `<run-root>/bin` and owns synthetic
+fixtures, workspaces, candidate skill copies, requests, reports, databases,
+temporary resources, and the run-root lock. Each scenario receives a fresh
+workspace, a separate database, and its own home, temporary, and private adapter
+artifact directories. The shipped candidate skill is copied to
+`.agents/skills/siftwire/SKILL.md` in that workspace.
 
 The default run root is under the user's cache directory. `--run-root` selects
 another path, which must be outside the repository and either absent or marked
@@ -93,11 +104,55 @@ by an earlier harness run. The harness marks dedicated roots and holds an atomic
 ownership lock for the full run. A concurrent owner fails before any scenario
 directory is reset.
 
-The harness links only the dedicated eval home's `auth.json` into an isolated
-Codex home. It passes `--ignore-user-config`, disables login-shell profiles, and
-gives tool subprocesses a strict non-secret environment without the auth path.
-Single-turn scenarios use `--ephemeral`. Multi-turn scenarios persist only in the
-isolated eval home.
+Rust sends one request for the entire fixed scenario, with all prompts in order.
+The adapter owns multi-turn continuity internally; no session IDs, resume
+operations, or native files cross the contract. The adapter host retains
+provider environment variables but receives run-local `TMPDIR`. Shell tools
+must receive only the supplied clean `tool_env`, including the fixture runner
+path and scenario-local state, not host credentials or personal configuration.
+Adapters must use the supplied workspace and candidate resources.
+
+This is **not an OS sandbox**: adapters and tools retain same-account filesystem
+permissions. Trusted adapters must truthfully report all actions. Hygiene checks
+reject disallowed access after execution rather than preventing it. The
+[adapter contract](agent-adapter.md) owns environment, native completion,
+authentication, and artifact rules; the
+[surface decision](../architecture/agentops-surface-policy.md#the-evaluator-owns-a-vendor-neutral-executable-boundary)
+compares integration shapes.
+
+## Completion and metrics
+
+The adapter returns one strict `siftwire-agent-eval/v1` JSON result on stdout;
+diagnostics go to stderr. A successful process exit and a valid complete result
+are both required. The result contains scenario-local runtime receipts and one
+turn per prompt, in the same order, with exact nonblank final text, a nullable
+assistant execution count, and complete command, read, and other-action
+receipts. Extra JSON, native stdout, unknown fields, version mismatches, and
+turn-count mismatches fail validation.
+
+The adapter must await actual native completion before returning receipts. A
+final-only API response is not equivalent to an agent run: an API adapter must
+own any needed tool loop. Rust never parses native event or session formats.
+
+Metrics count each reported action once; command actions also count as command
+executions. Only the candidate skill is allowed for direct reads; other actions
+fail hygiene, and the existing shell-command gate remains in force. Assistant
+counts describe actual executions, not streaming deltas. Unknown is `null`, not
+zero; the deterministic stub legitimately reports zero assistant calls. These
+metrics measure recorded executions, not operator effort. Failed or unparseable
+results do not contribute verified metrics; zero tool counts on failed rows do
+not prove no work occurred. Inspect private raw artifacts.
+
+For a model-free transport smoke, use:
+
+```bash
+mise exec -- ./scripts/run-agent-eval.sh run \
+	--adapter ./tools/agent-eval/stub --scenario routine-agent-hygiene
+```
+
+The [stub](agent-adapter.md#smoke-test-transport-without-a-model) imports no Pi and
+returns real candidate-skill read and runner inspection receipts. It supports
+this smoke scenario only, not full capability evaluation or production use.
 
 ## Transport simulation and evidence checks
 
@@ -130,27 +185,40 @@ Reports require an explicit name:
 
 ```bash
 mise exec -- ./scripts/run-agent-eval.sh run \
+	--adapter ./tools/agent-eval/pi \
 	--report-dir docs/agent-eval-results \
-	--report-name siftwire-v0.8.0-candidate
+	--report-name siftwire-executable-adapter-candidate
 ```
 
-Raw logs, workspaces, databases, caches, and Codex state stay under `<run-root>`
-and are not committed. Reduced reports scrub local paths to `<run-root>`. JSON
-output and reduced JSON and Markdown reports record the resolved `model` and
-`reasoning_effort`.
+Omitting `--scenario` runs the full inventory. Use a new report name for each
+receipt; do not overwrite historical results.
+
+Raw logs, requests, responses, workspaces, databases, and adapter-owned artifacts
+stay under `<run-root>` and are not committed. Personal auth and model stores
+remain at their native paths outside the run root. Reduced reports replace
+run-root paths with `<run-root>`; never commit private agent-directory paths,
+credentials, or artifact contents. Inspect reduced artifacts before committing
+them; opaque adapter metadata is not a general-purpose privacy scrubber.
+
+JSON output and reduced JSON and Markdown reports carry `runtime` receipts per
+scenario, not a hardcoded global Pi model: `adapter` is an opaque nonempty ID;
+`model` and `reasoning_effort` are nullable opaque values. Identity is
+adapter-reported, not independently inferred by Rust. Missing runtime evidence
+on a failed scenario does not establish that it reached the provider.
 
 Reduced reports must identify the evaluator instruction. It is part of the
-method, not hidden product guidance. Historical reports retain their original
-scenario names, results, and model metadata. Tool and command metrics count
-recorded events; started and completed events can both contribute. They are not
-deduplicated execution counts or a measurement of operator effort.
+method, not hidden product guidance. No backward compatibility is required for
+the unpublished previous eval format. Historical reports retain their original
+scenario names, results, model metadata, and metric semantics; historical Codex
+event counts are not directly comparable to Pi execution counts.
 
 The [v0.8.0 complete run](../agent-eval-results/siftwire-v0.8.0-agent-eval-final.md)
-passed every current scenario. Run the full inventory again with a new report
-name to preserve the earlier result:
-
-```bash
-mise exec -- ./scripts/run-agent-eval.sh run \
-	--report-dir docs/agent-eval-results \
-	--report-name siftwire-v0.8.0-rerun
-```
+is a historical Codex receipt. The
+[first Pi partial run](../agent-eval-results/siftwire-v0.9.0-pi-sdk-candidate.md)
+is historical evidence from the prior Pi-specific implementation. Neither is
+neutral-contract validation or Pi promotion evidence. The new receipts above
+preserve that history rather than overwriting it. The
+[first neutral-adapter run](../agent-eval-results/siftwire-v0.9.0-adapter-pi.md)
+also passed, but counted native tool starts. The current receipt supersedes it:
+actions now originate in actual tool execution hooks, excluding native
+pre-execution refusals without excluding executions that fail.

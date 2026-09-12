@@ -1,4 +1,8 @@
-use serde::Serialize;
+use std::collections::BTreeMap;
+
+use serde::{Deserialize, Serialize};
+
+pub const ADAPTER_PROTOCOL: &str = "siftwire-agent-eval/v1";
 
 #[derive(Clone)]
 pub struct Turn {
@@ -15,16 +19,59 @@ pub struct Scenario {
 pub struct RunOptions {
     pub run_root: String,
     pub scenario: String,
+    pub adapter: String,
     pub report_dir: String,
     pub report_name: String,
 }
 
 #[derive(Serialize)]
+pub struct Request {
+    pub protocol: &'static str,
+    pub workspace: String,
+    pub skill_path: String,
+    pub artifact_dir: String,
+    pub prompts: Vec<String>,
+    pub tool_env: BTreeMap<String, String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Runtime {
+    pub adapter: String,
+    #[serde(deserialize_with = "Option::deserialize")]
+    pub model: Option<String>,
+    #[serde(deserialize_with = "Option::deserialize")]
+    pub reasoning_effort: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AdapterResult {
+    pub protocol: String,
+    pub runtime: Runtime,
+    pub turns: Vec<AgentTurn>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentTurn {
+    pub final_message: String,
+    #[serde(deserialize_with = "Option::deserialize")]
+    pub assistant_calls: Option<usize>,
+    pub actions: Vec<Action>,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum Action {
+    Command { command: String },
+    Read { path: String },
+    Other { name: String },
+}
+
+#[derive(Serialize)]
 pub struct RunResult {
-    pub model: String,
-    pub reasoning_effort: String,
     pub run_root: String,
-    pub codex_home: String,
     pub scenario_count: usize,
     #[serde(rename = "scenario_results")]
     pub results: Vec<JobResult>,
@@ -38,6 +85,8 @@ pub struct JobResult {
     pub run_dir: String,
     pub database: String,
     pub passed: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<Runtime>,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub error: String,
     pub seconds: f64,
@@ -53,7 +102,7 @@ pub struct JobResult {
     reason = "eval output records four independent hygiene receipts"
 )]
 pub struct Metrics {
-    pub assistant_calls: usize,
+    pub assistant_calls: Option<usize>,
     pub tool_calls: usize,
     pub command_executions: usize,
     pub direct_sqlite_access: bool,
@@ -86,5 +135,5 @@ pub struct Verification {
 pub struct ParsedOutput {
     pub metrics: Metrics,
     pub final_message: String,
-    pub session_id: String,
+    pub runtime: Runtime,
 }

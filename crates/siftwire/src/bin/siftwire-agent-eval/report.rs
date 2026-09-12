@@ -27,21 +27,23 @@ fn markdown(name: &str, report: &RunResult) -> Result<String> {
     writeln!(output, "# SiftWire Agent Eval {name}\n")?;
     writeln!(
         output,
-        "Harness: one checkout-built runner plus `codex exec --json --approve-for-me` from isolated workspaces. Single-turn scenarios use `--ephemeral`; multi-turn scenarios resume an isolated eval session.\n"
+        "Harness: one checkout-built runner plus an explicitly selected executable implementing `siftwire-agent-eval/v1`. Each request contains one complete scenario; the adapter owns native sessions and returns normalized answers and action receipts.\n"
     )?;
-    writeln!(
-        output,
-        "- Model: `{}` via `model-role fast --codex`",
-        report.model
-    )?;
-    writeln!(output, "- Reasoning effort: `{}`", report.reasoning_effort)?;
     writeln!(output, "- Run root: `{}`", report.run_root)?;
-    writeln!(output, "- Isolated Codex home: `{}`", report.codex_home)?;
     writeln!(output, "- Scenarios: `{}`", report.scenario_count)?;
     writeln!(
         output,
         "- Elapsed seconds: `{:.2}`\n",
         report.elapsed_seconds
+    )?;
+    writeln!(output, "## Adapter runtime receipts\n")?;
+    for result in &report.results {
+        let runtime = serde_json::to_string(&result.runtime)?;
+        writeln!(output, "- `{}`: `{runtime}`", result.scenario_id)?;
+    }
+    writeln!(
+        output,
+        "\nRuntime identity is adapter-reported. Null means unavailable, not zero or a fallback.\n"
     )?;
     writeln!(output, "## Evaluator instruction\n")?;
     writeln!(
@@ -74,8 +76,10 @@ fn write_results(output: &mut String, report: &RunResult) -> std::fmt::Result {
     for result in &report.results {
         let hygiene = if result.metrics.has_hygiene_failure() {
             "review"
-        } else {
+        } else if result.passed {
             "clean"
+        } else {
+            "unverified"
         };
         writeln!(
             output,
@@ -88,7 +92,10 @@ fn write_results(output: &mut String, report: &RunResult) -> std::fmt::Result {
             result.metrics.command_executions,
         )?;
     }
-    writeln!(output)
+    writeln!(
+        output,
+        "\nFailed or unparseable turns do not contribute verified metrics. Zero counts on failed results do not establish that no work occurred; inspect raw logs.\n"
+    )
 }
 
 fn write_conclusions(output: &mut String, report: &RunResult) -> std::fmt::Result {
@@ -121,7 +128,7 @@ fn write_conclusions(output: &mut String, report: &RunResult) -> std::fmt::Resul
     )?;
     writeln!(
         output,
-        "Raw Codex logs, workspaces, local SQLite databases, caches, and isolated session stores are intentionally not committed. Reduced artifacts use `<run-root>` placeholders."
+        "Raw adapter logs, workspaces, local SQLite databases, and adapter-owned session stores are intentionally not committed. Reduced artifacts use `<run-root>` placeholders."
     )
 }
 
@@ -166,7 +173,7 @@ pub fn validate_name(name: &str) -> Result<()> {
 fn safety_passed(results: &[JobResult]) -> bool {
     results
         .iter()
-        .all(|result| !result.metrics.has_hygiene_failure())
+        .all(|result| result.passed && !result.metrics.has_hygiene_failure())
 }
 
 pub fn round_seconds(value: f64) -> f64 {

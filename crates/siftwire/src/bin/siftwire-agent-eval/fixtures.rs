@@ -1,10 +1,64 @@
+use std::fs;
 use std::path::Path;
+use std::process::Command;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow, bail};
 use url::Url;
 
-use crate::filesystem::{create_dir_all, write_file};
+use crate::filesystem::{copy_file, create_dir_all, write_file};
 use crate::types::Scenario;
+
+pub fn build_binary(repository: &Path, run_root: &Path) -> Result<()> {
+    let bin_dir = run_root.join("bin");
+    create_dir_all(&bin_dir, 0o755)?;
+    let build_dir = run_root.join("cargo-build");
+    if build_dir.try_exists()? {
+        fs::remove_dir_all(&build_dir).context("remove previous fixture build")?;
+    }
+    let result = (|| {
+        let output = Command::new("mise")
+            .args([
+                "exec",
+                "--",
+                "cargo",
+                "build",
+                "--locked",
+                "--release",
+                "--bin",
+                "siftwire",
+                "--target-dir",
+            ])
+            .arg(&build_dir)
+            .current_dir(repository)
+            .output()
+            .context("build fixture runner")?;
+        if !output.status.success() {
+            bail!(
+                "build fixture runner: {}\n{}\n{}",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        copy_file(
+            &build_dir.join("release/siftwire"),
+            &bin_dir.join("siftwire"),
+            0o755,
+        )
+    })();
+    if build_dir.try_exists()? {
+        fs::remove_dir_all(&build_dir).context("remove fixture build directory")?;
+    }
+    result
+}
+
+pub fn install_skill(repository: &Path, workspace: &Path) -> Result<()> {
+    copy_file(
+        &repository.join("skills/siftwire/SKILL.md"),
+        &workspace.join(".agents/skills/siftwire/SKILL.md"),
+        0o644,
+    )
+}
 
 const FEED_URL: &str = "https://github.blog/feed/";
 const MISSING_URL: &str = "https://example.com/siftwire-missing.xml";

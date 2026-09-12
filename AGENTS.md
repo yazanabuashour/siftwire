@@ -23,8 +23,11 @@ external SQLite database; they never belong in this repository.
   defines the public process contract.
 - `crates/siftwire/tests/` and colocated unit tests cover the process and implementation
   behavior. `scripts/ci.sh` is the main gate.
-- `crates/siftwire/src/bin/siftwire-agent-eval/` and `docs/agent-eval-results/` own agent
-  evaluation; release, security, and architecture guidance lives under `docs/`.
+- `crates/siftwire/src/bin/siftwire-agent-eval/` owns the vendor-neutral evaluator;
+  `tools/agent-eval/` owns its executable adapters and shared contract decoding.
+  `docs/evals/agent-adapter.md` defines that boundary; `docs/agent-eval-results/`
+  holds evaluation receipts. Pi is one development-only adapter implementation;
+  release, security, and architecture guidance lives under `docs/`.
 - `crates/siftwire-console/` is an optional local web console that spawns the
   runner per request over the process protocol; it must never open SQLite or
   import runner internals. Its TypeScript app lives in `apps/web`.

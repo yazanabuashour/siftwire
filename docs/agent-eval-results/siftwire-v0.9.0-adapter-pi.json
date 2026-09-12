@@ -1,0 +1,388 @@
+{
+  "run_root": "<run-root>",
+  "scenario_count": 13,
+  "scenario_results": [
+    {
+      "scenario_id": "empty-config-rejects-run-brief",
+      "prompts": [
+        "Run a SiftWire brief from a fresh empty configuration and report the production runner result."
+      ],
+      "run_dir": "<run-root>/empty-config-rejects-run-brief",
+      "database": "<run-root>/empty-config-rejects-run-brief/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 10.51,
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 3,
+        "command_executions": 2,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "no enabled sources configured"
+    },
+    {
+      "scenario_id": "rss-source-first-run-candidate",
+      "prompts": [
+        "Configure an RSS source for file://<run-root>/rss-source-first-run-candidate/fixtures/github-blog.xml with key github-blog, section technology, and threshold medium. Then run a SiftWire brief and report the JSON-derived brief."
+      ],
+      "run_dir": "<run-root>/rss-source-first-run-candidate",
+      "database": "<run-root>/rss-source-first-run-candidate/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 29.12,
+      "metrics": {
+        "assistant_calls": 8,
+        "tool_calls": 7,
+        "command_executions": 6,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Current brief\n\n- [SiftWire fixture story - Fixture Outlet](<https://fixture.example/story>)"
+    },
+    {
+      "scenario_id": "github-release-source-config",
+      "prompts": [
+        "Configure a GitHub release source for repository openai/codex with key codex-releases, section releases, and threshold always. Inspect configuration and report the repository-derived source. Do not run a brief or fetch releases in this offline configuration scenario."
+      ],
+      "run_dir": "<run-root>/github-release-source-config",
+      "database": "<run-root>/github-release-source-config/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 17.58,
+      "metrics": {
+        "assistant_calls": 5,
+        "tool_calls": 4,
+        "command_executions": 3,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Configured and verified:\n\n- Key: `codex-releases`\n- Kind: `github_release`\n- Repository: `openai/codex` (repository-derived source)\n- Section: `releases`\n- Threshold: `always` — reported as required\n- Enabled: yes\n\nAll required protocol capabilities verified. No brief run or releases fetched."
+    },
+    {
+      "scenario_id": "rss-source-must-include",
+      "prompts": [
+        "Configure an RSS source for file://<run-root>/rss-source-must-include/fixtures/github-blog.xml with key required-feed, section technology, and threshold always. Run a brief, prepare delivery with no optional candidates, confirm after simulated transport, and report final_answer."
+      ],
+      "run_dir": "<run-root>/rss-source-must-include",
+      "database": "<run-root>/rss-source-must-include/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 24.88,
+      "metrics": {
+        "assistant_calls": 8,
+        "tool_calls": 7,
+        "command_executions": 6,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Current brief\n\n- [SiftWire fixture story - Fixture Outlet](<https://fixture.example/story>)"
+    },
+    {
+      "scenario_id": "repeat-run-no-new-items",
+      "prompts": [
+        "Configure an RSS source for file://<run-root>/repeat-run-no-new-items/fixtures/github-blog.xml with key github-blog, section technology, and threshold medium. Run a SiftWire brief, prepare delivery, confirm after simulated transport, and report final_answer.",
+        "Run SiftWire again without changing configuration and report the production runner result."
+      ],
+      "run_dir": "<run-root>/repeat-run-no-new-items",
+      "database": "<run-root>/repeat-run-no-new-items/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 49.42,
+      "metrics": {
+        "assistant_calls": 14,
+        "tool_calls": 12,
+        "command_executions": 10,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Current brief\n\nNO_REPLY\n\nPrevious brief (2026-09-12T15:51:29.695527775Z)\n\n- [SiftWire fixture story - Fixture Outlet](<https://fixture.example/story>)"
+    },
+    {
+      "scenario_id": "rss-source-generic-processing-fields",
+      "prompts": [
+        "Configure an RSS source for file://<run-root>/rss-source-generic-processing-fields/fixtures/github-blog.xml with key github-blog, section technology, threshold medium, url_canonicalization none, outlet_extraction title_suffix, dedup_group news, and priority_rank 10. Then run a SiftWire brief with run_brief, prepare delivery, confirm after simulated transport, and report final_answer."
+      ],
+      "run_dir": "<run-root>/rss-source-generic-processing-fields",
+      "database": "<run-root>/rss-source-generic-processing-fields/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 26.91,
+      "metrics": {
+        "assistant_calls": 8,
+        "tool_calls": 7,
+        "command_executions": 6,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Current brief\n\n- [SiftWire fixture story - Fixture Outlet](<https://fixture.example/story>)"
+    },
+    {
+      "scenario_id": "outlet-policy-watch-audit",
+      "prompts": [
+        "Configure an outlet policy named Fixture Outlet with policy watch and enabled true. Configure an RSS source for file://<run-root>/outlet-policy-watch-audit/fixtures/github-blog.xml with key github-blog, section technology, threshold medium, and outlet_extraction title_suffix. Run SiftWire and report whether the JSON result includes a policy audit while still allowing candidates."
+      ],
+      "run_dir": "<run-root>/outlet-policy-watch-audit",
+      "database": "<run-root>/outlet-policy-watch-audit/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 33.54,
+      "metrics": {
+        "assistant_calls": 9,
+        "tool_calls": 8,
+        "command_executions": 7,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Current brief\n\n- [SiftWire fixture story - Fixture Outlet](<https://fixture.example/story>)"
+    },
+    {
+      "scenario_id": "configured-max-delivery-items",
+      "prompts": [
+        "Configure SiftWire max_delivery_items to 2 through siftwire config. Configure RSS sources with keys limit-one, limit-two, and limit-three for file://<run-root>/configured-max-delivery-items/fixtures/limit-1.xml, file://<run-root>/configured-max-delivery-items/fixtures/limit-2.xml, and file://<run-root>/configured-max-delivery-items/fixtures/limit-3.xml, each with section technology and threshold medium. Run a SiftWire brief, prepare delivery with exactly two returned candidate indexes, confirm after simulated transport, and report only final_answer."
+      ],
+      "run_dir": "<run-root>/configured-max-delivery-items",
+      "database": "<run-root>/configured-max-delivery-items/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 40.67,
+      "metrics": {
+        "assistant_calls": 11,
+        "tool_calls": 10,
+        "command_executions": 9,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Current brief\n\n- [SiftWire limit story 1](<https://fixture.example/limit-1>)\n- [SiftWire limit story 3](<https://fixture.example/limit-3>)"
+    },
+    {
+      "scenario_id": "brief-run-history",
+      "prompts": [
+        "Configure exactly one RSS source by piping {\"action\":\"upsert_source\",\"source\":{\"key\":\"history\",\"label\":\"History\",\"kind\":\"rss\",\"url\":\"file://<run-root>/brief-run-history/fixtures/history-1.xml\",\"section\":\"technology\",\"threshold\":\"medium\",\"enabled\":true}} to siftwire config. Then pipe {\"action\":\"run_brief\",\"dry_run\":false} to siftwire brief. Prepare delivery selecting the returned candidate index, confirm after simulated transport, and report final_answer unchanged.",
+        "Replace the history source URL by piping {\"action\":\"upsert_source\",\"source\":{\"key\":\"history\",\"label\":\"History\",\"kind\":\"rss\",\"url\":\"file://<run-root>/brief-run-history/fixtures/history-2.xml\",\"section\":\"technology\",\"threshold\":\"medium\",\"enabled\":true}} to siftwire config. Then run SiftWire, prepare delivery selecting the returned candidate index, confirm after simulated transport, and report final_answer unchanged.",
+        "Replace the history source URL by piping {\"action\":\"upsert_source\",\"source\":{\"key\":\"history\",\"label\":\"History\",\"kind\":\"rss\",\"url\":\"file://<run-root>/brief-run-history/fixtures/history-3.xml\",\"section\":\"technology\",\"threshold\":\"medium\",\"enabled\":true}} to siftwire config. Then run SiftWire, prepare delivery selecting the returned candidate index, confirm after simulated transport, and report final_answer unchanged with Current brief and Previous brief sections."
+      ],
+      "run_dir": "<run-root>/brief-run-history",
+      "database": "<run-root>/brief-run-history/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 84.63,
+      "metrics": {
+        "assistant_calls": 22,
+        "tool_calls": 19,
+        "command_executions": 18,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Current brief\n\n- [SiftWire history story 3](<https://fixture.example/history-3>)\n\nPrevious brief (2026-09-12T15:54:28.016436786Z)\n\n- [SiftWire history story 2](<https://fixture.example/history-2>)\n\nPrevious brief (2026-09-12T15:54:01.291224878Z)\n\n- [SiftWire history story 1](<https://fixture.example/history-1>)"
+    },
+    {
+      "scenario_id": "feed-failure-health-footnote",
+      "prompts": [
+        "Configure an RSS source with key broken-feed, label Broken Feed, URL file://<run-root>/feed-failure-health-footnote/fixtures/missing.xml, section technology, and threshold medium. Run a SiftWire brief and report the health footnote from the JSON result."
+      ],
+      "run_dir": "<run-root>/feed-failure-health-footnote",
+      "database": "<run-root>/feed-failure-health-footnote/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 30.53,
+      "metrics": {
+        "assistant_calls": 8,
+        "tool_calls": 7,
+        "command_executions": 6,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Current brief\n\nFeed health changes - NEW: broken-feed."
+    },
+    {
+      "scenario_id": "feed-recovery-resolves-warning",
+      "prompts": [
+        "Configure an RSS source with key changing-feed, label Changing Feed, URL file://<run-root>/feed-recovery-resolves-warning/fixtures/missing.xml, section technology, and threshold medium. Run a SiftWire brief and report the JSON result.",
+        "Replace the changing-feed source URL with file://<run-root>/feed-recovery-resolves-warning/fixtures/github-blog.xml. Run SiftWire again and report the JSON-derived result."
+      ],
+      "run_dir": "<run-root>/feed-recovery-resolves-warning",
+      "database": "<run-root>/feed-recovery-resolves-warning/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 54.7,
+      "metrics": {
+        "assistant_calls": 16,
+        "tool_calls": 14,
+        "command_executions": 12,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Current brief\n\n- [SiftWire fixture story - Fixture Outlet](<https://fixture.example/story>)\n\nFeed health changes - RESOLVED: changing-feed.\n\nPrevious brief (2026-09-12T15:55:52.137958574Z)\n\nFeed health changes - NEW: changing-feed."
+    },
+    {
+      "scenario_id": "invalid-source-config-rejects",
+      "prompts": [
+        "Try to configure a SiftWire source with an invalid key Bad/Key by piping one upsert_source JSON request to siftwire config. Report the production runner rejection."
+      ],
+      "run_dir": "<run-root>/invalid-source-config-rejects",
+      "database": "<run-root>/invalid-source-config-rejects/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 12.52,
+      "metrics": {
+        "assistant_calls": 4,
+        "tool_calls": 3,
+        "command_executions": 2,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Production runner rejected `Bad/Key`: “source key must be lowercase letters, numbers, dot, underscore, or hyphen”."
+    },
+    {
+      "scenario_id": "routine-agent-hygiene",
+      "prompts": [
+        "Run a normal SiftWire configuration inspection by piping exactly {\"action\":\"inspect_config\"} to siftwire config."
+      ],
+      "run_dir": "<run-root>/routine-agent-hygiene",
+      "database": "<run-root>/routine-agent-hygiene/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "pi",
+        "model": "openai-codex/gpt-6-astra",
+        "reasoning_effort": "medium"
+      },
+      "seconds": 12.53,
+      "metrics": {
+        "assistant_calls": 3,
+        "tool_calls": 2,
+        "command_executions": 1,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Configuration inspected successfully. Required protocol and capabilities are present.\n\n- Sources: 0\n- Outlet policies: 0\n- Maximum delivery items: 7\n- Sports window: 7 days before, 3 days after\n- Time zone: America/Chicago\n\nNo configuration changes made."
+    }
+  ],
+  "elapsed_seconds": 427.54
+}

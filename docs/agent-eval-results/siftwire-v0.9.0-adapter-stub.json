@@ -1,0 +1,36 @@
+{
+  "run_root": "<run-root>",
+  "scenario_count": 1,
+  "scenario_results": [
+    {
+      "scenario_id": "routine-agent-hygiene",
+      "prompts": [
+        "Run a normal SiftWire configuration inspection by piping exactly {\"action\":\"inspect_config\"} to siftwire config."
+      ],
+      "run_dir": "<run-root>/routine-agent-hygiene",
+      "database": "<run-root>/routine-agent-hygiene/siftwire.sqlite",
+      "passed": true,
+      "runtime": {
+        "adapter": "deterministic-inspection-stub",
+        "model": null,
+        "reasoning_effort": null
+      },
+      "seconds": 0.06,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 2,
+        "command_executions": 1,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "{\"runner_protocol\":\"siftwire-runner/v5\",\"capabilities\":[\"prepared-delivery/v1\",\"sports-updates/v1\",\"current-news/v1\"],\"rejected\":false,\"paths\":{\"data_dir\":\"<run-root>/routine-agent-hygiene\",\"database_path\":\"<run-root>/routine-agent-hygiene/siftwire.sqlite\"},\"runtime_config\":{\"max_delivery_items\":\"7\",\"sports_post_game_days\":\"3\",\"sports_pre_game_days\":\"7\",\"sports_timezone\":\"America/Chicago\"},\"source_reporting\":{},\"summary\":\"configured sources=0 outlet_policies=0\"}\n"
+    }
+  ],
+  "elapsed_seconds": 0.06
+}

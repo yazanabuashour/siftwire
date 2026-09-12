@@ -86,6 +86,80 @@ promotion evidence. Maintainer docs own repository, release, and security work.
 Prooflane owns its adapter invocation and recovery guidance, not the installed
 SiftWire skill or a SiftWire shell wrapper.
 
+### The evaluator owns a vendor-neutral executable boundary
+
+Replacing Codex with Pi still coupled the evaluator to an agent runtime. The
+accepted boundary is now a local executable with SiftWire-defined request and
+result objects. The production runner and `skills/siftwire/SKILL.md` remain
+unchanged and harness-independent. The Pi SDK remains one leaf implementation,
+not the evaluator's consumer boundary.
+
+| Candidate | Safety | Capability | User experience | Decision |
+| --- | --- | --- | --- | --- |
+| Small direct runtime integration | Can preserve controlled resources and native completion, but spreads vendor auth, event, and session assumptions into the evaluator. | Covers the selected runtime; replacing it requires evaluator changes. | Initially direct, but changing vendors also changes evaluator configuration and evidence handling. | Superseded; swapping Codex for Pi did not remove coupling. |
+| SiftWire-owned executable adapter | Keeps native infrastructure in trusted leaves; Rust retains normalized hygiene and exact delivery verification. Same-account execution is not an OS sandbox. | Covers fixed scenarios with complete action receipts; each leaf owns its tool loop and continuity. | Requires one explicit executable selection; wrapper or environment configuration stays adapter-local. | Selected. It owns the contract needed by this caller without owning a general agent platform. |
+| Generic agent framework | Adds trust and configuration surfaces without stronger isolation or receipt guarantees for this caller. | Generalizes providers, tools, and sessions beyond the fixed scenarios. | Adds framework concepts and configuration without demonstrated caller benefit. | Rejected; no real caller justifies the larger interface. |
+
+Rust owns the checkout runner build, synthetic fixtures, scenario prompts,
+workspace and candidate resources, requests, reports, temporary resources,
+databases, run-root lock, hygiene, and exact immutable-delivery verification.
+It requires `--adapter executable` and launches it without shell interpolation
+or executable arguments. It knows no Pi configuration, Bun, model flags, native
+events, or session format.
+
+One request contains one entire fixed scenario. The adapter owns multi-turn
+continuity internally and returns one JSON result only after actual native
+completion; diagnostics use stderr and nonzero exit means failure. This
+scenario granularity removes needless session IDs, resume commands, and native
+file references from the neutral protocol. Strict fields, protocol and turn
+counts, exact final strings, nullable assistant execution counts, and complete
+action receipts define the contract. Unknown execution counts are `null`, not
+zero. Runtime identity is adapter-reported per scenario, not a hardcoded global
+Pi model.
+
+The adapter host may retain provider environment variables, with run-local
+`TMPDIR`; shell tools receive only the supplied clean `tool_env`. Adapters must
+use supplied workspace and candidate resources and truthfully report all
+actions. This is configuration separation, not an OS sandbox. Hygiene checks
+inspect reported execution after the fact and cannot establish that a dishonest
+same-account adapter omitted nothing. Private artifacts and credentials never
+belong in committed evidence.
+
+The earlier SDK choice still applies inside the Pi leaf: explicit resources,
+in-memory settings, native model/auth handling, controlled tools, and awaited
+completion fit this implementation. The previously considered Pi CLI did not
+provide the required resource exclusion while preserving native credential-lock
+identity. That does not make the SDK the neutral boundary. The Pi adapter owns
+Bun, native event parsing, personal auth and model defaults, the optional exact
+`SIFTWIRE_PI_MODEL` override, and fixed `medium` reasoning without fallback.
+Configuration resolves once per scenario; turns share an in-memory session.
+Credentials retain their native file paths and locks without copies or symlinks;
+personal resource discovery remains disabled.
+
+A raw API adapter is not categorically excluded, but it must own any necessary
+tool loop, completion validation, and complete receipts. Final-only API output
+cannot claim agent-eval equivalence. Do not introduce a universal model-only
+interface, harness registry, or session abstraction until a real caller needs
+one. The deterministic stub is a separate, Pi-free transport smoke implementation
+for `routine-agent-hygiene`, not full capability or production evidence.
+
+The [adapter contract](../evals/agent-adapter.md) owns request/result and leaf
+implementation rules. The [production evaluation guide](../evals/agent-production.md)
+owns scenarios, invocation, verification, and report semantics.
+
+This approves the boundary, not release promotion. The
+[first Pi receipt](../agent-eval-results/siftwire-v0.9.0-pi-sdk-candidate.md)
+remains historical: two scenarios passed before provider usage-limit failures
+under the earlier Pi-specific implementation. Historical Codex and Pi reports
+retain their original formats and receipts; no compatibility layer is needed
+for the unpublished previous eval format. Neutral-contract tests and repository
+CI passed. The [independent stub smoke](../agent-eval-results/siftwire-v0.9.0-adapter-stub.md)
+passed without Pi, and the [execution-receipt Pi inventory](../agent-eval-results/siftwire-v0.9.0-adapter-pi-execution-receipts.md)
+passed all 13 scenarios. Safety and capability passed within the synthetic
+boundary; the evaluation guide records the separate user-experience judgment.
+These receipts do not establish real delivery success or authorize a production
+interface change.
+
 ### No discovery API yet
 
 Current `config` and `brief` actions cover proven tasks. Compact skill guidance

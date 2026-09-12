@@ -1,0 +1,326 @@
+{
+  "model": "openai-codex/gpt-6-astra",
+  "reasoning_effort": "medium",
+  "run_root": "<run-root>",
+  "harness": "pi-sdk",
+  "scenario_count": 13,
+  "scenario_results": [
+    {
+      "scenario_id": "empty-config-rejects-run-brief",
+      "prompts": [
+        "Run a SiftWire brief from a fresh empty configuration and report the production runner result."
+      ],
+      "run_dir": "<run-root>/empty-config-rejects-run-brief",
+      "database": "<run-root>/empty-config-rejects-run-brief/siftwire.sqlite",
+      "passed": true,
+      "seconds": 71.54,
+      "metrics": {
+        "assistant_calls": 5,
+        "tool_calls": 3,
+        "command_executions": 2,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "no enabled sources configured"
+    },
+    {
+      "scenario_id": "rss-source-first-run-candidate",
+      "prompts": [
+        "Configure an RSS source for file://<run-root>/rss-source-first-run-candidate/fixtures/github-blog.xml with key github-blog, section technology, and threshold medium. Then run a SiftWire brief and report the JSON-derived brief."
+      ],
+      "run_dir": "<run-root>/rss-source-first-run-candidate",
+      "database": "<run-root>/rss-source-first-run-candidate/siftwire.sqlite",
+      "passed": true,
+      "seconds": 122.45,
+      "metrics": {
+        "assistant_calls": 9,
+        "tool_calls": 7,
+        "command_executions": 6,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": true,
+        "database_pass": true,
+        "assistant_pass": true
+      },
+      "final_message": "Current brief\n\n- [SiftWire fixture story - Fixture Outlet](<https://fixture.example/story>)"
+    },
+    {
+      "scenario_id": "github-release-source-config",
+      "prompts": [
+        "Configure a GitHub release source for repository openai/codex with key codex-releases, section releases, and threshold always. Inspect configuration and report the repository-derived source. Do not run a brief or fetch releases in this offline configuration scenario."
+      ],
+      "run_dir": "<run-root>/github-release-source-config",
+      "database": "<run-root>/github-release-source-config/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/github-release-source-config/turn-1.stderr",
+      "seconds": 1.04,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    },
+    {
+      "scenario_id": "rss-source-must-include",
+      "prompts": [
+        "Configure an RSS source for file://<run-root>/rss-source-must-include/fixtures/github-blog.xml with key required-feed, section technology, and threshold always. Run a brief, prepare delivery with no optional candidates, confirm after simulated transport, and report final_answer."
+      ],
+      "run_dir": "<run-root>/rss-source-must-include",
+      "database": "<run-root>/rss-source-must-include/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/rss-source-must-include/turn-1.stderr",
+      "seconds": 0.93,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    },
+    {
+      "scenario_id": "repeat-run-no-new-items",
+      "prompts": [
+        "Configure an RSS source for file://<run-root>/repeat-run-no-new-items/fixtures/github-blog.xml with key github-blog, section technology, and threshold medium. Run a SiftWire brief, prepare delivery, confirm after simulated transport, and report final_answer.",
+        "Run SiftWire again without changing configuration and report the production runner result."
+      ],
+      "run_dir": "<run-root>/repeat-run-no-new-items",
+      "database": "<run-root>/repeat-run-no-new-items/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/repeat-run-no-new-items/turn-1.stderr",
+      "seconds": 1.12,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    },
+    {
+      "scenario_id": "rss-source-generic-processing-fields",
+      "prompts": [
+        "Configure an RSS source for file://<run-root>/rss-source-generic-processing-fields/fixtures/github-blog.xml with key github-blog, section technology, threshold medium, url_canonicalization none, outlet_extraction title_suffix, dedup_group news, and priority_rank 10. Then run a SiftWire brief with run_brief, prepare delivery, confirm after simulated transport, and report final_answer."
+      ],
+      "run_dir": "<run-root>/rss-source-generic-processing-fields",
+      "database": "<run-root>/rss-source-generic-processing-fields/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/rss-source-generic-processing-fields/turn-1.stderr",
+      "seconds": 0.95,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    },
+    {
+      "scenario_id": "outlet-policy-watch-audit",
+      "prompts": [
+        "Configure an outlet policy named Fixture Outlet with policy watch and enabled true. Configure an RSS source for file://<run-root>/outlet-policy-watch-audit/fixtures/github-blog.xml with key github-blog, section technology, threshold medium, and outlet_extraction title_suffix. Run SiftWire and report whether the JSON result includes a policy audit while still allowing candidates."
+      ],
+      "run_dir": "<run-root>/outlet-policy-watch-audit",
+      "database": "<run-root>/outlet-policy-watch-audit/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/outlet-policy-watch-audit/turn-1.stderr",
+      "seconds": 1.19,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    },
+    {
+      "scenario_id": "configured-max-delivery-items",
+      "prompts": [
+        "Configure SiftWire max_delivery_items to 2 through siftwire config. Configure RSS sources with keys limit-one, limit-two, and limit-three for file://<run-root>/configured-max-delivery-items/fixtures/limit-1.xml, file://<run-root>/configured-max-delivery-items/fixtures/limit-2.xml, and file://<run-root>/configured-max-delivery-items/fixtures/limit-3.xml, each with section technology and threshold medium. Run a SiftWire brief, prepare delivery with exactly two returned candidate indexes, confirm after simulated transport, and report only final_answer."
+      ],
+      "run_dir": "<run-root>/configured-max-delivery-items",
+      "database": "<run-root>/configured-max-delivery-items/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/configured-max-delivery-items/turn-1.stderr",
+      "seconds": 0.98,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    },
+    {
+      "scenario_id": "brief-run-history",
+      "prompts": [
+        "Configure exactly one RSS source by piping {\"action\":\"upsert_source\",\"source\":{\"key\":\"history\",\"label\":\"History\",\"kind\":\"rss\",\"url\":\"file://<run-root>/brief-run-history/fixtures/history-1.xml\",\"section\":\"technology\",\"threshold\":\"medium\",\"enabled\":true}} to siftwire config. Then pipe {\"action\":\"run_brief\",\"dry_run\":false} to siftwire brief. Prepare delivery selecting the returned candidate index, confirm after simulated transport, and report final_answer unchanged.",
+        "Replace the history source URL by piping {\"action\":\"upsert_source\",\"source\":{\"key\":\"history\",\"label\":\"History\",\"kind\":\"rss\",\"url\":\"file://<run-root>/brief-run-history/fixtures/history-2.xml\",\"section\":\"technology\",\"threshold\":\"medium\",\"enabled\":true}} to siftwire config. Then run SiftWire, prepare delivery selecting the returned candidate index, confirm after simulated transport, and report final_answer unchanged.",
+        "Replace the history source URL by piping {\"action\":\"upsert_source\",\"source\":{\"key\":\"history\",\"label\":\"History\",\"kind\":\"rss\",\"url\":\"file://<run-root>/brief-run-history/fixtures/history-3.xml\",\"section\":\"technology\",\"threshold\":\"medium\",\"enabled\":true}} to siftwire config. Then run SiftWire, prepare delivery selecting the returned candidate index, confirm after simulated transport, and report final_answer unchanged with Current brief and Previous brief sections."
+      ],
+      "run_dir": "<run-root>/brief-run-history",
+      "database": "<run-root>/brief-run-history/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/brief-run-history/turn-1.stderr",
+      "seconds": 1.03,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    },
+    {
+      "scenario_id": "feed-failure-health-footnote",
+      "prompts": [
+        "Configure an RSS source with key broken-feed, label Broken Feed, URL file://<run-root>/feed-failure-health-footnote/fixtures/missing.xml, section technology, and threshold medium. Run a SiftWire brief and report the health footnote from the JSON result."
+      ],
+      "run_dir": "<run-root>/feed-failure-health-footnote",
+      "database": "<run-root>/feed-failure-health-footnote/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/feed-failure-health-footnote/turn-1.stderr",
+      "seconds": 1.13,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    },
+    {
+      "scenario_id": "feed-recovery-resolves-warning",
+      "prompts": [
+        "Configure an RSS source with key changing-feed, label Changing Feed, URL file://<run-root>/feed-recovery-resolves-warning/fixtures/missing.xml, section technology, and threshold medium. Run a SiftWire brief and report the JSON result.",
+        "Replace the changing-feed source URL with file://<run-root>/feed-recovery-resolves-warning/fixtures/github-blog.xml. Run SiftWire again and report the JSON-derived result."
+      ],
+      "run_dir": "<run-root>/feed-recovery-resolves-warning",
+      "database": "<run-root>/feed-recovery-resolves-warning/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/feed-recovery-resolves-warning/turn-1.stderr",
+      "seconds": 1.06,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    },
+    {
+      "scenario_id": "invalid-source-config-rejects",
+      "prompts": [
+        "Try to configure a SiftWire source with an invalid key Bad/Key by piping one upsert_source JSON request to siftwire config. Report the production runner rejection."
+      ],
+      "run_dir": "<run-root>/invalid-source-config-rejects",
+      "database": "<run-root>/invalid-source-config-rejects/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/invalid-source-config-rejects/turn-1.stderr",
+      "seconds": 1.08,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    },
+    {
+      "scenario_id": "routine-agent-hygiene",
+      "prompts": [
+        "Run a normal SiftWire configuration inspection by piping exactly {\"action\":\"inspect_config\"} to siftwire config."
+      ],
+      "run_dir": "<run-root>/routine-agent-hygiene",
+      "database": "<run-root>/routine-agent-hygiene/siftwire.sqlite",
+      "passed": false,
+      "error": "Pi evaluator exit status: 1; inspect <run-root>/routine-agent-hygiene/turn-1.stderr",
+      "seconds": 1.24,
+      "metrics": {
+        "assistant_calls": 0,
+        "tool_calls": 0,
+        "command_executions": 0,
+        "direct_sqlite_access": false,
+        "broad_repo_search": false,
+        "environment_access": false
+      },
+      "verification": {
+        "passed": false,
+        "database_pass": false,
+        "assistant_pass": false
+      }
+    }
+  ],
+  "elapsed_seconds": 205.76
+}

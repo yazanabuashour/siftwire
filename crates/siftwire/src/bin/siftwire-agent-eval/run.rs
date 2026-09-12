@@ -7,10 +7,9 @@ use std::time::Instant;
 use anyhow::{Context, Result, anyhow, bail};
 use chrono::Utc;
 
-use crate::codex;
+use crate::adapter;
 use crate::filesystem::{
     absolute, create_dir, create_dir_all, create_new_file, display, is_within, repo_root,
-    write_file,
 };
 use crate::fixtures;
 use crate::output;
@@ -18,7 +17,7 @@ use crate::report::{
     failed_scenario_error, round_seconds, scrub_results, validate_name, write_reduced,
 };
 use crate::scenarios;
-use crate::types::{JobResult, Metrics, RunOptions, RunResult, Scenario};
+use crate::types::{JobResult, RunOptions, RunResult, Scenario};
 use crate::verify;
 
 const RUN_ROOT_MARKER: &str = ".siftwire-agent-eval-root";
@@ -48,24 +47,17 @@ pub fn command(arguments: &[String], stdout: &mut impl Write) -> Result<()> {
     let options = parse_options(arguments)?;
     let repository = repo_root()?;
     let selected = select_scenarios(&options.scenario)?;
-    let model = codex::resolve_fast_model(Path::new("model-role"))?;
+    let executable = adapter::resolve_executable(&options.adapter)?;
     let run_root = prepare_run_root(&options, &repository)?;
-    codex::setup_home(run_root.path()).context("prepare eval Codex home")?;
-    codex::build_binary(&repository, run_root.path())?;
+    fixtures::build_binary(&repository, run_root.path())?;
 
     let started = Instant::now();
     let results = selected
         .into_iter()
-        .map(|scenario| run_scenario(&repository, run_root.path(), scenario, &model))
+        .map(|scenario| run_scenario(&repository, run_root.path(), scenario, &executable))
         .collect::<Vec<_>>();
     let report = RunResult {
-        model,
-        reasoning_effort: codex::REASONING_EFFORT.to_owned(),
         run_root: "<run-root>".to_owned(),
-        codex_home: Path::new("<run-root>")
-            .join("codex-home")
-            .to_string_lossy()
-            .into_owned(),
         scenario_count: results.len(),
         results: scrub_results(&display(run_root.path()), results),
         elapsed_seconds: round_seconds(started.elapsed().as_secs_f64()),
@@ -235,6 +227,7 @@ pub fn parse_options(arguments: &[String]) -> Result<RunOptions> {
         match name {
             "-run-root" | "--run-root" => options.run_root = value,
             "-scenario" | "--scenario" => options.scenario = value,
+            "--adapter" => options.adapter = value,
             "-report-dir" | "--report-dir" => options.report_dir = value,
             "-report-name" | "--report-name" => options.report_name = value,
             _ => bail!("flag provided but not defined: {name}"),
@@ -242,6 +235,9 @@ pub fn parse_options(arguments: &[String]) -> Result<RunOptions> {
     }
     if !positional.is_empty() {
         bail!("unexpected positional arguments: {positional:?}");
+    }
+    if options.adapter.trim().is_empty() {
+        bail!("--adapter executable is required; select an implementation explicitly");
     }
     if !options.report_dir.is_empty() && options.report_name.trim().is_empty() {
         bail!("--report-name is required with --report-dir");
@@ -269,7 +265,12 @@ fn select_scenarios(id: &str) -> Result<Vec<Scenario>> {
         .ok_or_else(|| anyhow!("unknown scenario {id:?}"))
 }
 
-fn run_scenario(repository: &Path, run_root: &Path, scenario: Scenario, model: &str) -> JobResult {
+fn run_scenario(
+    repository: &Path,
+    run_root: &Path,
+    scenario: Scenario,
+    executable: &Path,
+) -> JobResult {
     let started = Instant::now();
     let run_dir = run_root.join(scenario.id);
     let workspace = run_dir.join("workspace");
@@ -283,7 +284,7 @@ fn run_scenario(repository: &Path, run_root: &Path, scenario: Scenario, model: &
     if let Err(error) = reset_workspace(&run_dir, &workspace) {
         return finish(result, started, Some(error));
     }
-    if let Err(error) = codex::install_skill(repository, &workspace) {
+    if let Err(error) = fixtures::install_skill(repository, &workspace) {
         return finish(result, started, Some(error));
     }
     let scenario = match fixtures::prepare(scenario, &run_dir) {
@@ -295,76 +296,25 @@ fn run_scenario(repository: &Path, run_root: &Path, scenario: Scenario, model: &
         .iter()
         .map(|turn| turn.prompt.clone())
         .collect();
-    execute_turns(
-        result, started, run_root, &run_dir, &workspace, &scenario, model,
-    )
-}
-
-fn execute_turns(
-    mut result: JobResult,
-    started: Instant,
-    run_root: &Path,
-    run_dir: &Path,
-    workspace: &Path,
-    scenario: &Scenario,
-    model: &str,
-) -> JobResult {
-    let mut session_id = String::new();
-    let mut metrics = Metrics::default();
-    let mut final_message = String::new();
-    for (index, turn) in scenario.turns.iter().enumerate() {
-        let turn_number = index.saturating_add(1);
-        let arguments = codex::args_for_turn(
-            workspace,
-            run_dir,
-            scenario,
-            turn,
-            turn_number,
-            &session_id,
-            model,
-        );
-        let execution = match codex::run(run_root, run_dir, &arguments) {
-            Ok(value) => value,
-            Err(error) => {
-                return finish_with_output(result, started, metrics, final_message, error);
-            }
-        };
-        let log_error = write_file(
-            &run_dir.join(format!("turn-{turn_number}.jsonl")),
-            &execution.output,
-            0o600,
-        )
-        .err()
-        .map(anyhow::Error::from);
-        let parsed = output::parse(&execution.output);
-        metrics = output::merge(metrics, parsed.metrics);
-        if !parsed.final_message.is_empty() {
-            final_message = parsed.final_message;
-        }
-        if let Some(error) = execution.error.map(anyhow::Error::msg).or(log_error) {
-            return finish_with_output(result, started, metrics, final_message, error);
-        }
-        if index == 0 && scenario.turns.len() > 1 {
-            session_id = parsed.session_id;
-            if session_id.is_empty() {
-                return finish_with_output(
-                    result,
-                    started,
-                    metrics,
-                    final_message,
-                    anyhow!("multi-turn scenario did not emit a Codex session id"),
-                );
-            }
-        }
-    }
-    let verification = verify::scenario(&result.database, scenario.id, &final_message, &metrics);
-    result.passed = verification.passed;
-    result.verification = verification;
-    if result.passed {
-        return finish_with_output_ok(result, started, metrics, final_message);
-    }
-    let error = anyhow!(result.verification.details.clone());
-    finish_with_output(result, started, metrics, final_message, error)
+    let request = adapter::request(run_root, &run_dir, result.prompts.clone());
+    let parsed = match adapter::run(executable, &run_dir, &request)
+        .and_then(|bytes| output::parse(&bytes, &request))
+    {
+        Ok(value) => value,
+        Err(error) => return finish(result, started, Some(error)),
+    };
+    result.runtime = Some(parsed.runtime);
+    result.metrics = parsed.metrics;
+    result.final_message = parsed.final_message;
+    result.verification = verify::scenario(
+        &result.database,
+        scenario.id,
+        &result.final_message,
+        &result.metrics,
+    );
+    result.passed = result.verification.passed;
+    let error = (!result.passed).then(|| anyhow!(result.verification.details.clone()));
+    finish(result, started, error)
 }
 
 fn reset_workspace(run_dir: &Path, workspace: &Path) -> Result<()> {
@@ -374,29 +324,6 @@ fn reset_workspace(run_dir: &Path, workspace: &Path) -> Result<()> {
         Err(error) => return Err(error).context("reset scenario directory"),
     }
     create_dir_all(workspace, 0o755).context("create scenario workspace")
-}
-
-fn finish_with_output(
-    mut result: JobResult,
-    started: Instant,
-    metrics: Metrics,
-    final_message: String,
-    error: anyhow::Error,
-) -> JobResult {
-    result.metrics = metrics;
-    result.final_message = final_message;
-    finish(result, started, Some(error))
-}
-
-fn finish_with_output_ok(
-    mut result: JobResult,
-    started: Instant,
-    metrics: Metrics,
-    final_message: String,
-) -> JobResult {
-    result.metrics = metrics;
-    result.final_message = final_message;
-    finish(result, started, None)
 }
 
 fn finish(mut result: JobResult, started: Instant, error: Option<anyhow::Error>) -> JobResult {

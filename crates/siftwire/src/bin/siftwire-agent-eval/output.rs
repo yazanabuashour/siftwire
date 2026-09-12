@@ -1,165 +1,86 @@
-use std::collections::BTreeMap;
+use anyhow::{Context, Result, ensure};
 
-use serde_json::Value;
+use crate::types::{ADAPTER_PROTOCOL, Action, AdapterResult, Metrics, ParsedOutput, Request};
 
-use crate::types::{Metrics, ParsedOutput};
+pub fn parse(output: &[u8], request: &Request) -> Result<ParsedOutput> {
+    let result: AdapterResult =
+        serde_json::from_slice(output).context("invalid adapter result JSON")?;
+    ensure!(
+        result.protocol == ADAPTER_PROTOCOL,
+        "adapter protocol mismatch"
+    );
+    ensure!(
+        !request.prompts.is_empty(),
+        "adapter request has no prompts"
+    );
+    ensure!(
+        result.turns.len() == request.prompts.len(),
+        "adapter turn count differs from request prompt count"
+    );
+    ensure!(
+        !result.runtime.adapter.trim().is_empty(),
+        "runtime adapter must be nonempty"
+    );
+    for (field, value) in [
+        ("model", &result.runtime.model),
+        ("reasoning_effort", &result.runtime.reasoning_effort),
+    ] {
+        ensure!(
+            value.as_ref().is_none_or(|value| !value.trim().is_empty()),
+            "runtime {field} must be null or nonempty"
+        );
+    }
 
-type StringsByKey = BTreeMap<String, Vec<String>>;
-
-pub fn parse(output: &[u8]) -> ParsedOutput {
-    let mut parsed = ParsedOutput {
-        metrics: Metrics::default(),
-        final_message: String::new(),
-        session_id: String::new(),
+    let mut metrics = Metrics {
+        assistant_calls: Some(0),
+        ..Metrics::default()
     };
-    for raw_line in String::from_utf8_lossy(output).lines() {
-        let line = raw_line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let Ok(event) = serde_json::from_str::<Value>(line) else {
-            continue;
+    let mut final_message = String::new();
+    for (index, turn) in result.turns.into_iter().enumerate() {
+        ensure!(
+            !turn.final_message.trim().is_empty(),
+            "adapter turn {index} final message is empty"
+        );
+        metrics.assistant_calls = match (metrics.assistant_calls, turn.assistant_calls) {
+            (Some(total), Some(count)) => Some(
+                total
+                    .checked_add(count)
+                    .context("adapter assistant call count overflow")?,
+            ),
+            _ => None,
         };
-        process_event(&event, &mut parsed);
-    }
-    parsed
-}
-
-fn process_event(event: &Value, parsed: &mut ParsedOutput) {
-    let mut values = StringsByKey::new();
-    collect_strings("", event, &mut values);
-    let event_types = values.get("type").map_or(&[][..], Vec::as_slice);
-    let event_type = first_value(&values, "type");
-    if (contains_exact(event_types, "thread.started") || contains_exact(event_types, "session"))
-        && parsed.session_id.is_empty()
-    {
-        parsed.session_id = first_nonempty([
-            first_value(&values, "thread_id"),
-            first_value(&values, "session_id"),
-            first_value(&values, "id"),
-        ]);
-    }
-    if contains_value(event_types, "assistant") || contains_value(event_types, "agent_message") {
-        parsed.metrics.assistant_calls = parsed.metrics.assistant_calls.saturating_add(1);
-        let message = likely_assistant_message(&values);
-        if !message.is_empty() {
-            parsed.final_message = message;
-        }
-    }
-    if event_type.contains("tool")
-        || event_type.contains("exec")
-        || contains_value(event_types, "command")
-    {
-        parsed.metrics.tool_calls = parsed.metrics.tool_calls.saturating_add(1);
-    }
-    for command in command_strings(&values) {
-        parsed.metrics.command_executions = parsed.metrics.command_executions.saturating_add(1);
-        update_hygiene(&mut parsed.metrics, &command);
-    }
-}
-
-fn collect_strings(key: &str, value: &Value, output: &mut StringsByKey) {
-    match value {
-        Value::Object(object) => {
-            for (child_key, child) in object {
-                collect_strings(&child_key.to_lowercase(), child, output);
+        for action in turn.actions {
+            metrics.tool_calls = metrics.tool_calls.saturating_add(1);
+            match action {
+                Action::Command { command } => {
+                    ensure!(!command.trim().is_empty(), "command action is empty");
+                    metrics.command_executions = metrics.command_executions.saturating_add(1);
+                    update_hygiene(&mut metrics, &command);
+                }
+                Action::Read { path } => {
+                    ensure!(!path.trim().is_empty(), "read action path is empty");
+                    if path != request.skill_path
+                        && path != ".agents/skills/siftwire/SKILL.md"
+                        && path != "./.agents/skills/siftwire/SKILL.md"
+                    {
+                        metrics.unexpected_command = true;
+                        add_evidence(&mut metrics, "unexpected_read", &path);
+                    }
+                }
+                Action::Other { name } => {
+                    ensure!(!name.trim().is_empty(), "other action name is empty");
+                    metrics.unexpected_command = true;
+                    add_evidence(&mut metrics, "unexpected_tool", &name);
+                }
             }
         }
-        Value::Array(values) => {
-            for child in values {
-                collect_strings(key, child, output);
-            }
-        }
-        Value::String(value) => output
-            .entry(key.to_owned())
-            .or_default()
-            .push(value.to_owned()),
-        Value::Null | Value::Bool(_) | Value::Number(_) => {}
+        final_message = turn.final_message;
     }
-}
-
-fn first_value(values: &StringsByKey, key: &str) -> String {
-    values
-        .get(&key.to_lowercase())
-        .and_then(|candidates| candidates.iter().find(|value| !value.trim().is_empty()))
-        .map_or_else(String::new, |value| value.trim().to_owned())
-}
-
-fn first_nonempty<const N: usize>(values: [String; N]) -> String {
-    values
-        .into_iter()
-        .find(|value| !value.trim().is_empty())
-        .map_or_else(String::new, |value| value.trim().to_owned())
-}
-
-fn contains_exact(values: &[String], wanted: &str) -> bool {
-    values.iter().any(|value| value.trim() == wanted)
-}
-
-fn contains_value(values: &[String], wanted: &str) -> bool {
-    let lower_wanted = wanted.to_lowercase();
-    values
-        .iter()
-        .any(|value| value.to_lowercase().contains(&lower_wanted))
-}
-
-fn likely_assistant_message(values: &StringsByKey) -> String {
-    for key in ["message", "content", "text"] {
-        if let Some(candidates) = values.get(key)
-            && let Some(candidate) = candidates
-                .iter()
-                .rev()
-                .map(|value| value.trim())
-                .find(|value| !value.is_empty() && !looks_like_command(value))
-        {
-            return candidate.to_owned();
-        }
-    }
-    String::new()
-}
-
-fn command_strings(values: &StringsByKey) -> Vec<String> {
-    values
-        .iter()
-        .filter(|(key, _)| {
-            matches!(
-                key.as_str(),
-                "cmd" | "command" | "arguments" | "shell_command"
-            )
-        })
-        .flat_map(|(key, candidates)| {
-            candidates.iter().filter_map(move |candidate| {
-                let trimmed = candidate.trim();
-                (key == "command" || looks_like_command(trimmed)).then(|| trimmed.to_owned())
-            })
-        })
-        .collect()
-}
-
-fn looks_like_command(value: &str) -> bool {
-    let trimmed = value.trim();
-    if trimmed.is_empty() || trimmed.contains("\n\n") {
-        return false;
-    }
-    [
-        "/bin/sh ",
-        "/bin/zsh ",
-        "siftwire ",
-        "sqlite3",
-        "rg ",
-        "grep ",
-        "find ",
-        "cat ",
-        "sed ",
-        "ls ",
-        "env",
-        "printenv",
-        "go ",
-        "mise ",
-        "./",
-    ]
-    .iter()
-    .any(|prefix| trimmed == prefix.trim() || trimmed.starts_with(prefix))
+    Ok(ParsedOutput {
+        metrics,
+        final_message,
+        runtime: result.runtime,
+    })
 }
 
 fn update_hygiene(metrics: &mut Metrics, command: &str) {
@@ -193,15 +114,7 @@ fn allowed_skill_then_runner(lower: &str) -> bool {
     let Some((reader, runner)) = trim_shell_wrapper(lower).split_once(" && ") else {
         return false;
     };
-    // Only one literal read of the named skill may precede the runner call.
-    let Some(reader) = reader.strip_suffix(" .agents/skills/siftwire/skill.md") else {
-        return false;
-    };
-    let bounded_sed = reader
-        .strip_prefix("sed -n '1,")
-        .and_then(|value| value.strip_suffix("p'"))
-        .is_some_and(|value| !value.is_empty() && value.chars().all(|c| c.is_ascii_digit()));
-    (reader == "cat" || bounded_sed) && allowed_runner_command(runner)
+    allowed_skill_read(reader) && allowed_runner_command(runner)
 }
 
 fn allowed_runner_command(lower: &str) -> bool {
@@ -368,37 +281,17 @@ fn allowed_skill_read(lower: &str) -> bool {
         "sed -n '1,$p' .agents/skills/siftwire/skill.md"
             | "/usr/bin/bash -c \"sed -n '1,\"'$p'\"' .agents/skills/siftwire/skill.md\""
     );
-    if !lower.contains(".agents/skills/siftwire/skill.md")
-        && !lower.contains("skills/.system/siftwire/skill.md")
-    {
-        return false;
+    if literal_sed_address {
+        return true;
     }
-    if [
-        "sqlite3", "select ", " rg ", " grep ", " find ", " env", "printenv",
-    ]
-    .iter()
-    .any(|forbidden| lower.contains(forbidden))
-        || (has_shell_substitution(lower) && !literal_sed_address)
-        || [";", "|"].iter().any(|separator| lower.contains(separator))
-    {
+    let body = trim_shell_wrapper(lower);
+    let body = body.strip_prefix("pwd && ").unwrap_or(body);
+    let Some(reader) = body.strip_suffix(" .agents/skills/siftwire/skill.md") else {
         return false;
-    }
-    let without_prelude = lower.replace("pwd &&", "");
-    !without_prelude.contains(['\n', '\r'])
-        && !without_prelude.contains("&&")
-        && (without_prelude.contains("sed ") || without_prelude.contains("cat "))
-}
-
-pub fn merge(mut left: Metrics, right: Metrics) -> Metrics {
-    left.assistant_calls = left.assistant_calls.saturating_add(right.assistant_calls);
-    left.tool_calls = left.tool_calls.saturating_add(right.tool_calls);
-    left.command_executions = left
-        .command_executions
-        .saturating_add(right.command_executions);
-    left.direct_sqlite_access |= right.direct_sqlite_access;
-    left.broad_repo_search |= right.broad_repo_search;
-    left.environment_access |= right.environment_access;
-    left.unexpected_command |= right.unexpected_command;
-    left.hygiene_evidence.extend(right.hygiene_evidence);
-    left
+    };
+    let bounded_sed = reader
+        .strip_prefix("sed -n '1,")
+        .and_then(|value| value.strip_suffix("p'"))
+        .is_some_and(|value| !value.is_empty() && value.chars().all(|c| c.is_ascii_digit()));
+    reader == "cat" || reader == "sed -n '1,$p'" || bounded_sed
 }

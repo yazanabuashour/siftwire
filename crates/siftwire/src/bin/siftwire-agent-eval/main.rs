@@ -1,4 +1,4 @@
-mod codex;
+mod adapter;
 mod filesystem;
 mod fixtures;
 mod output;
@@ -39,6 +39,6 @@ fn main() -> ExitCode {
 
 fn usage() {
     eprintln!(
-        "usage: scripts/run-agent-eval.sh run [--run-root path] [--scenario id] [--report-dir path --report-name name]"
+        "usage: scripts/run-agent-eval.sh run --adapter executable [--run-root path] [--scenario id] [--report-dir path --report-name name]"
     );
 }

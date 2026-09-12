@@ -159,6 +159,7 @@ jobs:
           format: spdx-json
           output-file: dist/siftwire_${{ needs.preflight.outputs.version }}_sbom.spdx.json
           artifact-name: siftwire_${{ needs.preflight.outputs.version }}_sbom.spdx.json
+          upload-release-assets: false
       - name: Generate and verify checksums
         shell: bash
         run: |

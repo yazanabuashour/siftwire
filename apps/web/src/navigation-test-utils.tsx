@@ -35,6 +35,7 @@ export function detail(run: RunSummary) {
     must_include: [],
     candidates: [],
     dropped: [],
+    annotations: [],
     fetch: [],
     sent_items: [],
   })

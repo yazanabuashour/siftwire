@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use rusqlite::{Connection, OptionalExtension, params};
 
-use super::{FetchLog, Store, StoredSentItem, bool_i64};
+use super::{FetchLog, Store, StoredSentItem};
 
 pub const RUN_ITEM_MUST_INCLUDE: &str = "must_include";
 pub const RUN_ITEM_CANDIDATE: &str = "candidate";
@@ -21,7 +21,6 @@ pub struct RunItemRow {
     pub section: String,
     pub threshold: String,
     pub priority_rank: i64,
-    pub always_report: bool,
     pub published_at: String,
     pub outlet: String,
     pub title: String,
@@ -71,9 +70,9 @@ impl Store {
                 .execute(
                     "INSERT INTO brief_run_item \
                      (run_id, category, source_key, source_label, kind, section, threshold, \
-                     priority_rank, always_report, published_at, outlet, title, url, \
+                     priority_rank, published_at, outlet, title, url, \
                      reason, detail) VALUES \
-                     (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
+                     (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
                     params![
                         run_id,
                         item.category,
@@ -83,7 +82,6 @@ impl Store {
                         item.section,
                         item.threshold,
                         item.priority_rank,
-                        bool_i64(item.always_report),
                         item.published_at,
                         item.outlet,
                         item.title,
@@ -158,14 +156,14 @@ fn query_run_items(connection: &Connection, run_id: &str) -> Result<Vec<RunItemR
     let mut statement = connection
         .prepare(
             "SELECT category, source_key, source_label, kind, section, threshold, \
-             priority_rank, always_report, published_at, outlet, title, url, reason, detail, CAST(id AS TEXT) \
+             priority_rank, published_at, outlet, title, url, reason, detail, CAST(id AS TEXT) \
              FROM brief_run_item WHERE run_id = ?1 ORDER BY id",
         )
         .context("prepare run item query")?;
     let rows = statement
         .query_map([run_id], |row| {
             Ok(RunItemRow {
-                id: row.get(14)?,
+                id: row.get(13)?,
                 category: row.get(0)?,
                 source_key: row.get(1)?,
                 source_label: row.get(2)?,
@@ -173,13 +171,12 @@ fn query_run_items(connection: &Connection, run_id: &str) -> Result<Vec<RunItemR
                 section: row.get(4)?,
                 threshold: row.get(5)?,
                 priority_rank: row.get(6)?,
-                always_report: row.get::<_, i64>(7)? == 1,
-                published_at: row.get(8)?,
-                outlet: row.get(9)?,
-                title: row.get(10)?,
-                url: row.get(11)?,
-                reason: row.get(12)?,
-                detail: row.get(13)?,
+                published_at: row.get(7)?,
+                outlet: row.get(8)?,
+                title: row.get(9)?,
+                url: row.get(10)?,
+                reason: row.get(11)?,
+                detail: row.get(12)?,
             })
         })
         .context("query run items")?;
@@ -189,7 +186,7 @@ fn query_run_items(connection: &Connection, run_id: &str) -> Result<Vec<RunItemR
 fn query_fetch_logs_for_run(connection: &Connection, run_id: &str) -> Result<Vec<FetchLog>> {
     let mut statement = connection
         .prepare(
-            "SELECT run_id, source_key, status, error, item_count, new_item_count, created_at, source_label, selection_json \
+            "SELECT run_id, source_key, status, error, item_count, created_at, source_label, selection_json \
              FROM fetch_log WHERE run_id = ?1 ORDER BY id",
         )
         .context("prepare run fetch log query")?;
@@ -223,7 +220,7 @@ fn query_sent_items_for_run(connection: &Connection, run_id: &str) -> Result<Vec
             title,
             url,
             kind,
-            sent_at: super::parse_timestamp_compat(&sent_at),
+            sent_at: super::parse_timestamp(&sent_at)?,
         })
     })
     .collect()

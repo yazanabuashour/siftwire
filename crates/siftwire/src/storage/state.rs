@@ -1,7 +1,7 @@
 use anyhow::{Context, Result, bail};
 use rusqlite::{OptionalExtension, params};
 
-use super::{SourceState, Store, format_timestamp, go_zero_time, parse_timestamp_compat};
+use super::{SourceState, Store, format_timestamp, parse_timestamp};
 
 impl Store {
     /// Returns one source state, or `None` when the source has no state.
@@ -31,18 +31,21 @@ impl Store {
             )
             .optional()
             .with_context(|| format!("read source state {source_key}"))?;
-        Ok(row.map(|row| SourceState {
-            source_key: row.0,
-            latest_identity: row.1,
-            latest_feed_identity: row.2,
-            latest_title: row.3,
-            latest_url: row.4,
-            latest_published_at: row.5,
-            checked_at: parse_timestamp_compat(&row.6),
-        }))
+        row.map(|row| {
+            Ok(SourceState {
+                source_key: row.0,
+                latest_identity: row.1,
+                latest_feed_identity: row.2,
+                latest_title: row.3,
+                latest_url: row.4,
+                latest_published_at: row.5,
+                checked_at: parse_timestamp(&row.6)?,
+            })
+        })
+        .transpose()
     }
 
-    /// Inserts or updates one source state.
+    /// Inserts or updates one source state, using the storage clock for a default timestamp.
     ///
     /// # Errors
     ///
@@ -51,7 +54,7 @@ impl Store {
         if state.source_key.trim().is_empty() || state.latest_identity.trim().is_empty() {
             bail!("source state key and latest identity are required");
         }
-        let checked_at = if state.checked_at == go_zero_time() {
+        let checked_at = if state.checked_at == chrono::DateTime::<chrono::Utc>::default() {
             self.timestamp()
         } else {
             state.checked_at

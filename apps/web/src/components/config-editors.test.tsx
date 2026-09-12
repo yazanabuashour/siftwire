@@ -26,12 +26,7 @@ import SettingsPage from "./SettingsPage"
 setupConfigTest()
 
 it("keeps publisher edits local, preserves notes on failure/refetch, and discards back to saved configuration", async () => {
-  client.setQueryData(configQuery.queryKey, {
-    ...configuration(),
-    outlet_conflicts: [
-      { matcher: "example.test", names: ["Example", "Other"] },
-    ],
-  })
+  client.setQueryData(configQuery.queryKey, configuration())
   request.mockResolvedValue(
     Response.json(
       { error: { message: "Overlapping publisher matches" } },
@@ -39,10 +34,6 @@ it("keeps publisher edits local, preserves notes on failure/refetch, and discard
     ),
   )
   render(<OutletsPage />)
-  expect(host.textContent).toContain(
-    "Saved publisher rules have overlapping matches",
-  )
-  expect(host.textContent).toContain("example.test")
   choose("Rule for Example", "allow")
   act(() =>
     host.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click(),
@@ -111,7 +102,7 @@ it("confirms and acknowledges an empty publisher collection despite a late confi
   // The runner omits empty collections, including outlets.
   write.respond(
     Response.json({
-      runner_protocol: "siftwire-runner/v4",
+      runner_protocol: "siftwire-runner/v5",
       capabilities: ["current-news/v1"],
       rejected: false,
       summary: "Outlet policies replaced.",
@@ -166,7 +157,7 @@ it("keeps settings drafts during refetch and errors, supports discard, and uses 
   expect(lateRead.signal.aborted).toBe(false)
   write.respond(
     Response.json({
-      runner_protocol: "siftwire-runner/v4",
+      runner_protocol: "siftwire-runner/v5",
       capabilities: ["current-news/v1"],
       runtime_config: { sports_timezone: "Etc/UTC" },
     }),
@@ -246,10 +237,9 @@ it("adds a local publisher, freezes the collection while editing, and accepts on
   ).toBe(true)
   write.respond(
     Response.json({
-      runner_protocol: "siftwire-runner/v4",
+      runner_protocol: "siftwire-runner/v5",
       capabilities: ["current-news/v1"],
       outlets: [publisher, normalized],
-      outlet_conflicts: [],
     }),
   )
   await settle()

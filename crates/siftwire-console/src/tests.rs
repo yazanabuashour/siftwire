@@ -188,7 +188,7 @@ fn string_priority_items() -> Value {
 #[tokio::test]
 async fn every_configuration_response_stringifies_source_priorities() {
     let mut output = json!({
-        "runner_protocol": "siftwire-runner/v4",
+        "runner_protocol": "siftwire-runner/v5",
         "capabilities": ["current-news/v1"],
         "sources": priority_items(), "summary": "stored", "rejected": false,
         "runtime_config": {"max_delivery_items": "7"},
@@ -294,10 +294,10 @@ async fn invalid_archive_queries_fail_before_spawning() {
 }
 
 #[tokio::test]
-async fn historical_priorities_are_strings_without_rewriting_other_evidence() {
+async fn recorded_priorities_are_strings_without_rewriting_other_evidence() {
     let output = json!({
         "run": {"run_id": "fixture", "dry_run": false},
-        "delivery_html": "<!doctype html>\n<html><body>Exact saved HTML &amp; legacy evidence</body></html>",
+        "delivery_html": "<!doctype html>\n<html><body>Exact saved HTML &amp; evidence</body></html>",
         "must_include": priority_items(), "candidates": priority_items(),
         "dropped": [{"detail": {"priority_rank": 9_007_199_254_740_993_i64}}],
         "fetch": [
@@ -309,18 +309,6 @@ async fn historical_priorities_are_strings_without_rewriting_other_evidence() {
             {"items": 0, "new_items": null, "status": "error"}
         ], "sent_items": []
     });
-    let mut output = output;
-    output
-        .pointer_mut("/must_include/0")
-        .expect("historical item")
-        .as_object_mut()
-        .expect("item object")
-        .extend([
-            ("kind".to_owned(), json!("atom")),
-            ("always_report".to_owned(), json!(true)),
-            ("threshold".to_owned(), json!("audit")),
-            ("reporting".to_owned(), json!("observe")),
-        ]);
     let mut expected = output.clone();
     for collection in ["must_include", "candidates"] {
         for (item, string_item) in expected
@@ -370,15 +358,6 @@ async fn source_writes_forward_exact_i64_numbers_and_preserve_omission() {
         (Some(json!("00042")), Some(42)),
         (Some(json!("-00042")), Some(-42)),
         (Some(json!("-0")), Some(0)),
-        (
-            Some(json!(9_007_199_254_740_991_i64)),
-            Some(9_007_199_254_740_991),
-        ),
-        (
-            Some(json!(-9_007_199_254_740_991_i64)),
-            Some(-9_007_199_254_740_991),
-        ),
-        (Some(json!(0)), Some(0)),
     ] {
         let temp = TempDir::new().expect("temp dir");
         let script = write_runner(&temp, r#"{"rejected":false}"#, 0);
@@ -434,10 +413,8 @@ async fn invalid_browser_priorities_are_rejected_before_spawning() {
         json!("−1"),
         json!("9223372036854775808"),
         json!("-9223372036854775809"),
-        json!(9_007_199_254_740_992_i64),
-        json!(-9_007_199_254_740_992_i64),
+        json!(0),
         json!(i64::MIN),
-        json!(i64::MAX),
         json!(u64::MAX),
         json!(1.0),
         json!(1.5),

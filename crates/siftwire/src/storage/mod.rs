@@ -25,7 +25,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, bail};
 use chrono::{DateTime, Timelike, Utc};
 use fs2::FileExt;
-use rusqlite::Connection;
+use rusqlite::{Connection, OpenFlags};
 
 pub use crate::domain::{OutletPolicy, Source, normalize_source};
 pub use delivery::normalize_title_key;
@@ -35,12 +35,10 @@ pub use run_items::{
     RunItemRow, RunSummary,
 };
 
-pub const RUNTIME_CONFIG_CONFIGURATION_VERSION: &str = "configuration_version";
 pub const RUNTIME_CONFIG_MAX_DELIVERY_ITEMS: &str = "max_delivery_items";
 pub const RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS: &str = "sports_post_game_days";
 pub const RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS: &str = "sports_pre_game_days";
 pub const RUNTIME_CONFIG_SPORTS_TIMEZONE: &str = "sports_timezone";
-pub const CONFIGURATION_VERSION_V2: &str = "v2";
 pub const DEFAULT_MAX_DELIVERY_ITEMS: i64 = 7;
 // Receipt: `docs/architecture/schedule-source-adr.md` records the operator's
 // requested recurring windows and the retained Central-time default.
@@ -50,7 +48,7 @@ pub const DEFAULT_SPORTS_TIMEZONE: chrono_tz::Tz = chrono_tz::America::Chicago;
 pub const MAX_DELIVERY_ITEMS_UPPER_BOUND: i64 = 25;
 pub const DELIVERY_MESSAGE_CONFLICT: &str = "run_id was already delivered with a different message";
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SourceState {
     pub source_key: String,
     pub latest_identity: String,
@@ -61,7 +59,7 @@ pub struct SourceState {
     pub checked_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FetchLog {
     pub source_label: String,
     pub run_id: String,
@@ -74,70 +72,19 @@ pub struct FetchLog {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Delivery {
     pub run_id: String,
     pub message: String,
     pub delivered_at: DateTime<Utc>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct StoredSentItem {
     pub title: String,
     pub url: String,
     pub kind: String,
     pub sent_at: DateTime<Utc>,
-}
-
-impl Default for SourceState {
-    fn default() -> Self {
-        Self {
-            source_key: String::new(),
-            latest_identity: String::new(),
-            latest_feed_identity: String::new(),
-            latest_title: String::new(),
-            latest_url: String::new(),
-            latest_published_at: String::new(),
-            checked_at: go_zero_time(),
-        }
-    }
-}
-
-impl Default for FetchLog {
-    fn default() -> Self {
-        Self {
-            source_label: String::new(),
-            run_id: String::new(),
-            source_key: String::new(),
-            status: String::new(),
-            error: String::new(),
-            item_count: 0,
-            new_item_count: None,
-            current_news: None,
-            created_at: go_zero_time(),
-        }
-    }
-}
-
-impl Default for Delivery {
-    fn default() -> Self {
-        Self {
-            run_id: String::new(),
-            message: String::new(),
-            delivered_at: go_zero_time(),
-        }
-    }
-}
-
-impl Default for StoredSentItem {
-    fn default() -> Self {
-        Self {
-            title: String::new(),
-            url: String::new(),
-            kind: String::new(),
-            sent_at: go_zero_time(),
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -183,12 +130,12 @@ pub struct Store {
 }
 
 impl Store {
-    /// Opens and migrates a SiftWire `SQLite` database.
+    /// Opens a current SiftWire `SQLite` database or initializes an empty one.
     ///
     /// # Errors
     ///
     /// Returns an error when the path is empty, its directory cannot be created,
-    /// or `SQLite` configuration or migration fails.
+    /// the database schema is incompatible, or `SQLite` initialization fails.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         if path.as_os_str().is_empty() || path.to_string_lossy().trim().is_empty() {
@@ -198,22 +145,29 @@ impl Store {
         create_database_directory(&parent)?;
         let sidecars = sidecar_states(path)?;
         let _created = create_database_file(path)?;
-        let migration_lock = open_migration_lock(path)?;
-        migration_lock
+        let initialization_lock = open_initialization_lock(path)?;
+        initialization_lock
             .lock_exclusive()
-            .context("lock sqlite migration")?;
-        let connection = Connection::open(path)
-            .with_context(|| format!("open sqlite database {}", path.display()))?;
-        let store = Self {
-            connection,
-            now: Utc::now,
-        };
-        store.configure()?;
+            .context("lock sqlite initialization")?;
+        let opened = (|| {
+            // Read/write connection cleanup can checkpoint WAL even on rejection.
+            // Read-only inspection must include WAL, so do not use immutable=1.
+            let inspection = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .with_context(|| format!("inspect sqlite database {}", path.display()))?;
+            schema::validate_schema(&inspection)?;
+            drop(inspection);
+            let connection = Connection::open(path)
+                .with_context(|| format!("open sqlite database {}", path.display()))?;
+            let store = Self {
+                connection,
+                now: Utc::now,
+            };
+            store.init_schema()?;
+            Ok(store)
+        })();
         protect_new_sidecars(&sidecars)?;
-        store.init_schema()?;
-        protect_new_sidecars(&sidecars)?;
-        drop(migration_lock);
-        Ok(store)
+        drop(initialization_lock);
+        opened
     }
 
     fn timestamp(&self) -> DateTime<Utc> {
@@ -238,15 +192,15 @@ fn create_database_directory(path: &Path) -> Result<()> {
         .with_context(|| format!("create database directory {}", path.display()))
 }
 
-fn open_migration_lock(path: &Path) -> Result<File> {
-    let path = sidecar_path(path, ".siftwire-migration.lock");
+fn open_initialization_lock(path: &Path) -> Result<File> {
+    let path = sidecar_path(path, ".siftwire-initialization.lock");
     let mut options = OpenOptions::new();
     options.read(true).write(true).create(true);
     #[cfg(unix)]
     options.mode(0o600);
     options
         .open(&path)
-        .with_context(|| format!("open sqlite migration lock {}", path.display()))
+        .with_context(|| format!("open sqlite initialization lock {}", path.display()))
 }
 
 fn create_database_file(path: &Path) -> Result<bool> {
@@ -327,18 +281,10 @@ fn format_timestamp(value: DateTime<Utc>) -> String {
     timestamp
 }
 
-fn parse_timestamp_compat(value: &str) -> DateTime<Utc> {
-    // The Go store treated malformed legacy timestamps as the zero time.
-    DateTime::parse_from_rfc3339(value).map_or_else(
-        |_| go_zero_time(),
-        |timestamp| timestamp.with_timezone(&Utc),
-    )
-}
-
-fn go_zero_time() -> DateTime<Utc> {
-    DateTime::parse_from_rfc3339("0001-01-01T00:00:00Z")
+fn parse_timestamp(value: &str) -> Result<DateTime<Utc>> {
+    DateTime::parse_from_rfc3339(value)
         .map(|timestamp| timestamp.with_timezone(&Utc))
-        .unwrap_or_default()
+        .with_context(|| format!("invalid stored timestamp {value:?}"))
 }
 
 fn new_run_id() -> Result<String> {

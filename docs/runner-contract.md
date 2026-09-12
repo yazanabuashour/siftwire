@@ -18,7 +18,7 @@ separate `source` command.
 
 Every `config` and `brief` result identifies `runner_protocol` and
 `capabilities`. Consumers must require the protocol and capabilities they use
-before acting. v0.8.0 uses `siftwire-runner/v4` with `prepared-delivery/v1`,
+before acting. This checkout uses `siftwire-runner/v5` with `prepared-delivery/v1`,
 `sports-updates/v1`, and `current-news/v1`. The binary release version does not
 replace capability checks.
 
@@ -29,7 +29,7 @@ replace capability checks.
   transport failures.
 - An exit-0 task result is exactly one JSON object followed by a newline on
   stdout. Exit-1 and exit-2 failures do not produce result JSON.
-- Stderr contains diagnostics and migration warnings, never result JSON.
+- Stderr contains diagnostics, never result JSON.
 - Exit 0 means the task returned a result. `rejected` identifies domain
   validation and policy refusals within successful result transport.
 - Exit 1 means decoding, runtime initialization, orchestration, storage, or
@@ -73,7 +73,7 @@ The `action` field accepts these values:
 ### Results
 
 Config results contain `runner_protocol`, `capabilities`, `rejected`, `paths`,
-`source_reporting`, `outlet_conflicts`, and `summary`. The runner omits
+`source_reporting`, and `summary`. The runner omits
 `rejection_reason`, `runtime_config`, `sources`, and `outlets` when empty.
 `runtime_config` maps option names to string values.
 
@@ -84,9 +84,6 @@ runtime configuration. A partial mutation result does not replace an entire
 cached configuration.
 
 `source_reporting` is a read-only map keyed by each returned source's key.
-`outlet_conflicts` contains `{matcher, names}` records for overlapping enabled
-publisher matchers in the returned policies.
-
 ### Reporting policies
 
 `source_reporting` has these values:
@@ -94,7 +91,6 @@ publisher matchers in the returned policies.
 - `sports`: recurring schedule updates, outside normal candidate slots.
 - `required`: eligible new items are required by a release source or an `always`
   threshold.
-- `observe`: retained legacy audit configuration only, not a new reporting choice.
 - `major`: high-threshold candidates for caller judgment.
 - `highlights`: medium-threshold candidates for caller judgment.
 
@@ -102,8 +98,7 @@ The runner owns this decision. Reporting metadata is not writable. New feed
 thresholds are `always`, `high`, and `medium`. Optional RSS sources use the
 [current-news contract](architecture/current-news.md), independent of source
 markers. Unselected stories remain eligible while current, not in a durable
-backlog. See [v4 migration](runner-v4-migration.md) for caller compatibility and
-[v3 migration](runner-v3-migration.md) for legacy source configuration.
+backlog.
 
 ### Source fields
 
@@ -151,8 +146,7 @@ optional metadata, not instructions.
 Allow and Watch retain matching items and produce annotations. Unmatched items
 also remain. Block excludes matches. New replacement writes reject overlapping
 enabled names or aliases under the runner's shared matcher normalization.
-Existing conflicts remain readable and keep their previous first-match order
-until the operator changes them. Rejection leaves the whole collection intact.
+Rejection leaves the whole collection intact.
 
 ### Network constraints
 
@@ -180,8 +174,7 @@ unknown request field.
 sources but does not save run evidence, source markers, fetch logs, or health
 changes. A successful dry run returns `run_id: "dry-run"`, which cannot be prepared for
 delivery.
-Database initialization and schema migration can still occur when the command
-opens storage. `validate` opens the database but does not test source
+Database initialization can still occur when the command opens storage. `validate` opens the database but does not test source
 compatibility or fetchability.
 
 ### Results
@@ -214,8 +207,8 @@ checks set `new_items` to null and include `current_news` with `since`, `until`,
 counts cover parsed entries before publisher policy, deduplication, and recent
 suppression. Invalid dates join undated entries. Both window endpoints are
 inclusive. A failed new check has no selection count or current-news statistics.
-Archived `fetch` rows use this same shape. Older stored counts remain numeric.
-The runner never infers historical freshness from current configuration.
+Archived `fetch` rows use this same shape. The runner never infers historical
+freshness from current configuration.
 
 ### Sports results
 
@@ -229,9 +222,8 @@ UTC RFC 3339 `starts_at` value. `status` is `upcoming` or `final`. The optional
 only from `a.espncdn.com` and `static.lolesports.com`. Consumers must treat them
 as decorative because mail clients can block remote assets.
 
-Upcoming fixtures also remain in `must_include` for stored evidence linkage.
-`prepare_delivery` removes this duplicate representation from the rendered body
-and keeps sports outside `max_delivery_items` automatically.
+Sports updates are separate from `must_include` and `candidates`.
+`prepare_delivery` keeps sports outside `max_delivery_items` automatically.
 
 ### Prepared delivery
 
@@ -247,9 +239,8 @@ complete transport bodies in Markdown, plain text, and HTML, respectively.
 Required normal items can exceed `max_delivery_items`. `candidate_slots` then
 remains explicitly zero. Consumers must send prepared bodies unchanged. Each
 `prepared_items` entry includes its source `kind`. Sports evidence remains
-auditable but does not enter normal-item recent suppression. New plans also retain optional `run_item_ids` as strings
-linking prepared items to immutable collection evidence. Old plans without these
-references remain valid and unchanged.
+auditable but does not enter normal-item recent suppression. Plans retain `run_item_ids` as strings linking normal prepared items to immutable
+collection evidence. Sports updates carry an empty reference list.
 
 ### Recent context
 
@@ -274,7 +265,7 @@ prepared bodies, not the `final_answer` history wrapper. `confirm_delivery` is
 retry-safe with the same database and `delivery_plan_id`. An identical retry returns the
 existing delivery. It rejects an unknown plan or a supplied `run_id` that does
 not match. A delivered run cannot create a new plan. `record_delivery` is no
-longer an action. Old deliveries remain readable. Database corruption or an
+longer an action. Database corruption or an
 incomplete idempotency record remains an exit-1 runtime error.
 
 Result JSON can contain local paths, source URLs, brief text, and delivery
@@ -286,8 +277,10 @@ Path precedence is explicit `--db`, `SIFTWIRE_DATABASE_PATH`, then the SiftWire
 default of `${XDG_DATA_HOME:-~/.local/share}/siftwire/siftwire.sqlite`.
 `XDG_DATA_HOME` is honored only when absolute. Newly created database
 directories and files are owner-only. Existing explicit parent directories
-retain their permissions. All commands that open storage can initialize the
-database or apply schema migrations, including inspection and archive reads.
+retain their permissions. All commands that open storage can initialize an empty
+database, including inspection and archive reads. Older database formats are
+rejected without migration; use a fresh database for this checkout. Keep the old
+database and its matching released runner separately if you need historical reads.
 
 ## Minimal consumer
 

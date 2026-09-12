@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { ConfigResultSchema, type Source } from "../api-contracts"
+import {
+  ConfigResultSchema,
+  type OutletPolicy,
+  type Source,
+} from "../api-contracts"
 import { outletDraft, outletFromDraft } from "./config-outlets"
 import {
   mergeOptionsResult,
@@ -24,7 +28,7 @@ const stored: Source = {
   schedule_format: "",
   schedule_filter: "all",
 }
-const publisher = {
+const publisher: OutletPolicy = {
   name: "Example publisher",
   aliases: ["EXAMPLE.TEST", " Example News "],
   note: "  Optional rationale  ",
@@ -34,7 +38,7 @@ const publisher = {
 
 function config() {
   return ConfigResultSchema.parse({
-    runner_protocol: "siftwire-runner/v4",
+    runner_protocol: "siftwire-runner/v5",
     capabilities: ["current-news/v1"],
     rejected: false,
     paths: { data_dir: "data", database_path: "data/config.sqlite" },
@@ -46,7 +50,6 @@ function config() {
     sources: [stored, { ...stored, key: "other", label: "Other" }],
     source_reporting: { "example-feed": "required", other: "required" },
     outlets: [publisher],
-    outlet_conflicts: [],
   })
 }
 
@@ -97,10 +100,10 @@ describe("normalized configuration mutation merges", () => {
     expect(
       mergeSourceResult(
         current,
-        { ...result, source_reporting: { [stored.key]: "observe" } },
+        { ...result, source_reporting: { [stored.key]: "major" } },
         "upsert",
       ).source_reporting,
-    ).toEqual({ [stored.key]: "observe", other: "required" })
+    ).toEqual({ [stored.key]: "major", other: "required" })
   })
 
   it("merges only each write's returned responsibility", () => {
@@ -115,7 +118,6 @@ describe("normalized configuration mutation merges", () => {
     })
     const result = {
       outlets: [{ ...publisher, note: "Server normalized" }],
-      outlet_conflicts: [{ matcher: "example", names: ["One", "Two"] }],
     }
     expect(mergeOutletsResult(current, result)).toEqual({
       ...current,

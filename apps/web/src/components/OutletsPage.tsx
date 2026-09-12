@@ -1,6 +1,6 @@
 import { useId, useState } from "react"
 
-import type { ConfigResult, OutletPolicy } from "../api-contracts"
+import { OutletPolicySchema, type OutletPolicy } from "../api-contracts"
 import { useOutletDraft, useOutletEditor } from "./config-outlets"
 import { Dialog, ErrorNote, Field, PageHeading } from "./ui"
 
@@ -46,7 +46,6 @@ export default function OutletsPage() {
         <>
           <PublisherRows
             rows={rows}
-            conflicts={config.data.outlet_conflicts}
             busy={save.isPending}
             onEdit={startEditing}
             onChange={model.updateRow}
@@ -136,13 +135,11 @@ function ClearPublishersDialog({
 
 function PublisherRows({
   rows,
-  conflicts,
   busy,
   onEdit,
   onChange,
 }: {
   rows: OutletPolicy[]
-  conflicts: ConfigResult["outlet_conflicts"]
   busy: boolean
   onEdit: (index: number, row: OutletPolicy) => void
   onChange: (
@@ -152,21 +149,6 @@ function PublisherRows({
 }) {
   return (
     <>
-      {conflicts.length > 0 && (
-        <div className="folio-error" role="alert">
-          <p>
-            Saved publisher rules have overlapping matches. Resolve these in the
-            draft before saving.
-          </p>
-          <ul>
-            {conflicts.map((conflict) => (
-              <li key={conflict.matcher}>
-                <code>{conflict.matcher}</code>: {conflict.names.join(", ")}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
       <div className="config-outlet-list">
         {rows.map((row, index) => (
           <article className="config-outlet-row" key={row.name}>
@@ -177,12 +159,13 @@ function PublisherRows({
               disabled={busy}
               value={row.policy}
               onChange={(event) =>
-                onChange(index, { policy: event.target.value })
+                onChange(index, {
+                  policy: OutletPolicySchema.shape.policy.parse(
+                    event.target.value,
+                  ),
+                })
               }
             >
-              {!["allow", "watch", "block"].includes(row.policy) && (
-                <option value={row.policy}>{row.policy}</option>
-              )}
               <option value="allow">Allow</option>
               <option value="watch">Watch</option>
               <option value="block">Block</option>

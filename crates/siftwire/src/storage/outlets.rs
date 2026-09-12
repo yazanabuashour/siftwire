@@ -23,8 +23,13 @@ impl Store {
             .query_map([], |row| {
                 let aliases_json = row.get::<_, String>(1)?;
                 let enabled = row.get::<_, i64>(4)?;
-                // Keep accepting malformed aliases written by legacy databases.
-                let aliases = serde_json::from_str(&aliases_json).unwrap_or_default();
+                let aliases = serde_json::from_str(&aliases_json).map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?;
                 Ok(OutletPolicy {
                     name: row.get(0)?,
                     aliases,
@@ -34,8 +39,10 @@ impl Store {
                 })
             })
             .context("query outlet policies")?;
-        rows.map(|row| row.context("read outlet policy row"))
-            .collect()
+        let policies = rows
+            .map(|row| row.context("read outlet policy row"))
+            .collect::<Result<Vec<_>>>()?;
+        normalize_outlet_policies(policies).context("invalid stored outlet policies")
     }
 
     /// Replaces the complete outlet policy set.

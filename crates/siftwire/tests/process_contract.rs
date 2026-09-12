@@ -93,9 +93,9 @@ fn process_framing_and_exits() -> Result<()> {
     let temp = TempDir::new()?;
     let database = temp.path().join("siftwire.sqlite");
     let database_text = database.to_string_lossy().into_owned();
-    let equals_database = format!("-db={database_text}");
+    let equals_database = format!("--db={database_text}");
     for arguments in [
-        vec!["config", "-db", database_text.as_str()],
+        vec!["config", "--db", database_text.as_str()],
         vec!["config", equals_database.as_str()],
     ] {
         let output = invoke(
@@ -103,10 +103,7 @@ fn process_framing_and_exits() -> Result<()> {
             Some(r#"{"action":"inspect_config"}"#),
             &BTreeMap::new(),
         )?;
-        assert!(
-            output.status.success(),
-            "Go-compatible database flag failed: {output:?}"
-        );
+        assert!(output.status.success(), "database flag failed: {output:?}");
     }
 
     for input in [
@@ -160,7 +157,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         &environment,
     )?)?;
     assert!(!configured.rejected, "source configuration was rejected");
-    assert_eq!(configured.runner_protocol, "siftwire-runner/v4");
+    assert_eq!(configured.runner_protocol, "siftwire-runner/v5");
     assert!(
         configured
             .capabilities
@@ -181,7 +178,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         &environment,
     )?)?;
     assert!(!run.rejected, "run was rejected");
-    assert_eq!(run.runner_protocol, "siftwire-runner/v4");
+    assert_eq!(run.runner_protocol, "siftwire-runner/v5");
     assert!(
         run.capabilities
             .iter()
@@ -374,17 +371,20 @@ fn assert_runs_report_selection_evidence(
         .and_then(|message| message.as_str())
         .context("run delivery message missing")?;
     assert_eq!(stored_message, message, "delivered message differs");
-    let selected_flags: Vec<bool> = detail
+    let delivery_statuses: Vec<&str> = detail
         .pointer("/candidates")
         .and_then(|items| items.as_array())
         .context("candidates payload differs")?
         .iter()
-        .filter_map(|item| item.get("selected").and_then(serde_json::Value::as_bool))
+        .filter_map(|item| {
+            item.get("delivery_status")
+                .and_then(serde_json::Value::as_str)
+        })
         .collect();
     assert_eq!(
-        selected_flags,
-        vec![true],
-        "candidate selection flags differ"
+        delivery_statuses,
+        vec!["sent"],
+        "candidate delivery statuses differ"
     );
     assert_eq!(
         detail
@@ -497,11 +497,7 @@ fn sports_updates_use_their_own_recurring_section() -> Result<()> {
         &json!({"action": "run_brief", "dry_run": false}),
         &environment,
     )?)?;
-    assert_eq!(
-        run.must_include.len(),
-        1,
-        "legacy upcoming fixture compatibility changed"
-    );
+    assert!(run.must_include.is_empty(), "sports entered must_include");
     assert!(
         run.candidates.is_empty(),
         "sports entered candidate selection"
@@ -655,11 +651,11 @@ fn text(bytes: &[u8]) -> String {
 }
 
 #[test]
-fn retired_delivery_writes_fail_but_recorded_messages_remain_readable() -> Result<()> {
+fn retired_delivery_writes_and_commands_are_rejected() -> Result<()> {
     let temp = TempDir::new()?;
     let database = temp
         .path()
-        .join("legacy.sqlite")
+        .join("rejected.sqlite")
         .to_string_lossy()
         .into_owned();
     let environment = BTreeMap::new();
@@ -668,8 +664,6 @@ fn retired_delivery_writes_fail_but_recorded_messages_remain_readable() -> Resul
         &json!({"action":"init"}),
         &environment,
     )?;
-    let db = rusqlite::Connection::open(&database)?;
-    db.execute_batch("INSERT INTO brief_run (id,started_at,dry_run,status,summary) VALUES ('old','2026-01-01T00:00:00Z',0,'ok','recorded'); INSERT INTO delivery (id,run_id,message,delivered_at) VALUES (1,'old','Exact legacy body','2026-01-01T00:01:00Z'); INSERT INTO delivery_once VALUES ('old','Exact legacy body',1);")?;
     let retired = invoke_json(
         &["brief", "--db", &database],
         &json!({"action":"record_delivery","run_id":"old"}),
@@ -691,20 +685,6 @@ fn retired_delivery_writes_fail_but_recorded_messages_remain_readable() -> Resul
         "removed message field must fail decoding"
     );
     assert!(body.stdout.is_empty(), "decode failure emitted a result");
-    let detail = invoke_cli_json(
-        &["runs", "show", "old", "--json", "--db", &database],
-        &environment,
-    )?;
-    assert_eq!(
-        detail.pointer("/run/message"),
-        Some(&json!("Exact legacy body")),
-        "old body changed"
-    );
-    assert_eq!(
-        detail.get("delivery_html"),
-        Some(&serde_json::Value::Null),
-        "old delivery invented HTML"
-    );
     let removed = invoke(&["source", "list", "--db", &database], None, &environment)?;
     assert_eq!(
         removed.status.code(),

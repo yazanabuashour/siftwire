@@ -4,8 +4,8 @@
 )]
 
 use super::*;
-use crate::contract::{BriefRequest, Paths};
-use crate::storage::Store;
+use crate::contract::{BriefRequest, Paths, SportsUpdate};
+use crate::storage::{RunDeliveryContext, Store};
 use anyhow::{Context, Result};
 
 fn normalized_fixture() -> Result<(tempfile::TempDir, Store, String)> {
@@ -37,23 +37,7 @@ fn normalized_fixture() -> Result<(tempfile::TempDir, Store, String)> {
         sports_timezone: "UTC".to_owned(),
         health_footnote: String::new(),
     };
-    let mut rows = context
-        .sports_updates
-        .iter()
-        .map(|update| {
-            let projected = crate::engine::sports_update_item(update, chrono_tz::UTC);
-            RunItemRow {
-                category: RUN_ITEM_MUST_INCLUDE.to_owned(),
-                source_key: update.source_key.clone(),
-                kind: SOURCE_KIND_SCHEDULE.to_owned(),
-                title: projected.title,
-                url: projected.url,
-                published_at: projected.published_at,
-                ..RunItemRow::default()
-            }
-        })
-        .collect::<Vec<_>>();
-    rows.extend([
+    let rows = [
         RunItemRow {
             category: RUN_ITEM_CANDIDATE.to_owned(),
             kind: "rss".to_owned(),
@@ -68,7 +52,7 @@ fn normalized_fixture() -> Result<(tempfile::TempDir, Store, String)> {
             url: update.url,
             ..RunItemRow::default()
         },
-    ]);
+    ];
     store.insert_run_items(&run_id, &rows)?;
     store.insert_run_delivery_context(&run_id, &context)?;
     store.finish_run(&run_id, "ok", "fixture")?;
@@ -89,11 +73,25 @@ fn references_disambiguate_identical_sports_links_and_preserve_large_ids() -> Re
     assert_eq!(
         wire.pointer("/0/run_item_ids/0")
             .and_then(serde_json::Value::as_str),
-        Some("9007199254740995")
+        Some("9007199254740993")
     );
     assert_eq!(
         wire.pointer("/0/url").and_then(serde_json::Value::as_str),
         Some("https://example.test/")
+    );
+    assert!(
+        prepared
+            .prepared_items
+            .iter()
+            .skip(1)
+            .all(|item| item.run_item_ids.is_empty())
+    );
+    let detail = store.run_detail(&run_id)?.context("prepared detail")?;
+    assert!(
+        detail
+            .items
+            .iter()
+            .all(|row| delivery_status(row, &detail) == DeliveryStatus::NotDelivered)
     );
     let replay = crate::runner::delivery::prepare(Paths::default(), &store, &request)?;
     assert_eq!(prepared.prepared_items, replay.prepared_items);
@@ -113,32 +111,21 @@ fn references_disambiguate_identical_sports_links_and_preserve_large_ids() -> Re
             .iter()
             .map(|row| delivery_status(row, &detail))
             .collect::<Vec<_>>(),
-        [
-            DeliveryStatus::SentAsSports,
-            DeliveryStatus::SentAsSports,
-            DeliveryStatus::Sent,
-            DeliveryStatus::NotSelected
-        ]
+        [DeliveryStatus::Sent, DeliveryStatus::NotSelected]
     );
     assert_eq!(
         detail.delivery_html.as_deref(),
         Some(prepared.html.as_str())
     );
     detail.delivery_plan = None;
-    // A parsed link shared by sports and ordinary news cannot prove either row.
-    detail.sent_items.truncate(2);
+    // Delivery evidence requires the confirmed plan, not parsed message links.
     assert_eq!(
         detail
             .items
             .iter()
             .map(|row| delivery_status(row, &detail))
             .collect::<Vec<_>>(),
-        [
-            DeliveryStatus::Unknown,
-            DeliveryStatus::Unknown,
-            DeliveryStatus::Sent,
-            DeliveryStatus::Unknown
-        ]
+        [DeliveryStatus::Unknown, DeliveryStatus::Unknown]
     );
     Ok(())
 }

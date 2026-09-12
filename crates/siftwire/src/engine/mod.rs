@@ -21,9 +21,7 @@ pub use health::{
 pub use model::FetchOutput;
 pub use process::{collect_items, process_source_items};
 pub use recent::{RecentSuppression, suppress_recent_candidates};
-pub use schedule::{
-    SportsOptions, prepare_sports_updates, render_sports_section, sports_update_item,
-};
+pub use schedule::{SportsOptions, prepare_sports_updates, render_sports_section};
 pub use selection::CURRENT_NEWS_HOURS;
 
 #[cfg(test)]

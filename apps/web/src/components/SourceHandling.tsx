@@ -1,22 +1,11 @@
-import { sourceType } from "./source-validation"
+import { SourceSchema } from "../api-contracts"
 import type { SourceFieldsProps } from "./SourceFields"
 import { Field } from "./ui"
 
 export default function SourceHandling({ draft, update }: SourceFieldsProps) {
   const currentNews =
     draft.kind === "rss" && ["high", "medium"].includes(draft.threshold)
-  const supportedResolution = ["", "none", "google_news_article_url"].includes(
-    draft.url_canonicalization,
-  )
-  const supportedExtraction = ["", "none", "title_suffix"].includes(
-    draft.outlet_extraction,
-  )
-  if (
-    sourceType(draft.kind) !== "feed" &&
-    supportedResolution &&
-    supportedExtraction
-  )
-    return null
+  if (draft.kind !== "rss") return null
   return (
     <fieldset className="folio-form-group">
       <legend>Feed processing</legend>
@@ -34,15 +23,11 @@ export default function SourceHandling({ draft, update }: SourceFieldsProps) {
         </p>
       )}
       <p className="folio-muted">
-        {currentNews && !supportedResolution
-          ? "Choose Required reporting to replace this unsupported saved link resolution before saving."
-          : !supportedResolution || !supportedExtraction
-            ? "Choose supported processing options before saving this legacy source."
-            : currentNews
-              ? "Publication eligibility does not mean the item is new or will be selected."
-              : draft.url_canonicalization === "google_news_article_url"
-                ? "If link resolution fails, the original item remains eligible."
-                : "Links stay as supplied by the feed."}
+        {currentNews
+          ? "Publication eligibility does not mean the item is new or will be selected."
+          : draft.url_canonicalization === "google_news_article_url"
+            ? "If link resolution fails, the original item remains eligible."
+            : "Links stay as supplied by the feed."}
       </p>
       <div className="folio-form-grid">
         <Field label="Link resolution">
@@ -50,14 +35,14 @@ export default function SourceHandling({ draft, update }: SourceFieldsProps) {
             value={draft.url_canonicalization || "none"}
             disabled={currentNews}
             onChange={(event) =>
-              update({ url_canonicalization: event.target.value })
+              update({
+                url_canonicalization:
+                  SourceSchema.shape.url_canonicalization.parse(
+                    event.target.value,
+                  ),
+              })
             }
           >
-            {!supportedResolution && (
-              <option value={draft.url_canonicalization} disabled>
-                Unsupported saved resolution: {draft.url_canonicalization}
-              </option>
-            )}
             <option value="none">None</option>
             <option value="google_news_article_url">
               Google News decoding
@@ -68,14 +53,13 @@ export default function SourceHandling({ draft, update }: SourceFieldsProps) {
           <select
             value={draft.outlet_extraction || "none"}
             onChange={(event) =>
-              update({ outlet_extraction: event.target.value })
+              update({
+                outlet_extraction: SourceSchema.shape.outlet_extraction.parse(
+                  event.target.value,
+                ),
+              })
             }
           >
-            {!supportedExtraction && (
-              <option value={draft.outlet_extraction} disabled>
-                Unsupported saved identification: {draft.outlet_extraction}
-              </option>
-            )}
             <option value="none">None</option>
             <option value="title_suffix">End of title</option>
           </select>

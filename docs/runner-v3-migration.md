@@ -1,5 +1,8 @@
 # Apply the v3 migration from a v2 installation
 
+Historical release guide only. This checkout instead requires the
+[v5 compatibility reset](runner-v5-reset.md).
+
 Use this guide when upgrading v0.6.1 or another `siftwire-runner/v2` installation.
 The v3 changes remove unused source options and manual delivery writes. They
 also apply when upgrading directly to v0.8.0 and `siftwire-runner/v4`. Complete

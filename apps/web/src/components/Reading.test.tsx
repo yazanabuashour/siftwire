@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { expect, it } from "vitest"
 
 import { RunDetailSchema, RunItemSchema } from "../api-contracts"
-import { RecordedBrief, StoryReceipt } from "./Reading"
+import { RecordedBrief } from "./Reading"
 import { Candidates, Dropped, FetchStatuses } from "./RunEvidence"
 
 function recorded(message: string | null) {
@@ -10,15 +10,18 @@ function recorded(message: string | null) {
     run: {
       run_id: "recorded-run",
       started_at: "2026-09-07T08:30:00Z",
+      finished_at: "2026-09-07T08:31:00Z",
       dry_run: false,
       status: "ok",
       summary: "",
       delivered_at: "2026-09-07T08:31:00Z",
       message,
     },
+    delivery_html: null,
     must_include: [],
     candidates: [],
     dropped: [],
+    annotations: [],
     fetch: [],
     sent_items: [
       {
@@ -47,41 +50,16 @@ it("prefers the saved email in a script-disabled frame over reconstructed conten
   expect(html).not.toContain("Stored fallback")
 })
 
-it("keeps the complete recorded message, including sports and health notes", () => {
+it("reports missing saved HTML without interpreting recorded Markdown", () => {
   const detail = recorded(
     "- [Recorded headline](https://example.test/news)\n\n## Sports\n\nFinal score: 2 to 1.\n\nOne source could not be checked.",
   )
   const html = renderToStaticMarkup(<RecordedBrief detail={detail} />)
   expect(html).toContain("No saved email HTML")
-  expect(html).toContain("Recorded headline")
-  expect(html).toContain("Final score: 2 to 1.")
-  expect(html).toContain("One source could not be checked.")
+  expect(html).not.toContain("Recorded headline")
+  expect(html).not.toContain("Final score: 2 to 1.")
+  expect(html).not.toContain("One source could not be checked.")
   expect(html).not.toContain("Stored fallback")
-})
-
-it("uses saved links only when the message is missing", () => {
-  const html = renderToStaticMarkup(<RecordedBrief detail={recorded(null)} />)
-  expect(html).toContain("full message was not recorded")
-  expect(html).toContain("Stored fallback")
-  expect(html).toContain('href="https://example.test/story"')
-})
-
-it("does not attach a different fixture's receipt to a shared URL", () => {
-  const detail = recorded("[A saved card](https://example.test/card)")
-  detail.must_include = ["First fixture", "Second fixture"].map((title) =>
-    RunItemSchema.parse({
-      id: title,
-      source_key: title,
-      source_label: `${title} source`,
-      title,
-      url: "https://example.test/card",
-      selected: false,
-    }),
-  )
-  const html = renderToStaticMarkup(<RecordedBrief detail={detail} />)
-  expect(html).toContain("A saved card")
-  expect(html).not.toContain("First fixture source")
-  expect(html).not.toContain("Second fixture source")
 })
 
 it("uses recorded policy and delivery outcomes and separates annotations from exclusions", () => {
@@ -92,13 +70,13 @@ it("uses recorded policy and delivery outcomes and separates annotations from ex
       source_key: "fixture",
       source_label: "Fictional schedule",
       kind: "sports_schedule",
+      published_at: "",
+      outlet: "",
       title: "Upcoming fixture",
       url: "https://example.test/card",
-      threshold: "audit",
-      always_report: false,
+      priority_rank: "0",
       reporting: "sports",
-      selected: false,
-      delivery_status: "sent_as_sports",
+      delivery_status: "sent",
     }),
   ]
   detail.annotations = [
@@ -114,7 +92,7 @@ it("uses recorded policy and delivery outcomes and separates annotations from ex
     },
   ]
   const candidates = renderToStaticMarkup(<Candidates detail={detail} />)
-  expect(candidates).toContain("Sent in sports section")
+  expect(candidates).toContain("Sent")
   expect(candidates).toContain("Recurring sports updates")
   expect(candidates).not.toContain("Not included")
   expect(candidates).not.toContain("Always included")
@@ -124,36 +102,7 @@ it("uses recorded policy and delivery outcomes and separates annotations from ex
   )
 })
 
-it.each(["observe", "future_policy"])(
-  "retains historical Atom, always_report and %s without reinterpreting them",
-  (reporting) => {
-    const story = RunItemSchema.parse({
-      id: "legacy",
-      source_key: "old",
-      source_label: "Old feed",
-      kind: "atom",
-      threshold: "audit",
-      always_report: true,
-      reporting,
-      priority_rank: "-9223372036854775808",
-      title: "Old story",
-      url: "https://example.test/old",
-      selected: false,
-    })
-    expect(story.always_report).toBe(true)
-    expect(story.threshold).toBe("audit")
-    const html = renderToStaticMarkup(<StoryReceipt story={story} />)
-    expect(html).toContain("atom")
-    expect(html).toContain("-9223372036854775808")
-    expect(html).toContain(
-      reporting === "observe"
-        ? "Observe without including"
-        : "Unknown reporting: future_policy",
-    )
-  },
-)
-
-it("distinguishes current-news eligibility, historical new counts, and unavailable counts without archive protocol metadata", () => {
+it("distinguishes current-news eligibility, required-source new counts, and failed checks", () => {
   const currentNews = {
     since: "2026-09-06T08:30:00Z",
     until: "2026-09-07T08:30:00Z",
@@ -167,21 +116,34 @@ it("distinguishes current-news eligibility, historical new counts, and unavailab
     fetch: [
       {
         source_key: "optional",
+        source_label: "Optional feed",
         status: "ok",
         items: 10,
         new_items: null,
         current_news: currentNews,
       },
-      { source_key: "legacy", status: "ok", items: 7, new_items: 3 },
-      { source_key: "required", status: "ok", items: 2, new_items: 0 },
+      {
+        source_key: "release",
+        source_label: "Releases",
+        status: "ok",
+        items: 7,
+        new_items: 3,
+      },
+      {
+        source_key: "required",
+        source_label: "Required feed",
+        status: "ok",
+        items: 2,
+        new_items: 0,
+      },
       {
         source_key: "failed",
+        source_label: "Failed feed",
         status: "error",
         error: "Feed unavailable",
         items: 0,
         new_items: null,
       },
-      { source_key: "unknown", status: "ok", items: 1 },
     ],
   })
   expect(detail.fetch[0]?.current_news).toEqual(currentNews)
@@ -203,16 +165,4 @@ it("distinguishes current-news eligibility, historical new counts, and unavailab
   expect(rows[2]).toContain("0 new · 2 fetched")
   expect(rows[3]).toContain("Feed unavailable")
   expect(rows[3]).toContain("New count unavailable · 0 fetched")
-  expect(rows[4]).toContain("New count unavailable · 1 fetched")
-})
-
-it("makes recorded images opt-in links rather than remote loads", () => {
-  const html = renderToStaticMarkup(
-    <RecordedBrief
-      detail={recorded("![Chart](https://example.test/chart.png)")}
-    />,
-  )
-  expect(html).not.toContain("<img")
-  expect(html).toContain('href="https://example.test/chart.png"')
-  expect(html).toContain("Chart")
 })

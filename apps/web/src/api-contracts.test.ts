@@ -15,7 +15,7 @@ import {
 import { sourceError } from "./components/source-validation"
 
 const configFixture = {
-  runner_protocol: "siftwire-runner/v4",
+  runner_protocol: "siftwire-runner/v5",
   capabilities: ["current-news/v1"],
   rejected: false,
   paths: { data_dir: "/tmp", database_path: "/tmp/db.sqlite" },
@@ -29,6 +29,7 @@ const configFixture = {
       repo: "",
       section: "technology",
       threshold: "medium",
+      priority_rank: "0",
       enabled: true,
     },
   ],
@@ -36,44 +37,32 @@ const configFixture = {
 }
 
 describe("ConfigResultSchema", () => {
-  test("accepts v4 metadata and extra result fields while normalizing defaults", () => {
+  test("accepts v5 metadata and extra result fields while normalizing defaults", () => {
     const decoded = ConfigResultSchema.parse({
       ...configFixture,
       capabilities: ["future-capability/v1", "current-news/v1"],
       future_metadata: { detail: "Not consumed by this console" },
     })
-    expect(decoded.runner_protocol).toBe("siftwire-runner/v4")
+    expect(decoded.runner_protocol).toBe("siftwire-runner/v5")
     expect(decoded.sources[0]?.url_canonicalization).toBe("")
     expect(decoded.sources[0]?.priority_rank).toBe("0")
     expect(decoded.sources[0]).not.toHaveProperty("always_report")
   })
 })
 
-test("keeps legacy and unknown source options readable without exposing the removed write flag", () => {
-  const decoded = ConfigResultSchema.parse({
-    ...configFixture,
-    sources: [
-      {
-        ...configFixture.sources[0],
-        kind: "future_feed",
-        threshold: "audit",
-        enabled: false,
-        url_canonicalization: "old_resolver",
-        outlet_extraction: "old_extractor",
-        always_report: true,
-      },
-    ],
-    source_reporting: { fixture: "future_reporting" },
-  })
-  expect(decoded.sources[0]).toMatchObject({
-    kind: "future_feed",
-    threshold: "audit",
-    enabled: false,
-    url_canonicalization: "old_resolver",
-    outlet_extraction: "old_extractor",
-  })
-  expect(decoded.sources[0]).not.toHaveProperty("always_report")
-  expect(decoded.source_reporting["fixture"]).toBe("future_reporting")
+test.each([
+  { kind: "atom" },
+  { threshold: "audit" },
+  { url_canonicalization: "feedburner_redirect" },
+  { outlet_extraction: "rss_source" },
+  { schedule_format: "espn_core" },
+])("rejects retired source options %j", (retired) => {
+  expect(
+    ConfigResultSchema.safeParse({
+      ...configFixture,
+      sources: [{ ...configFixture.sources[0], ...retired }],
+    }).success,
+  ).toBe(false)
 })
 
 describe("RunDetailSchema", () => {
@@ -89,29 +78,45 @@ describe("RunDetailSchema", () => {
         delivered_at: null,
         message: null,
       },
+      delivery_html: null,
       must_include: [],
       candidates: [
         {
           source_key: "fixture",
           source_label: "Fixture",
+          kind: "rss",
+          outlet: "",
+          published_at: "",
           id: "story-item",
           title: "Story",
           url: "https://fixture.test/story",
-          selected: true,
+          reporting: "highlights",
+          delivery_status: "sent",
           priority_rank: "9223372036854775807",
         },
       ],
       dropped: [
         {
           source_key: "fixture",
+          source_label: "Fixture",
           id: "old-item",
           title: "Old",
           url: "https://fixture.test/old",
           reason: "recently_sent",
+          disposition: "dropped",
           detail: {},
         },
       ],
-      fetch: [{ source_key: "fixture", status: "ok", items: 7, new_items: 3 }],
+      annotations: [],
+      fetch: [
+        {
+          source_key: "fixture",
+          source_label: "Fixture",
+          status: "ok",
+          items: 7,
+          new_items: 3,
+        },
+      ],
       sent_items: [
         {
           title: "Story",
@@ -123,8 +128,8 @@ describe("RunDetailSchema", () => {
     const decoded = RunDetailSchema.parse(fixture)
     expect(decoded.fetch[0]?.items).toBe(7)
     expect(decoded.candidates[0]?.priority_rank).toBe("9223372036854775807")
-    expect(decoded.candidates[0]?.delivery_status).toBe("unknown")
-    expect(decoded.candidates[0]?.reporting).toBeNull()
+    expect(decoded.candidates[0]?.delivery_status).toBe("sent")
+    expect(decoded.candidates[0]?.reporting).toBe("highlights")
     expect(decoded.annotations).toEqual([])
   })
 })
@@ -135,11 +140,11 @@ describe("runner response ownership", () => {
   test.each([
     { metadata: { runner_protocol: undefined }, field: "runner_protocol" },
     {
-      metadata: { runner_protocol: "siftwire-runner/v3" },
+      metadata: { runner_protocol: "siftwire-runner/v4" },
       field: "runner_protocol",
     },
     {
-      metadata: { runner_protocol: "siftwire-runner/v5" },
+      metadata: { runner_protocol: "siftwire-runner/v6" },
       field: "runner_protocol",
     },
     { metadata: { capabilities: undefined }, field: "capabilities" },
@@ -149,7 +154,7 @@ describe("runner response ownership", () => {
       field: "capabilities",
     },
   ])(
-    "rejects config metadata $metadata before exposing legacy sources or accepting partial mutations",
+    "rejects config metadata $metadata before exposing sources or accepting partial mutations",
     async ({ metadata: invalidMetadata, field }) => {
       const metadata = {
         runner_protocol: configFixture.runner_protocol,
@@ -166,7 +171,6 @@ describe("runner response ownership", () => {
               {
                 ...configFixture.sources[0],
                 threshold: "high",
-                always_report: true,
               },
             ],
           }),

@@ -165,7 +165,7 @@ fn archive_cursors_order_fractional_seconds_chronologically() -> Result<()> {
 }
 
 #[test]
-fn outlet_conflicts_are_readable_but_new_collection_writes_are_atomic() -> Result<()> {
+fn outlet_conflicts_are_rejected_and_collection_writes_are_atomic() -> Result<()> {
     let temp = tempfile::TempDir::new()?;
     let store = Store::open(temp.path().join("outlets.sqlite"))?;
     let policy = |name: &str, aliases: &[&str], enabled| OutletPolicy {
@@ -197,28 +197,18 @@ fn outlet_conflicts_are_readable_but_new_collection_writes_are_atomic() -> Resul
         stored.first().context("retained policy")?.note,
         "Keep this rationale"
     );
-    assert_eq!(
-        crate::domain::matching_outlet_policy("example.co.uk", &policies)
-            .context("legacy first match")?
-            .name,
-        "First"
-    );
     let mut disabled = policies;
     disabled.get_mut(1).context("second")?.enabled = false;
     store.replace_outlet_policies(disabled)?;
-    // Simulate an existing conflicting collection without using the new write boundary.
+    // Simulate corruption that bypassed the write boundary.
     store.connection.execute(
         "UPDATE outlet_policy SET enabled = 1 WHERE name = 'Second'",
         [],
     )?;
-    let existing = store.list_outlet_policies()?;
-    assert_eq!(crate::domain::outlet_conflicts(&existing).len(), 1);
-    assert_eq!(
-        crate::domain::matching_outlet_policy("example", &existing)
-            .context("unchanged precedence")?
-            .name,
-        "First"
-    );
+    store
+        .list_outlet_policies()
+        .err()
+        .context("conflicting stored policies accepted")?;
     store
         .replace_outlet_policies(vec![
             policy("Example", &[], true),
@@ -230,12 +220,9 @@ fn outlet_conflicts_are_readable_but_new_collection_writes_are_atomic() -> Resul
 }
 
 #[test]
-fn fetch_label_migration_preserves_unknown_history_and_new_snapshots() -> Result<()> {
+fn fetch_evidence_preserves_new_snapshots_on_reopen() -> Result<()> {
     let temp = tempfile::TempDir::new()?;
     let database = temp.path().join("fetch.sqlite");
-    let connection = rusqlite::Connection::open(&database)?;
-    connection.execute_batch("CREATE TABLE fetch_log (id INTEGER PRIMARY KEY, run_id TEXT NOT NULL, source_key TEXT NOT NULL, status TEXT NOT NULL, error TEXT NOT NULL, item_count INTEGER NOT NULL, new_item_count INTEGER NOT NULL, created_at TEXT NOT NULL); INSERT INTO fetch_log VALUES (1, 'legacy', 'feed', 'error', 'fixture failure', 0, 0, '2026-01-01T00:00:00Z');")?;
-    drop(connection);
     let store = Store::open(&database)?;
     store.insert_fetch_log(&FetchLog {
         run_id: "new".to_owned(),
@@ -244,8 +231,11 @@ fn fetch_label_migration_preserves_unknown_history_and_new_snapshots() -> Result
         status: "error".to_owned(),
         ..FetchLog::default()
     })?;
+    drop(store);
+    let store = Store::open(&database)?;
     let logs = store.recent_fetch_logs(10)?;
-    assert_eq!(logs.first().context("legacy log")?.source_label, "");
+    assert_eq!(logs.len(), 1);
+    assert_eq!(logs.first().context("fetch log")?.new_item_count, None);
     assert_eq!(
         logs.last().context("new log")?.source_label,
         "Recorded label"

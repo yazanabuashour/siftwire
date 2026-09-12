@@ -1,4 +1,4 @@
-import type { Source } from "../api-contracts"
+import { SourceSchema, type Source } from "../api-contracts"
 import { reportingLabels } from "../reporting"
 import {
   reportingLabel,
@@ -48,13 +48,6 @@ export function IdentityFields({ draft, update }: SourceFieldsProps) {
           value={draft.kind === "rss" ? "feed" : draft.kind}
           onChange={(event) => update(sourceTypePatch(event.target.value))}
         >
-          {!["rss", "github_release", "sports_schedule"].includes(
-            draft.kind,
-          ) && (
-            <option value={draft.kind} disabled>
-              Unsupported saved type: {draft.kind}
-            </option>
-          )}
           <option value="feed">Feed</option>
           <option value="github_release">GitHub releases</option>
           <option value="sports_schedule">Sports schedule</option>
@@ -68,15 +61,7 @@ export function IdentityFields({ draft, update }: SourceFieldsProps) {
         />
       </Field>
       {draft.kind === "github_release" ? (
-        <Field
-          label="Repository"
-          wide
-          hint={
-            draft.url
-              ? `Saving uses this repository, not the saved address: ${draft.url}`
-              : undefined
-          }
-        >
+        <Field label="Repository" wide>
           <input
             required
             value={draft.repo}
@@ -115,11 +100,7 @@ export function PolicyFields({
   mode: string | undefined
   onMode: (mode: FeedReportingMode) => void
 }) {
-  const legacy = !["always", "high", "medium"].includes(draft.threshold)
-  if (
-    !legacy &&
-    (draft.kind === "github_release" || draft.kind === "sports_schedule")
-  )
+  if (draft.kind === "github_release" || draft.kind === "sports_schedule")
     return (
       <div className="config-reporting">
         <p>
@@ -141,7 +122,7 @@ export function PolicyFields({
         hint="Required feeds still report only eligible new items."
       >
         <select
-          value={legacy ? "legacy" : (mode ?? "")}
+          value={mode ?? ""}
           onChange={(event) => {
             const next = event.target.value
             if (
@@ -154,30 +135,16 @@ export function PolicyFields({
             update(reportingPatch(next))
           }}
         >
-          {legacy ? (
-            <option value="legacy" disabled>
-              Saved reporting: {mode ?? "unavailable"} / {draft.threshold}
+          {!mode && (
+            <option value="" disabled>
+              Choose reporting
             </option>
-          ) : (
-            mode !== "required" &&
-            mode !== "highlights" &&
-            mode !== "major" && (
-              <option value={mode ?? ""} disabled>
-                {reportingLabel(mode)}
-              </option>
-            )
           )}
           <option value="required">{reportingLabels.required}</option>
           <option value="highlights">{reportingLabels.highlights}</option>
           <option value="major">{reportingLabels.major}</option>
         </select>
       </Field>
-      {legacy && (
-        <p className="folio-muted">
-          This saved reporting policy is no longer writable. Choose current
-          reporting before saving. Saving preserves the Enabled setting.
-        </p>
-      )}
     </div>
   )
 }
@@ -226,19 +193,14 @@ export function ScheduleFields({ draft, update }: SourceFieldsProps) {
             value={draft.schedule_format}
             onChange={(event) =>
               update({
-                schedule_format: event.target.value,
+                schedule_format: SourceSchema.shape.schedule_format.parse(
+                  event.target.value,
+                ),
                 schedule_filter: "all",
                 api_key: "",
               })
             }
           >
-            {!["espn", "espn_scoreboard", "riot"].includes(
-              draft.schedule_format,
-            ) && (
-              <option value={draft.schedule_format} disabled>
-                Unsupported saved format: {draft.schedule_format || "empty"}
-              </option>
-            )}
             <option value="espn">ESPN schedule</option>
             <option value="espn_scoreboard">ESPN scoreboard</option>
             <option value="riot">Riot matches</option>
@@ -250,16 +212,13 @@ export function ScheduleFields({ draft, update }: SourceFieldsProps) {
               <select
                 value={draft.schedule_filter}
                 onChange={(event) =>
-                  update({ schedule_filter: event.target.value })
+                  update({
+                    schedule_filter: SourceSchema.shape.schedule_filter.parse(
+                      event.target.value,
+                    ),
+                  })
                 }
               >
-                {!["all", "standings_top_two"].includes(
-                  draft.schedule_filter,
-                ) && (
-                  <option value={draft.schedule_filter} disabled>
-                    Unsupported saved filter: {draft.schedule_filter}
-                  </option>
-                )}
                 <option value="all">All matches</option>
                 <option value="standings_top_two">
                   Top two standings positions

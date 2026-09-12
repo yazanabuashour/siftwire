@@ -15,7 +15,7 @@ use crate::domain::{
 };
 
 use super::http::HttpClient;
-use super::model::{FetchOutput, FetchedItem};
+use super::model::FetchOutput;
 
 pub const SPORTS_STATUS_FINAL: &str = "final";
 pub const SPORTS_STATUS_UPCOMING: &str = "upcoming";
@@ -51,30 +51,10 @@ pub(super) fn fetch_schedule(
         SCHEDULE_FORMAT_RIOT => riot_fetch_updates(client, source, now, options)?,
         other => bail!("unsupported schedule format {other:?}"),
     };
-    let items = sports_updates
-        .iter()
-        .filter(|update| update.status == SPORTS_STATUS_UPCOMING)
-        .map(|update| sports_update_item(update, options.timezone))
-        .collect();
     Ok(FetchOutput {
-        items,
         sports_updates,
         ..FetchOutput::default()
     })
-}
-
-pub fn sports_update_item(update: &SportsUpdate, timezone: Tz) -> FetchedItem {
-    let when = update
-        .starts_at
-        .with_timezone(&timezone)
-        .format("%a %b %-d, %-I:%M %p %Z");
-    FetchedItem {
-        title: format!("{} - {}, {when}", update.title, update.competition),
-        url: update.url.clone(),
-        published_at: update.starts_at.to_rfc3339(),
-        identity: update.fixture_identity.clone(),
-        ..FetchedItem::default()
-    }
 }
 
 fn update_status(
@@ -1625,7 +1605,20 @@ mod tests {
                 .with_timezone(&Utc),
             images: Vec::new(),
         };
-        let updates = prepare_sports_updates(vec![upcoming.clone(), upcoming]);
+        let source = schedule_source(SCHEDULE_FORMAT_ESPN);
+        let processed = crate::engine::process_source_items(
+            &source,
+            super::FetchOutput {
+                sports_updates: vec![upcoming.clone(), upcoming],
+                ..super::FetchOutput::default()
+            },
+            &[],
+            None,
+            now()?,
+        );
+        assert!(processed.items.is_empty());
+        assert!(processed.eligible_items.is_empty());
+        let updates = prepare_sports_updates(processed.sports_updates);
         let section = render_sports_section(&updates, chrono_tz::America::New_York);
         assert_eq!(updates.len(), 1, "duplicate fixture survived");
         assert!(section.starts_with("## Sports\n\n### Upcoming fixtures"));

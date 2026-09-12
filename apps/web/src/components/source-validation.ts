@@ -1,5 +1,6 @@
 import {
   PriorityRankSchema,
+  SourceSchema,
   type ReportingMode,
   type Source,
 } from "../api-contracts"
@@ -23,25 +24,27 @@ export const emptySource: Source = {
   api_key: "",
 }
 
-export type FeedReportingMode = Exclude<ReportingMode, "sports" | "observe">
+export type FeedReportingMode = Exclude<ReportingMode, "sports">
 
 export function reportingPatch(mode: FeedReportingMode): Partial<Source> {
   return {
-    threshold: {
-      required: "always",
-      highlights: "medium",
-      major: "high",
-    }[mode],
+    threshold: (
+      {
+        required: "always",
+        highlights: "medium",
+        major: "high",
+      } as const
+    )[mode],
   }
 }
 
 export function sourceType(kind: string): string {
-  return kind === "rss" || kind === "atom" ? "feed" : kind
+  return kind === "rss" ? "feed" : kind
 }
 
 export function sourceTypePatch(type: string): Partial<Source> {
   return {
-    kind: type === "feed" ? "rss" : type,
+    kind: SourceSchema.shape.kind.parse(type === "feed" ? "rss" : type),
     schedule_format: type === "sports_schedule" ? "espn" : "",
     schedule_filter: "all",
     api_key: "",
@@ -84,27 +87,10 @@ export function sourceError(
   const priority = PriorityRankSchema.safeParse(source.priority_rank)
   if (!priority.success)
     return priority.error.issues[0]?.message ?? "Invalid priority."
-  if (!["rss", "github_release", "sports_schedule"].includes(source.kind))
-    return "Choose a supported source type."
-  if (!["always", "high", "medium"].includes(source.threshold))
-    return "Choose current reporting before saving this legacy source."
-  if (
-    !["", "none", "google_news_article_url"].includes(
-      source.url_canonicalization,
-    )
-  )
-    return "Choose a supported link resolution option."
-  if (!["", "none", "title_suffix"].includes(source.outlet_extraction))
-    return "Choose a supported publisher identification option."
-  if (
-    source.kind === "sports_schedule" &&
-    !["espn", "espn_scoreboard", "riot"].includes(source.schedule_format)
-  )
+  if (source.kind === "sports_schedule" && !source.schedule_format)
     return "Choose a supported schedule format."
   if (source.kind === "github_release" && source.url)
     return "GitHub releases use a repository, not a custom URL."
-  if (!["all", "standings_top_two"].includes(source.schedule_filter))
-    return "Choose a supported schedule filter."
   if (
     source.kind === "github_release" &&
     !/^[a-zA-Z0-9][a-zA-Z0-9-]*\/[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(source.repo)

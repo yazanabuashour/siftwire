@@ -66,7 +66,7 @@ it.each([
   { threshold: "always", reporting: "required" },
   { threshold: "medium", reporting: "highlights" },
 ] satisfies {
-  threshold: string
+  threshold: Source["threshold"]
   reporting: ReportingMode
 }[])(
   "preserves $threshold, rank and processing fields on unrelated saves",
@@ -253,9 +253,9 @@ it("pauses without rewriting raw policy and removes the last source using the se
   expect(lateRead.signal.aborted).toBe(true)
 })
 
-it("searches sources and treats both RSS and Atom as Feed without altering the collection", () => {
-  const sources = [
-    { ...stored, kind: "atom", label: "Zulu" },
+it("searches feeds without altering the collection", () => {
+  const sources: Source[] = [
+    { ...stored, label: "Zulu" },
     { ...stored, key: "rss", kind: "rss", label: "Alpha" },
     { ...stored, key: "release", kind: "github_release", label: "Release" },
   ]
@@ -276,6 +276,6 @@ it("searches sources and treats both RSS and Atom as Feed without altering the c
   ).toEqual(["Alpha", "Zulu"])
   change("Search sources", "Zulu")
   expect(host.querySelectorAll("article")).toHaveLength(1)
-  expect(sources[0]?.kind).toBe("atom")
+  expect(sources[0]?.kind).toBe("rss")
   expect(sources[0]?.label).toBe("Zulu")
 })

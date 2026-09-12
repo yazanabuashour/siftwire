@@ -88,7 +88,6 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
             row.source_label.clone_from(&source.label);
         }
     }
-    classified.suppressed.extend(recent_result.suppressed);
     let health_delta = finish_health(
         store,
         &sources,
@@ -118,11 +117,7 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
         persist_delivery_context(store, &run_id, &options, &sports_updates, &health_footnote)?;
         store.finish_run(&run_id, "ok", &summary)?;
     }
-    let candidate_slots = candidate_slots(
-        &classified.must_include,
-        !sports_updates.is_empty(),
-        options.max_delivery_items,
-    );
+    let candidate_slots = candidate_slots(&classified.must_include, options.max_delivery_items);
     Ok(BriefResult {
         paths,
         run_id,
@@ -493,7 +488,6 @@ fn item_row(category: &str, item: &BriefItem, reason: &str, detail: &str) -> Run
         section: item.section.clone(),
         threshold: item.threshold.clone(),
         priority_rank: item.priority_rank,
-        always_report: item.always_report,
         published_at: item.published_at.clone(),
         outlet: item.outlet.clone(),
         title: item.title.clone(),
@@ -621,14 +615,10 @@ fn persist_delivery_context(
     )
 }
 
-fn candidate_slots(must_include: &[BriefItem], has_sports: bool, max_items: i64) -> usize {
-    let normal_required = must_include
-        .iter()
-        .filter(|item| !(has_sports && item.kind == SOURCE_KIND_SCHEDULE))
-        .count();
+fn candidate_slots(must_include: &[BriefItem], max_items: i64) -> usize {
     usize::try_from(max_items)
         .unwrap_or_default()
-        .saturating_sub(normal_required)
+        .saturating_sub(must_include.len())
 }
 
 fn previous_brief(delivery: Delivery) -> PreviousBrief {

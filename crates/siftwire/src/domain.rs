@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 mod outlets;
 mod reporting;
-pub use outlets::{OutletConflict, matching_outlet_policy, outlet_conflicts};
+pub use outlets::{matching_outlet_policy, outlet_conflicts};
 pub use reporting::Reporting;
 use std::env;
 
@@ -11,8 +11,6 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 pub const SOURCE_KIND_RSS: &str = "rss";
-// Stored configuration and historical items only; new feeds use rss.
-pub const SOURCE_KIND_ATOM: &str = "atom";
 pub const SOURCE_KIND_GITHUB_RELEASE: &str = "github_release";
 pub const SOURCE_KIND_SCHEDULE: &str = "sports_schedule";
 pub const SCHEDULE_FORMAT_ESPN: &str = "espn";
@@ -23,8 +21,6 @@ pub const SCHEDULE_FILTER_STANDINGS_TOP_TWO: &str = "standings_top_two";
 pub const THRESHOLD_ALWAYS: &str = "always";
 pub const THRESHOLD_MEDIUM: &str = "medium";
 pub const THRESHOLD_HIGH: &str = "high";
-// Read compatibility only; audit is never accepted by source writes.
-pub const THRESHOLD_AUDIT: &str = "audit";
 pub const URL_CANONICALIZATION_NONE: &str = "none";
 pub const URL_CANONICALIZATION_GOOGLE_NEWS_ARTICLE: &str = "google_news_article_url";
 pub const OUTLET_EXTRACTION_NONE: &str = "none";

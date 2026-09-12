@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use crate::contract::{
     CurrentNewsStatus, SportsUpdate, SuppressedPolicyItem, SuppressedUnresolvedItem,
 };
-use crate::domain::{OutletPolicy, SOURCE_KIND_SCHEDULE, Source};
+use crate::domain::{OutletPolicy, Source};
 use crate::storage::SourceState;
 
 use super::dedup::CollectedItem;
@@ -48,9 +48,7 @@ pub fn process_source_items(
         (output.items, None)
     };
     let policy_result = apply_outlet_policies(source, items, policies);
-    // Legacy consumers still receive upcoming fixtures through `must_include`.
-    // The dedicated sports section governs repetition for updated consumers.
-    let eligible_items = if current_news.is_some() || source.kind == SOURCE_KIND_SCHEDULE {
+    let eligible_items = if current_news.is_some() {
         policy_result.items.clone()
     } else {
         select_new_items(&policy_result.items, state, output.truncated)
@@ -72,11 +70,6 @@ pub fn collect_items(source: &Source, items: &[FetchedItem]) -> Vec<CollectedIte
         .map(|item| CollectedItem {
             source: source.clone(),
             brief_item: item_to_brief_item(source, item),
-            fixture_identity: if source.kind == SOURCE_KIND_SCHEDULE {
-                item.identity.clone()
-            } else {
-                String::new()
-            },
         })
         .collect()
 }

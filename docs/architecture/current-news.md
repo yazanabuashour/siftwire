@@ -55,17 +55,18 @@ activate decoding during optional collection.
 
 Preparation remains network-free and renders the immutable collected selection.
 Confirmation still records exact accepted bodies and supports idempotent retry.
-Old plans, messages, HTML, evidence, and unknown delivery outcomes remain intact.
+Saved plans, messages, HTML, and evidence remain immutable within the current
+database format.
 
-New fetch logs store selection evidence separately from the legacy numeric
-count. Current-news counts say `eligible`, not `new`. Older logs keep their
-recorded counts without inferred publication windows. Failed new checks report
-an unknown selection count rather than zero.
+Fetch logs store selection evidence without inferring publication windows from
+current source settings. Current-news counts say `eligible`, not `new`. Failed
+checks report an unknown selection count rather than zero.
 
 ## Compatibility and alternatives
 
-This is `siftwire-runner/v4` with `current-news/v1`. Callers must negotiate it
-before writes or collection. See [v4 migration](../runner-v4-migration.md).
+Current-news behavior was introduced in `siftwire-runner/v4`. This checkout
+requires `siftwire-runner/v5` with `current-news/v1` before writes or collection.
+See the [compatibility reset](../runner-v5-reset.md).
 
 A per-source mode would preserve optional positional intake but add a setting
 the operator explicitly declined. A persistent seen ledger would answer a

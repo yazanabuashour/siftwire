@@ -62,11 +62,10 @@ export function mergeOptionsResult(
 
 export function mergeOutletsResult(
   current: ConfigResult,
-  result: Pick<ConfigResult, "outlets" | "outlet_conflicts">,
+  result: Pick<ConfigResult, "outlets">,
 ): ConfigResult {
   return {
     ...current,
     outlets: result.outlets,
-    outlet_conflicts: result.outlet_conflicts,
   }
 }

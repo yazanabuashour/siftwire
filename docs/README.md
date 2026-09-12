@@ -12,6 +12,11 @@
 
 ## Upgrade an installation
 
+- [Compatibility reset](runner-v5-reset.md): this checkout requires matching v5
+  consumers and a fresh database
+
+Historical release guides:
+
 - [Upgrade to runner v4](runner-v4-migration.md): v0.8.0 current-news behavior,
   nullable fetch counts, and pending delivery
 - [Apply the v3 migration](runner-v3-migration.md): retired writes and source

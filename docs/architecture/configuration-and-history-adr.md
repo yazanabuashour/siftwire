@@ -1,6 +1,15 @@
 # Configuration and history ownership
 
-## Protocol v3 amendment
+## Protocol v5 supersession
+
+The [v5 compatibility reset](../runner-v5-reset.md) removes legacy source-read
+adapters, readable saved publisher conflicts, and historical title/URL matching.
+It requires a fresh database and direct delivery evidence references. The v3
+amendment and original decision below preserve historical rationale, not current
+compatibility guarantees. Current contracts live in the
+[runner guide](../runner-contract.md) and [run history](../run-history.md).
+
+## Historical protocol v3 amendment
 
 The approved removals in [runner v3 migration](../runner-v3-migration.md)
 supersede this decision's writable Atom/always-report/Observe choices. Current

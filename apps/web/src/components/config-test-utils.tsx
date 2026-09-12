@@ -48,7 +48,7 @@ export function sentOutlets(): OutletPolicy[] {
     .object({ outlets: z.array(OutletPolicySchema) })
     .parse(JSON.parse(body)).outlets
 }
-export const publisher = {
+export const publisher: OutletPolicy = {
   name: "Example",
   aliases: ["EXAMPLE.TEST"],
   policy: "watch",
@@ -57,7 +57,7 @@ export const publisher = {
 }
 export const configuration = () =>
   ConfigResultSchema.parse({
-    runner_protocol: "siftwire-runner/v4",
+    runner_protocol: "siftwire-runner/v5",
     capabilities: ["current-news/v1"],
     rejected: false,
     paths: { database_path: "data/config.sqlite", data_dir: "data" },

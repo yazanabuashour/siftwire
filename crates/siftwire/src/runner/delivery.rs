@@ -32,15 +32,15 @@ pub(super) fn prepare(paths: Paths, store: &Store, request: &BriefRequest) -> Re
     if run.summary.delivered_at.is_some() {
         return Ok(rejected(paths, "run_id is already delivered"));
     }
-    let Some(context) = store.run_delivery_context(&request.run_id)? else {
-        return Ok(rejected(paths, "run_id predates prepared delivery support"));
+    let Some(context) = &run.delivery_context else {
+        return Ok(rejected(paths, "run_id has no recorded delivery context"));
     };
     let plan = match build_plan(
         &request.run_id,
         &request.candidate_indexes,
         &run.summary.started_at,
         &run.items,
-        &context,
+        context,
     ) {
         Ok(value) => value,
         Err(error) => return Ok(rejected(paths, &error.to_string())),
@@ -100,11 +100,9 @@ fn build_plan(
     rows: &[RunItemRow],
     context: &RunDeliveryContext,
 ) -> Result<DeliveryPlan> {
-    let has_sports = !context.sports_updates.is_empty();
     let required = rows
         .iter()
         .filter(|row| row.category == RUN_ITEM_MUST_INCLUDE)
-        .filter(|row| !(has_sports && row.kind == SOURCE_KIND_SCHEDULE))
         .collect::<Vec<_>>();
     let candidates = rows
         .iter()
@@ -140,19 +138,6 @@ fn build_plan(
         })
         .collect::<Vec<_>>();
     let selected_refs = selected.iter().collect::<Vec<_>>();
-    let sports_references = context
-        .sports_updates
-        .iter()
-        .map(|update| {
-            Some(
-                super::evidence::sports_row(update, context, rows)
-                    .filter(|row| !row.id.is_empty())
-                    .map(|row| row.id.clone())
-                    .into_iter()
-                    .collect(),
-            )
-        })
-        .collect::<Vec<_>>();
     let mut context = context.clone();
     for update in &mut context.sports_updates {
         update.url = normalize_delivery_url(&update.url).unwrap_or_default();
@@ -167,20 +152,18 @@ fn build_plan(
     let mut items = selected
         .iter()
         .map(|row| DeliveryItem {
-            run_item_ids: Some(vec![row.id.clone()]),
+            run_item_ids: vec![row.id.clone()],
             title: row.title.clone(),
             url: row.url.clone(),
             kind: row.kind.clone(),
         })
         .collect::<Vec<_>>();
-    items.extend(context.sports_updates.iter().zip(sports_references).map(
-        |(update, run_item_ids)| DeliveryItem {
-            run_item_ids,
-            title: update.title.clone(),
-            url: update.url.clone(),
-            kind: SOURCE_KIND_SCHEDULE.to_owned(),
-        },
-    ));
+    items.extend(context.sports_updates.iter().map(|update| DeliveryItem {
+        run_item_ids: Vec::new(),
+        title: update.title.clone(),
+        url: update.url.clone(),
+        kind: SOURCE_KIND_SCHEDULE.to_owned(),
+    }));
     let (message, text, html) = render_bodies(&selected_refs, &context, started_at)?;
     Ok(DeliveryPlan {
         id: format!("plan-{run_id}"),

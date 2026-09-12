@@ -37,10 +37,13 @@ policies for review, and apply approved changes through `siftwire config`.
 Delivery history, latest-seen state, and run state remain unsupported until the
 runner provides an explicit import path.
 
-Configuration version `v2` adds generic feed-processing fields to sources:
-URL canonicalization, outlet extraction, dedup group, priority rank, and
-always-report behavior. These are generic source settings; they do not embed any
-operator feed inventory.
+Sources contain generic feed-processing settings: URL canonicalization, outlet
+extraction, dedup group, and priority rank. Reporting thresholds determine
+required items. These settings do not embed any operator feed inventory.
+
+The current runner initializes an empty database and rejects incompatible
+schemas. It does not migrate earlier databases or normalize retired source
+settings on read.
 
 ## Consequences
 

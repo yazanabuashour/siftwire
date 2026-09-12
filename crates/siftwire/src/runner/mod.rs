@@ -122,17 +122,14 @@ fn split_database_flag(arguments: &[String]) -> Result<(Option<String>, Vec<Stri
     let mut rest = Vec::with_capacity(arguments.len());
     let mut values = arguments.iter();
     while let Some(argument) = values.next() {
-        if matches!(argument.as_str(), "--db" | "-db") {
+        if argument == "--db" {
             database = Some(
                 values
                     .next()
                     .ok_or_else(|| anyhow::anyhow!("flag needs an argument: {argument}"))?
                     .clone(),
             );
-        } else if let Some(value) = argument
-            .strip_prefix("--db=")
-            .or_else(|| argument.strip_prefix("-db="))
-        {
+        } else if let Some(value) = argument.strip_prefix("--db=") {
             database = Some(value.to_owned());
         } else {
             rest.push(argument.clone());
@@ -153,17 +150,14 @@ fn parse_database_argument(arguments: &[String]) -> Result<Option<String>> {
     let mut database = None;
     let mut values = arguments.iter();
     while let Some(argument) = values.next() {
-        if matches!(argument.as_str(), "--db" | "-db") {
+        if argument == "--db" {
             database = Some(
                 values
                     .next()
                     .ok_or_else(|| anyhow::anyhow!("flag needs an argument: {argument}"))?
                     .clone(),
             );
-        } else if let Some(value) = argument
-            .strip_prefix("--db=")
-            .or_else(|| argument.strip_prefix("-db="))
-        {
+        } else if let Some(value) = argument.strip_prefix("--db=") {
             database = Some(value.to_owned());
         } else if argument.starts_with('-') {
             bail!("flag provided but not defined: {argument}");
@@ -196,7 +190,6 @@ fn run_config_action(paths: Paths, store: &Store, request: ConfigRequest) -> Res
         .iter()
         .map(|source| (source.key.clone(), source.reporting()))
         .collect();
-    result.outlet_conflicts = crate::domain::outlet_conflicts(&result.outlets);
     Ok(result)
 }
 

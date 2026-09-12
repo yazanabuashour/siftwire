@@ -81,7 +81,6 @@ fn current_news_reoffers_unselected_stories_without_markers_and_archives_counts(
     );
 
     assert_news_reoffer_and_failure(&database, &db, &feed, &selected.url, &environment)?;
-    assert_legacy_fetch_count(&database, &db, &first_run.run_id, &environment)?;
     Ok(())
 }
 
@@ -300,53 +299,6 @@ fn assert_news_counts_and_archive(
         detail.pointer("/fetch/0"),
         Some(fetch),
         "archived fetch evidence differs from process output"
-    );
-    Ok(())
-}
-
-fn assert_legacy_fetch_count(
-    database: &str,
-    db: &rusqlite::Connection,
-    current_run_id: &str,
-    environment: &BTreeMap<&str, &str>,
-) -> Result<()> {
-    db.execute_batch("INSERT INTO brief_run (id,started_at,dry_run,status,summary) VALUES ('legacy','2026-01-01T00:00:00Z',0,'ok','legacy'); INSERT INTO fetch_log (run_id,source_key,status,error,item_count,new_item_count,created_at,source_label) VALUES ('legacy','news','ok','',11,4,'2026-01-01T00:00:00Z','Old news'), ('legacy','failed','error','old failure',0,0,'2026-01-01T00:00:00Z','Old failure');")?;
-    let detail = invoke_cli_json(
-        &["runs", "show", "legacy", "--json", "--db", database],
-        environment,
-    )?;
-    assert_eq!(
-        detail.pointer("/fetch/0/new_items"),
-        Some(&json!(4)),
-        "historical numeric count changed"
-    );
-    assert_eq!(
-        detail.pointer("/fetch/1/new_items"),
-        Some(&json!(0)),
-        "historical failure placeholder was reinterpreted"
-    );
-    assert!(
-        detail.pointer("/fetch/0/current_news").is_none(),
-        "legacy count was relabeled as current news"
-    );
-    // A nonzero legacy storage column must stay unused when snapshot evidence exists.
-    db.execute(
-        "UPDATE fetch_log SET new_item_count = 4 WHERE run_id = ?1",
-        [current_run_id],
-    )?;
-    let current = invoke_cli_json(
-        &["runs", "show", current_run_id, "--json", "--db", database],
-        environment,
-    )?;
-    assert_eq!(
-        current.pointer("/fetch/0/new_items"),
-        Some(&serde_json::Value::Null),
-        "raw legacy storage count leaked into snapshot output"
-    );
-    assert_eq!(
-        current.pointer("/fetch/0/current_news/eligible_items"),
-        Some(&json!(7)),
-        "snapshot evidence changed"
     );
     Ok(())
 }

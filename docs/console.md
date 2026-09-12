@@ -36,7 +36,8 @@ for collection and delivery.
 When upgrading, update the runner, console, and web assets together. Re-run the
 install script after pulling changes, then restart your console process or
 existing user service. Refresh open browser tabs to load the matching client.
-See [v4 migration](runner-v4-migration.md) for existing installations.
+This checkout requires a fresh database; see the
+[compatibility reset](runner-v5-reset.md).
 
 ## Read a confirmed brief
 
@@ -51,14 +52,12 @@ example, search `2026-09`, not a localized month name. The selected run stays in
 exist produces an error instead of showing another brief.
 
 The reader displays the exact saved `delivery_html` from a confirmed plan. It
-does not rebuild old email from current settings. Older deliveries without HTML
-show labelled recorded text, including sports and health notes. If the saved
-message is also missing, the reader falls back to saved story links.
+does not rebuild email from current settings. A confirmed delivery without its
+saved HTML is reported as missing evidence.
 
 The email frame blocks scripts, forms, embedded pages, and external stylesheets.
 Logos load from their original HTTP or HTTPS hosts without a referrer. Story
-links open in new tabs without opener access. Markdown fallback images remain
-opt-in links.
+links open in new tabs without opener access.
 
 ## Configure sources
 
@@ -92,15 +91,9 @@ Source priorities accept the runner's full signed 64-bit integer range. Enter a
 decimal integer, not a fraction or exponent. The console preserves priorities as
 text, including values beyond JavaScript's exact integer range. Its HTTP API
 uses decimal strings for `priority_rank`. The runner protocol remains numeric.
-Older clients can still send JSON integers within JavaScript's exact range.
-Larger numeric writes are rejected instead of rounded. An omitted priority means
-zero.
-
-Old Atom and `always_report` configuration appears through effective current
-fields without rewriting stored rows. To save a disabled legacy Observe source,
-choose a supported reporting policy explicitly. Historical evidence retains its
-original reporting. For other retired settings, follow
-[v3 migration](runner-v3-migration.md).
+Numeric priority writes are rejected instead of rounded. An omitted priority
+means zero. Retired source kinds, reporting policies, and processing options are
+not supported.
 
 Use **Close**, Escape, or an outside click to discard a dialog's unapplied
 changes. The close and save actions stay visible while fields scroll. The
@@ -114,8 +107,7 @@ not instructions to the runner.
 
 **Allow** and **Watch** both retain matching items and record annotations.
 Watch does not create a review queue. **Block** excludes matches. New writes
-reject overlapping enabled names or aliases. Existing conflicts remain visible
-and keep their old matching order until you resolve them.
+reject overlapping enabled names or aliases without changing the saved rules.
 
 Use **Save publishers** to replace the stored collection with your draft.
 Use **Discard** to leave stored rules unchanged. All publisher edits belong to
@@ -135,9 +127,6 @@ Open **Activity** to browse required items, candidates, exclusions, annotations,
 source checks, and confirmed delivery evidence. Its picker uses the same search
 and keyboard controls as Brief. Read [run history](run-history.md) for the
 meaning of `delivery_status`, unknown historical outcomes, and fetch counts.
-
-Existing links remain valid: `/deliveries` opens Brief, `/runs` opens Activity,
-and `/outlets` opens publisher rules.
 
 ## Change server settings
 

@@ -2,6 +2,13 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
+## Unreleased
+
+- Remove backward compatibility for old databases, configuration, CLI aliases,
+  and historical evidence formats. The runner uses `siftwire-runner/v5`; the
+  console and agent skill require matching consumers and a fresh database.
+  See the [compatibility reset](docs/runner-v5-reset.md).
+
 ## Releases
 
 - [v0.8.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.8.0)

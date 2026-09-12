@@ -269,7 +269,6 @@ textarea {
 }
 
 .folio-email,
-.folio-recorded-brief,
 .folio-brief {
   max-width: var(--folio-reading-width);
   margin-inline: auto;
@@ -305,42 +304,8 @@ textarea {
 .folio-delivery-picker {
   margin-bottom: 16px;
 }
-.folio-markdown :is(h1, h2) {
-  font: 21px/26px var(--folio-serif);
-  margin: 17px 0 9px;
-}
-.folio-markdown h3 {
-  font: 17px/23px var(--folio-serif);
-  margin-top: 16px;
-}
-.folio-markdown p {
-  margin: 8px 0;
-}
-.folio-markdown ul {
-  list-style: none;
-  padding: 0;
-}
-.folio-markdown li {
-  padding: 10px 0 11px;
-  border-bottom: 1px solid var(--folio-line);
-}
-.folio-markdown li:has(.folio-release) {
-  padding: 10px 12px;
-  background: var(--folio-group);
-  border: 1px solid var(--folio-line);
-}
-.folio-markdown li > a,
-.folio-markdown li > p > a,
 .folio-story h2 {
   font: 17px/23px var(--folio-serif);
-}
-.folio-markdown .folio-story-source {
-  display: block;
-  font-family: var(--folio-sans);
-}
-.folio-markdown :is(pre, code) {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }
 
 .folio-field {

@@ -72,9 +72,6 @@ async fn run(
     }
 }
 
-// Receipt: the browser compatibility contract uses Number.MAX_SAFE_INTEGER.
-const JS_MAX_SAFE_INTEGER: i64 = 9_007_199_254_740_991;
-
 fn parse_priority(value: &Value) -> Result<i64, ApiError> {
     let rank = match value {
         Value::String(raw) => {
@@ -85,16 +82,11 @@ fn parse_priority(value: &Value) -> Result<i64, ApiError> {
                 raw.parse::<i64>().ok()
             }
         }
-        Value::Number(number) => number
-            .as_i64()
-            .filter(|rank| (-JS_MAX_SAFE_INTEGER..=JS_MAX_SAFE_INTEGER).contains(rank)),
-        Value::Null | Value::Bool(_) | Value::Array(_) | Value::Object(_) => None,
+        Value::Null | Value::Bool(_) | Value::Number(_) | Value::Array(_) | Value::Object(_) => {
+            None
+        }
     };
-    rank.ok_or_else(|| {
-        ApiError::bad_request(
-            "priority_rank must be a signed decimal i64 string or a JSON integer within ±9007199254740991",
-        )
-    })
+    rank.ok_or_else(|| ApiError::bad_request("priority_rank must be a signed decimal i64 string"))
 }
 
 /// Converts only the runner collections that carry source priorities.

@@ -26,7 +26,7 @@ fn config_preserves_raw_sources_cursors_and_historical_reporting() -> Result<()>
     );
     let source = configured.pointer("/sources/0").context("source")?.clone();
     let db = rusqlite::Connection::open(&database)?;
-    db.execute_batch("INSERT INTO source_state VALUES ('feed', 'identity', 'feed-identity', 'Seen title', 'https://example.test/seen', '2026-01-01', '2026-01-01T00:00:00Z'); INSERT INTO brief_run (id, started_at, dry_run, status, summary) VALUES ('old', '2026-01-01T00:00:00Z', 0, 'ok', 'recorded'); INSERT INTO brief_run_item (run_id,category,source_key,source_label,kind,section,threshold,priority_rank,always_report,published_at,outlet,title,url,reason,detail) VALUES ('old','must_include','feed','Recorded label','atom','technology','audit',-9223372036854775808,1,'','','Old story','https://example.test/story','','');")?;
+    db.execute_batch("INSERT INTO source_state VALUES ('feed', 'identity', 'feed-identity', 'Seen title', 'https://example.test/seen', '2026-01-01', '2026-01-01T00:00:00Z'); INSERT INTO brief_run (id, started_at, dry_run, status, summary) VALUES ('old', '2026-01-01T00:00:00Z', 0, 'ok', 'recorded'); INSERT INTO brief_run_item (run_id,category,source_key,source_label,kind,section,threshold,priority_rank,published_at,outlet,title,url,reason,detail) VALUES ('old','must_include','feed','Recorded label','rss','technology','always',-9223372036854775808,'','','Old story','https://example.test/story','','');")?;
     invoke_json(
         &args,
         &json!({"action":"set_brief_options", "max_delivery_items":8}),
@@ -79,15 +79,13 @@ fn config_preserves_raw_sources_cursors_and_historical_reporting() -> Result<()>
         detail.pointer("/must_include/0/delivery_status"),
         Some(&json!("not_delivered"))
     );
-    db.execute_batch("INSERT INTO outlet_policy VALUES ('First','[\"Example.com\"]','allow','keep',1,'',''); INSERT INTO outlet_policy VALUES ('Second','[\"example.news\"]','block','keep',1,'','');")?;
     let inspected = invoke_json(&args, &json!({"action":"inspect_config"}), &environment)?;
-    assert_eq!(
-        inspected.get("outlet_conflicts"),
-        Some(&json!([{"matcher":"example", "names":["First","Second"]}]))
-    );
     let rejected = invoke_json(
         &args,
-        &json!({"action":"replace_outlet_policies", "outlets":inspected.get("outlets")}),
+        &json!({"action":"replace_outlet_policies", "outlets":[
+            {"name":"First", "aliases":["Example.com"], "policy":"allow", "enabled":true},
+            {"name":"Second", "aliases":["example.news"], "policy":"block", "enabled":true}
+        ]}),
         &environment,
     )?;
     assert_eq!(rejected.get("rejected"), Some(&json!(true)));
@@ -133,7 +131,7 @@ fn configure_annotation_sources(
 }
 
 #[test]
-fn run_annotations_distinguish_retained_dropped_and_unknown_without_backfill() -> Result<()> {
+fn run_annotations_distinguish_retained_and_dropped_with_recorded_labels() -> Result<()> {
     let temp = TempDir::new()?;
     let database = temp
         .path()
@@ -194,21 +192,13 @@ fn run_annotations_distinguish_retained_dropped_and_unknown_without_backfill() -
         .context("drops")?;
     assert_eq!(drops.len(), 1, "Block excludes its matched item");
     let db = rusqlite::Connection::open(&database)?;
-    db.execute("INSERT INTO brief_run_item (run_id,category,source_key,source_label,kind,section,threshold,priority_rank,always_report,published_at,outlet,title,url,reason,detail) VALUES (?1,'dropped','retained','','','','',0,0,'','','Legacy warning','','unresolved','{\"reason\":\"legacy\"}')", [run_id])?;
     db.execute_batch("UPDATE brief_source SET label = 'Current label';")?;
     let reread = invoke_cli_json(
         &["runs", "show", run_id, "--json", "--db", &database],
         &environment,
     )?;
     assert_eq!(reread.get("dropped"), detail.get("dropped"));
-    let legacy = reread
-        .get("annotations")
-        .and_then(serde_json::Value::as_array)
-        .context("annotations")?
-        .last()
-        .context("legacy annotation")?;
-    assert_eq!(legacy.get("disposition"), Some(&json!("unknown")));
-    assert_eq!(legacy.get("source_label"), Some(&json!("")));
+    assert_eq!(reread.get("annotations"), detail.get("annotations"));
     assert_eq!(
         reread.get("fetch"),
         detail.get("fetch"),
@@ -217,15 +207,6 @@ fn run_annotations_distinguish_retained_dropped_and_unknown_without_backfill() -
     assert_eq!(
         reread.pointer("/fetch/0/source_label"),
         Some(&json!("Recorded retained"))
-    );
-    let raw: String = db.query_row(
-        "SELECT detail FROM brief_run_item WHERE title = 'Legacy warning'",
-        [],
-        |row| row.get(0),
-    )?;
-    assert_eq!(
-        raw, r#"{"reason":"legacy"}"#,
-        "legacy records remain immutable"
     );
     Ok(())
 }

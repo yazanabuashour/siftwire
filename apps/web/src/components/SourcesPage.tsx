@@ -15,7 +15,6 @@ import {
 } from "./config-query"
 
 import "./config.css"
-import { sourceError } from "./source-validation"
 import SourceCollection from "./SourceCollection"
 import SourceEditor, { emptySource } from "./SourceEditor"
 import { Dialog, ErrorNote, PageHeading } from "./ui"
@@ -84,10 +83,6 @@ export default function SourcesPage() {
             setRemoving(source)
           }}
           onToggle={(source, enabled) => {
-            if (sourceError(source, sources, source.key)) {
-              startEditing(source, true)
-              return
-            }
             setNotice("")
             save.mutate({ ...source, enabled })
           }}

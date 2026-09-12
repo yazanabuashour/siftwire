@@ -1,7 +1,7 @@
 # SiftWire
 
 SiftWire is a local-first brief runtime: it fetches configured sources, selects
-items, and delivers short briefs on a fixed schedule.
+items, and prepares briefs. Agents own scheduling and delivery.
 
 ## Language
 

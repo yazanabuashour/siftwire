@@ -1,5 +1,8 @@
 # Upgrade to runner protocol v4
 
+Historical guide for v0.8.0 only. This checkout instead requires the
+[v5 compatibility reset](runner-v5-reset.md).
+
 Use this guide to upgrade to v0.8.0, which uses `siftwire-runner/v4` and
 `current-news/v1`. Optional RSS sources now select stories by publication time
 within a rolling 24-hour window. Required feeds, GitHub releases, sports, and

@@ -72,7 +72,7 @@ fn codex_arguments_preserve_isolation_and_resume() -> Result<()> {
         prompt.contains(RUNNER_ONLY_INSTRUCTION)
             && prompt.contains("no real email")
             && prompt.contains("confirm_delivery")
-            && prompt.contains("siftwire-runner/v4")
+            && prompt.contains("siftwire-runner/v5")
             && prompt.contains("prepared-delivery/v1")
             && prompt.contains("current-news/v1"),
         "runner-only or simulated transport instruction missing: {prompt}"

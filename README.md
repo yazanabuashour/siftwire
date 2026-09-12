@@ -32,8 +32,9 @@ sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/d
 siftwire --version
 ```
 
-These docs target v0.8.0. Its pinned installer is available once the release is
-published:
+The latest documented release is v0.8.0. This checkout introduces an unreleased
+[compatibility reset](docs/runner-v5-reset.md); do not pair its skill or console
+with v0.8.0. The pinned release installer is:
 
 ```bash
 SIFTWIRE_VERSION=v0.8.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.8.0/install.sh)"
@@ -71,13 +72,12 @@ explicit dataset. Keep configuration, databases, and delivery history outside
 this repository. See the [runner contract](docs/runner-contract.md) for actions,
 result fields, and retry rules.
 
-## Upgrade to v0.8.0
+## Upgrade this checkout
 
-Before replacing an installed runner, follow the
-[v4 migration guide](docs/runner-v4-migration.md). If you are upgrading from
-v0.6.1 or another v2 release, also apply the
-[v3 source and delivery changes](docs/runner-v3-migration.md). You can upgrade
-directly to v0.8.0.
+This checkout removes backward compatibility and requires a fresh database.
+Follow the [compatibility reset](docs/runner-v5-reset.md). The
+[v4 migration guide](docs/runner-v4-migration.md) describes the published v0.8.0
+release only.
 
 Update the runner, matching skill, and process consumers together. If you use
 the console, update it and its web assets too. Published release tags keep their

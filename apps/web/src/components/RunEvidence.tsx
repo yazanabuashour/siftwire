@@ -3,7 +3,6 @@ import { StoryReceipt } from "./Reading"
 
 const deliveryLabels = {
   sent: "Sent",
-  sent_as_sports: "Sent in sports section",
   not_selected: "Not selected",
   not_delivered: "No confirmed delivery",
   unknown: "Delivery outcome not recorded",
@@ -59,10 +58,7 @@ function Annotations({ detail }: { detail: RunDetail }) {
   return (
     <details className="folio-evidence-group">
       <summary>Warnings and annotations ({detail.annotations.length})</summary>
-      <p className="folio-muted">
-        These are diagnostics, not proof that an item was excluded. Older
-        records may not say whether an unresolved link was retained.
-      </p>
+      <p className="folio-muted">These are diagnostics, not exclusions.</p>
       {detail.annotations.map((item) => (
         <article className="folio-story" key={item.id}>
           <div className="folio-story-meta">
@@ -76,11 +72,7 @@ function Annotations({ detail }: { detail: RunDetail }) {
             </span>
           </div>
           <h3>{item.title || "Source diagnostic"}</h3>
-          <p className="folio-muted">
-            {item.disposition === "retained"
-              ? "Retained at this step"
-              : "Outcome not recorded"}
-          </p>
+          <p className="folio-muted">Retained at this step</p>
           <details>
             <summary>Recorded diagnostic</summary>
             <pre>{JSON.stringify(item.detail, null, 2)}</pre>
@@ -93,10 +85,8 @@ function Annotations({ detail }: { detail: RunDetail }) {
 
 const exclusionLabels = new Map([
   ["outlet_policy", "Blocked publisher"],
-  ["outlet_blocked", "Blocked publisher"],
   ["duplicate", "Duplicate story"],
   ["recently_sent", "Sent recently"],
-  ["already_delivered", "Sent recently"],
   ["unresolved", "Unresolved article link"],
 ])
 
@@ -167,7 +157,7 @@ export function FetchStatuses({ detail }: { detail: RunDetail }) {
           </div>
           <div>
             <span
-              className={`folio-pill ${status.status === "error" || status.status === "failed" ? "folio-pill-warn" : ""}`}
+              className={`folio-pill ${status.status === "error" ? "folio-pill-warn" : ""}`}
             >
               {status.status.replaceAll("_", " ")}
             </span>

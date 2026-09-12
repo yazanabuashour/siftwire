@@ -398,11 +398,10 @@ fn same_run_preference_flows_into_recent_exact_headline_suppression() -> Result<
         "recent suppression audit changed"
     );
     assert!(
-        suppressed
-            .suppressed
-            .iter()
-            .all(|item| item.reason == "recently_sent"),
-        "recent compatibility reason changed"
+        suppressed.suppressed_recent.iter().all(|item| {
+            item.matched_prior_title == title && item.prior_sent_at == "2026-04-23T00:00:00Z"
+        }),
+        "recent suppression lost prior delivery evidence"
     );
     Ok(())
 }
@@ -451,6 +450,10 @@ fn exact_dedup_keeps_distinct_developments_and_required_items() -> Result<()> {
         threshold: "always".to_owned(),
         ..feed.clone()
     };
+    let sports = Source {
+        kind: crate::domain::SOURCE_KIND_SCHEDULE.to_owned(),
+        ..feed.clone()
+    };
     let title = "Harbor bridge closes after inspectors find cracks";
     let changed = "Harbor bridge closes after inspectors find explosives";
     let reused_url = "https://example.test/live";
@@ -466,6 +469,7 @@ fn exact_dedup_keeps_distinct_developments_and_required_items() -> Result<()> {
         collected(&feed, "???", "https://example.test/empty-two")?,
         collected(&required, title, "https://example.test/first")?,
         collected(&required, title, "https://example.test/first")?,
+        collected(&sports, "Upcoming fixture", "https://example.test/fixture")?,
     ]);
     assert_eq!(
         classified.candidates.len(),
@@ -475,7 +479,7 @@ fn exact_dedup_keeps_distinct_developments_and_required_items() -> Result<()> {
     assert_eq!(
         classified.must_include.len(),
         2,
-        "Required items entered optional deduplication"
+        "Required items were deduplicated or Sports entered ordinary items"
     );
     let recent = [StoredSentItem {
         title: title.to_uppercase(),
@@ -707,11 +711,13 @@ fn current_news_atom_requires_publication_while_required_keeps_updated() -> Resu
         threshold: "always".to_owned(),
         ..feed
     };
-    let legacy = parse_feed(&required, xml)?;
+    let required_items = parse_feed(&required, xml)?;
     assert_eq!(
-        legacy.first().map(|item| item.published_at.as_str()),
+        required_items
+            .first()
+            .map(|item| item.published_at.as_str()),
         Some("2026-04-23T12:00:00Z"),
-        "Required lost legacy updated date"
+        "Required lost Atom updated date"
     );
     let state = SourceState {
         latest_identity: "invalid".to_owned(),
@@ -720,7 +726,7 @@ fn current_news_atom_requires_publication_while_required_keeps_updated() -> Resu
     let processed = process_source_items(
         &required,
         FetchOutput {
-            items: legacy,
+            items: required_items,
             ..FetchOutput::default()
         },
         &[],

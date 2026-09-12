@@ -1,10 +1,9 @@
 use std::cmp::Ordering;
-use std::collections::BTreeSet;
 
 use url::Url;
 
 use crate::contract::{BriefItem, SuppressedItem};
-use crate::domain::{Reporting, SOURCE_KIND_SCHEDULE, Source};
+use crate::domain::{Reporting, Source};
 use crate::storage::normalize_title_key;
 
 use super::selection::parse_item_time;
@@ -13,7 +12,6 @@ use super::selection::parse_item_time;
 pub struct CollectedItem {
     pub source: Source,
     pub brief_item: BriefItem,
-    pub fixture_identity: String,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -27,30 +25,20 @@ pub struct ClassifiedItems {
 pub fn classify_and_dedupe(items: Vec<CollectedItem>) -> ClassifiedItems {
     let mut must_include = Vec::new();
     let mut candidates = Vec::new();
-    let mut fixture_duplicates = Vec::new();
-    let mut fixture_keys = BTreeSet::new();
     for item in items {
-        let reporting = item.source.reporting();
-        if matches!(reporting, Reporting::Required | Reporting::Sports) {
-            if item.source.kind == SOURCE_KIND_SCHEDULE
-                && !fixture_keys.insert(item.fixture_identity.clone())
-            {
-                fixture_duplicates.push(suppressed_item(&item.brief_item, "duplicate_fixture"));
-                continue;
-            }
-            must_include.push(item.brief_item);
-        } else if reporting != Reporting::Observe {
-            candidates.push(item);
+        match item.source.reporting() {
+            Reporting::Required => must_include.push(item.brief_item),
+            Reporting::Sports => {}
+            Reporting::Major | Reporting::Highlights => candidates.push(item),
         }
     }
-    let (mut candidates, duplicate_suppressed) = collapse_duplicates(candidates);
-    fixture_duplicates.extend(duplicate_suppressed);
+    let (mut candidates, suppressed) = collapse_duplicates(candidates);
     sort_brief_items(&mut must_include);
     sort_collected_items(&mut candidates);
     ClassifiedItems {
         must_include,
         candidates,
-        suppressed: fixture_duplicates,
+        suppressed,
     }
 }
 

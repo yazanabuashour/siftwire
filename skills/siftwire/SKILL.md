@@ -2,7 +2,7 @@
 name: siftwire
 description: Use SiftWire through the installed JSON runner for local brief and configuration tasks. Reject direct SQLite, HTTP, MCP, source-built runner, and unreviewed private-state import substitutes. Inspect only user-named legacy inputs, draft configuration for review, and write it only after approval.
 license: MIT
-compatibility: Requires local filesystem access and an installed SiftWire binary on PATH with siftwire-runner/v4, prepared-delivery/v1, and current-news/v1.
+compatibility: Requires local filesystem access and an installed SiftWire binary on PATH with siftwire-runner/v5, prepared-delivery/v1, and current-news/v1.
 ---
 
 # SiftWire
@@ -17,7 +17,7 @@ siftwire brief
 Pipe exactly one JSON request to one command and answer only from its JSON
 result. The runner honors `SIFTWIRE_DATABASE_PATH`; do not pass `--db` unless
 the user names a specific dataset. Do not maintain repo-local state files.
-Require `runner_protocol: "siftwire-runner/v4"` and `current-news/v1` in
+Require `runner_protocol: "siftwire-runner/v5"` and `current-news/v1` in
 `capabilities` in every config and brief result. Stop and report incompatibility
 when either is absent or different.
 
@@ -59,7 +59,7 @@ operational-state import.
 ## Config Tasks
 
 Before configuration writes, call `inspect_config` with the same installed
-binary and dataset and verify protocol v4 and `current-news/v1`. Do not send a new source shape to an
+binary and dataset and verify protocol v5 and `current-news/v1`. Do not send a new source shape to an
 older runner: omitting a retired field can change that runner's behavior.
 Inspection does not authorize a write; user approval remains required.
 
@@ -136,7 +136,7 @@ from feed metadata alone. Then invoke:
 ```
 
 The runner keeps every required item, limits optional candidates, places sports
-outside those candidate slots, removes compatibility duplicates, and returns
+outside those candidate slots, and returns
 complete `message`, `text`, and `html` bodies. Deliver those bodies unchanged
 before calling `confirm_delivery`. If confirmation returns `final_answer`,
 answer with exactly that string; otherwise answer with exactly the prepared

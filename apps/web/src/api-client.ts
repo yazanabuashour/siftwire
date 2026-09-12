@@ -55,7 +55,6 @@ const OutletsResultSchema = ConfigResultSchema.pick({
   runner_protocol: true,
   capabilities: true,
   outlets: true,
-  outlet_conflicts: true,
 })
 
 export type BriefOptionsInput = {

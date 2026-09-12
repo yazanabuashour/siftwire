@@ -20,7 +20,7 @@ flags.
 
 Both commands use the [runner's database selection](runner-contract.md#storage-selection).
 They do not collect items, send email, or advance source state. Opening the
-database can still initialize or migrate its schema.
+database can still initialize an empty schema. Incompatible databases are rejected.
 
 Example queries:
 
@@ -58,7 +58,7 @@ filters and pagination. Query values and IDs require percent-encoding.
 `runs show --json` includes `must_include`, `candidates`, `dropped`, `annotations`,
 `fetch`, `sent_items`, and nullable `delivery_html` alongside the `run` summary.
 
-Each evidence row has a stable decimal-string `id`, including older stored rows.
+Each evidence row has a stable decimal-string `id`.
 `reporting` describes an item's effective reporting policy from its recorded
 source fields, or null when those fields are incomplete. It does not consult
 current configuration. `delivery_status` separates that collection decision
@@ -67,30 +67,23 @@ from delivery:
 | Value | Meaning |
 | --- | --- |
 | `sent` | Recorded evidence proves inclusion in the confirmed delivery. |
-| `sent_as_sports` | The recorded fixture appears through its sports representation. |
 | `not_selected` | A confirmed plan's recorded candidate selection excludes this candidate. |
 | `not_delivered` | The run has no confirmed delivery. This is not an editorial rejection. |
-| `unknown` | The old or incomplete evidence cannot prove the outcome. |
+| `unknown` | The recorded evidence cannot prove the outcome. |
 
-The legacy `selected` boolean remains for compatibility. A false value does not
-prove exclusion. `delivery_status` distinguishes an omission from an unknown
-outcome.
+Plans reference recorded items directly. The runner does not infer delivery
+from matching titles or URLs.
 
-New plans reference recorded items. Older sports records require a unique match
-through their recorded source, compatibility title, URL, start time, and delivery
-context. A shared event URL alone cannot identify a fixture or bout. The runner
-leaves uncertain outcomes unknown rather than altering a historical plan.
-
-`dropped` contains recorded exclusions before editorial selection. `annotations`
-contains retained-link warnings, allowed publisher matches, and ambiguous older
-link-resolution diagnostics. Their `disposition` is `retained`, `dropped`, or
-`unknown` at that processing step, not the final delivery outcome. A warning
-does not prove that an item was dropped.
+`dropped` contains recorded exclusions before editorial selection, with
+`disposition: "dropped"`. `annotations` contains retained-link warnings and
+allowed publisher matches, with `disposition: "retained"`. Disposition describes
+that processing step, not the final delivery outcome. A warning does not prove
+that an item was dropped.
 
 ## Fetch evidence
 
-New fetch records retain their source label. Older records may expose only the
-source key. Renaming a source does not rename its history.
+Fetch records retain their source label. Renaming a source does not rename its
+history.
 
 `fetch[].items` is the fetched item count, or the update count for sports.
 `new_items` is nullable. Required checks retain marker-selected new counts. Optional RSS checks include `current_news`
@@ -99,9 +92,8 @@ with `since`, `until`, `eligible_items`, `stale_items`, `undated_items`, and
 policy, duplicate checks, and recent-delivery suppression. Eligible does not
 mean first seen, selected, or delivered.
 
-Failed v4 checks have no selection count or current-news statistics. Older logs
-retain their recorded numeric counts, including failure placeholders. The runner
-does not infer an old selection mode from current source settings.
+Failed checks have no selection count or current-news statistics. The runner
+does not infer selection mode from current source settings.
 
 ## Saved email
 

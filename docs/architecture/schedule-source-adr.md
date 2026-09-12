@@ -3,6 +3,8 @@
 ## Status
 
 Accepted. Fixture terminology lives in the repository glossary (`CONTEXT.md`).
+The [v5 compatibility reset](../runner-v5-reset.md) supersedes the earlier
+ordinary-item sports projection; only structured sports updates remain.
 
 ## Context
 
@@ -49,9 +51,9 @@ inspection. Its `prepare_delivery` action owns final composition: it places
 sports after normal brief bullets and before health, keeps sports outside
 `max_delivery_items`, and persists one immutable delivery plan.
 
-Upcoming fixtures also remain in `must_include` for recorded evidence linkage.
-Prepared delivery plans remove duplicate entries when the same fixtures already
-appear in `sports_section`.
+Sports updates do not appear in `must_include` or consume candidate slots.
+Prepared plans retain their sports entries separately from ordinary collection
+rows; those sports entries have empty `run_item_ids`.
 
 ESPN and Riot completed states produce result lines. Scores render when the
 provider supplies them. A completed event without scores still renders as

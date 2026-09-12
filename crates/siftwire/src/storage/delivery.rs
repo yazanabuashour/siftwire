@@ -1,22 +1,21 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, Utc};
 use rusqlite::{OptionalExtension, Transaction, params};
 
 use super::{
-    Delivery, DeliveryInsertError, Store, StoredSentItem, format_timestamp, go_zero_time,
-    parse_timestamp_compat,
+    Delivery, DeliveryInsertError, Store, StoredSentItem, format_timestamp, parse_timestamp,
 };
 
 impl Store {
     /// Returns recent deliveries newest first.
     ///
-    /// A non-positive limit selects the compatibility default of two rows.
+    /// The limit must be positive.
     ///
     /// # Errors
     ///
-    /// Returns an error when `SQLite` cannot read a delivery row.
+    /// Returns an error when the limit is non-positive or a stored row is invalid.
     pub fn recent_deliveries(&self, limit: i64) -> Result<Vec<Delivery>> {
-        let limit = if limit <= 0 { 2 } else { limit };
+        ensure!(limit > 0, "delivery limit must be positive");
         let mut statement = self
             .connection
             .prepare(
@@ -38,7 +37,7 @@ impl Store {
             Ok(Delivery {
                 run_id,
                 message,
-                delivered_at: parse_timestamp_compat(&delivered_at),
+                delivered_at: parse_timestamp(&delivered_at)?,
             })
         })
         .collect()
@@ -50,11 +49,6 @@ impl Store {
     ///
     /// Returns an error when `SQLite` cannot read a sent item row.
     pub fn recent_sent_items(&self, since: DateTime<Utc>) -> Result<Vec<StoredSentItem>> {
-        let since = if since == DateTime::<Utc>::default() {
-            go_zero_time()
-        } else {
-            since
-        };
         let mut statement = self
             .connection
             .prepare(
@@ -79,7 +73,7 @@ impl Store {
                 title,
                 url,
                 kind,
-                sent_at: parse_timestamp_compat(&sent_at),
+                sent_at: parse_timestamp(&sent_at)?,
             })
         })
         .collect()
@@ -219,13 +213,13 @@ fn sent_items_for_delivery(
             title,
             url,
             kind,
-            sent_at: parse_timestamp_compat(&sent_at),
+            sent_at: parse_timestamp(&sent_at)?,
         })
     })
     .collect()
 }
 
-/// Produces the compatibility key used for sent-title deduplication.
+/// Produces the normalized key used for sent-title deduplication.
 #[must_use]
 pub fn normalize_title_key(text: &str) -> String {
     let mut normalized = String::new();

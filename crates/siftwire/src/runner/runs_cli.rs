@@ -347,22 +347,6 @@ pub(super) fn detail_json(detail: &RunDetail) -> serde_json::Value {
 }
 
 fn disposition(item: &RunItemRow) -> ItemDisposition {
-    if item.reason == "unresolved" {
-        return match serde_json::from_str::<serde_json::Value>(&item.detail)
-            .ok()
-            .and_then(|detail| {
-                detail
-                    .get("disposition")
-                    .and_then(|value| value.as_str())
-                    .map(str::to_owned)
-            })
-            .as_deref()
-        {
-            Some("retained") => ItemDisposition::Retained,
-            Some("dropped") => ItemDisposition::Dropped,
-            _ => ItemDisposition::Unknown,
-        };
-    }
     if item.category == RUN_ITEM_DROPPED {
         ItemDisposition::Dropped
     } else {
@@ -371,12 +355,11 @@ fn disposition(item: &RunItemRow) -> ItemDisposition {
 }
 
 fn is_drop(item: &RunItemRow) -> bool {
-    item.category == RUN_ITEM_DROPPED && disposition(item) == ItemDisposition::Dropped
+    item.category == RUN_ITEM_DROPPED
 }
 
 fn is_annotation(item: &RunItemRow) -> bool {
     item.category == RUN_ITEM_ANNOTATION
-        || (item.category == RUN_ITEM_DROPPED && disposition(item) == ItemDisposition::Unknown)
 }
 
 fn items_json<'a>(
@@ -394,18 +377,12 @@ fn items_json<'a>(
                 section: item.section.clone(),
                 threshold: item.threshold.clone(),
                 priority_rank: item.priority_rank,
-                always_report: item.always_report,
                 published_at: item.published_at.clone(),
                 outlet: item.outlet.clone(),
                 title: item.title.clone(),
                 url: item.url.clone(),
-                selected: status.selected(),
                 delivery_status: status,
-                reporting: crate::domain::Reporting::from_recorded(
-                    &item.kind,
-                    &item.threshold,
-                    item.always_report,
-                ),
+                reporting: crate::domain::Reporting::from_recorded(&item.kind, &item.threshold),
             }
         })
         .collect()
@@ -457,12 +434,10 @@ struct ItemJson {
     section: String,
     threshold: String,
     priority_rank: i64,
-    always_report: bool,
     published_at: String,
     outlet: String,
     title: String,
     url: String,
-    selected: bool,
     delivery_status: DeliveryStatus,
     reporting: Option<crate::domain::Reporting>,
 }

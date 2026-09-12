@@ -12,32 +12,38 @@ export const PriorityRankSchema = z.string().refine((value) => {
 export const ReportingModeSchema = z.enum([
   "required",
   "sports",
-  "observe",
   "major",
   "highlights",
 ])
 export type ReportingMode = z.infer<typeof ReportingModeSchema>
 
-export const OutletConflictSchema = z.object({
-  matcher: z.string(),
-  names: z.array(z.string()),
-})
-
 export const SourceSchema = z.object({
   key: z.string(),
   label: z.string(),
-  kind: z.string(),
+  kind: z.enum(["rss", "github_release", "sports_schedule"]),
   url: z.string().optional().default(""),
   repo: z.string().optional().default(""),
   section: z.string(),
-  threshold: z.string(),
+  threshold: z.enum(["always", "high", "medium"]),
   enabled: z.boolean(),
-  url_canonicalization: z.string().optional().default(""),
-  outlet_extraction: z.string().optional().default(""),
+  url_canonicalization: z
+    .enum(["", "none", "google_news_article_url"])
+    .optional()
+    .default(""),
+  outlet_extraction: z
+    .enum(["", "none", "title_suffix"])
+    .optional()
+    .default(""),
   dedup_group: z.string().optional().default(""),
-  priority_rank: PriorityRankSchema.optional().default("0"),
-  schedule_format: z.string().optional().default(""),
-  schedule_filter: z.string().optional().default("all"),
+  priority_rank: PriorityRankSchema,
+  schedule_format: z
+    .enum(["", "espn", "espn_scoreboard", "riot"])
+    .optional()
+    .default(""),
+  schedule_filter: z
+    .enum(["all", "standings_top_two"])
+    .optional()
+    .default("all"),
   api_key: z.string().optional().default(""),
 })
 export type Source = z.infer<typeof SourceSchema>
@@ -45,7 +51,7 @@ export type Source = z.infer<typeof SourceSchema>
 export const OutletPolicySchema = z.object({
   name: z.string(),
   aliases: z.array(z.string()).optional().default([]),
-  policy: z.string(),
+  policy: z.enum(["allow", "watch", "block"]),
   note: z.string().optional().default(""),
   enabled: z.boolean(),
 })
@@ -54,7 +60,7 @@ export type OutletPolicy = z.infer<typeof OutletPolicySchema>
 const StringMapSchema = z.record(z.string(), z.string())
 
 export const ConfigResultSchema = z.object({
-  runner_protocol: z.literal("siftwire-runner/v4"),
+  runner_protocol: z.literal("siftwire-runner/v5"),
   capabilities: z
     .array(z.string())
     .refine(
@@ -66,20 +72,22 @@ export const ConfigResultSchema = z.object({
   runtime_config: StringMapSchema.optional().default({}),
   sources: z.array(SourceSchema).optional().default([]),
   outlets: z.array(OutletPolicySchema).optional().default([]),
-  source_reporting: z.record(z.string(), z.string()).optional().default({}),
-  outlet_conflicts: z.array(OutletConflictSchema).optional().default([]),
+  source_reporting: z
+    .record(z.string(), ReportingModeSchema)
+    .optional()
+    .default({}),
 })
 export type ConfigResult = z.infer<typeof ConfigResultSchema>
 
 const RunSummarySchema = z.object({
   run_id: z.string(),
   started_at: z.string(),
-  finished_at: z.string().nullable().optional().default(null),
+  finished_at: z.string().nullable(),
   dry_run: z.boolean(),
   status: z.string(),
   summary: z.string(),
-  delivered_at: z.string().nullable().optional().default(null),
-  message: z.string().nullable().optional().default(null),
+  delivered_at: z.string().nullable(),
+  message: z.string().nullable(),
 })
 export type RunSummary = z.infer<typeof RunSummarySchema>
 
@@ -87,38 +95,22 @@ export const RunItemSchema = z.object({
   id: z.string(),
   source_key: z.string(),
   source_label: z.string(),
-  kind: z.string().optional().default(""),
-  section: z.string().optional().default(""),
-  threshold: z.string().optional().default(""),
-  priority_rank: PriorityRankSchema.optional().default("0"),
-  always_report: z.boolean().optional().default(false),
-  published_at: z.string().optional().default(""),
-  outlet: z.string().optional().default(""),
+  kind: SourceSchema.shape.kind,
+  priority_rank: PriorityRankSchema,
+  published_at: z.string(),
+  outlet: z.string(),
   title: z.string(),
   url: z.string(),
-  selected: z.boolean(),
-  reporting: z.string().nullable().optional().default(null),
-  delivery_status: z
-    .enum([
-      "sent",
-      "sent_as_sports",
-      "not_selected",
-      "not_delivered",
-      "unknown",
-    ])
-    .optional()
-    .default("unknown"),
+  reporting: ReportingModeSchema,
+  delivery_status: z.enum(["sent", "not_selected", "not_delivered", "unknown"]),
 })
 export type RunItem = z.infer<typeof RunItemSchema>
 
 const DroppedSchema = z.object({
   id: z.string(),
-  disposition: z
-    .enum(["retained", "dropped", "unknown"])
-    .optional()
-    .default("unknown"),
+  disposition: z.enum(["retained", "dropped"]),
   source_key: z.string(),
-  source_label: z.string().optional().default(""),
+  source_label: z.string(),
   title: z.string(),
   url: z.string(),
   reason: z.string(),
@@ -136,27 +128,27 @@ const CurrentNewsSchema = z.object({
 
 const FetchStatusSchema = z.object({
   source_key: z.string(),
-  source_label: z.string().optional().default(""),
+  source_label: z.string(),
   status: z.string(),
   error: z.string().optional().default(""),
   items: z.number(),
-  new_items: z.number().nullable().optional().default(null),
+  new_items: z.number().nullable(),
   current_news: CurrentNewsSchema.optional(),
 })
 
 export const RunsListSchema = z.object({
   runs: z.array(RunSummarySchema),
-  next_before: z.string().nullable().optional().default(null),
+  next_before: z.string().nullable(),
 })
 export type RunsList = z.infer<typeof RunsListSchema>
 
 export const RunDetailSchema = z.object({
   run: RunSummarySchema,
-  delivery_html: z.string().nullable().optional().default(null),
+  delivery_html: z.string().nullable(),
   must_include: z.array(RunItemSchema),
   candidates: z.array(RunItemSchema),
   dropped: z.array(DroppedSchema),
-  annotations: z.array(DroppedSchema).optional().default([]),
+  annotations: z.array(DroppedSchema),
   fetch: z.array(FetchStatusSchema),
   sent_items: z.array(
     z.object({

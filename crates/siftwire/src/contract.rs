@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::{OutletPolicy, Source};
 
-pub const RUNNER_PROTOCOL: &str = "siftwire-runner/v4";
+pub const RUNNER_PROTOCOL: &str = "siftwire-runner/v5";
 pub const CAPABILITY_PREPARED_DELIVERY: &str = "prepared-delivery/v1";
 pub const CAPABILITY_SPORTS_UPDATES: &str = "sports-updates/v1";
 pub const CAPABILITY_CURRENT_NEWS: &str = "current-news/v1";
@@ -73,7 +73,6 @@ pub struct ConfigResult {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub outlets: Vec<OutletPolicy>,
     pub source_reporting: BTreeMap<String, crate::domain::Reporting>,
-    pub outlet_conflicts: Vec<crate::domain::OutletConflict>,
     pub summary: String,
 }
 
@@ -160,8 +159,6 @@ pub struct BriefItem {
     pub threshold: String,
     #[serde(skip_serializing_if = "is_default")]
     pub priority_rank: i64,
-    #[serde(skip_serializing_if = "is_default")]
-    pub always_report: bool,
     pub title: String,
     pub url: String,
     #[serde(skip_serializing_if = "String::is_empty")]
@@ -207,13 +204,11 @@ pub struct DeliveryRecord {
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 pub struct DeliveryItem {
-    /// Stable `SQLite` run-item identifiers, never JSON numbers. Legacy plans and
-    /// sports results without compatibility rows have no references.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub run_item_ids: Option<Vec<String>>,
+    /// Stable `SQLite` run-item identifiers, never JSON numbers.
+    /// Sports updates carry an empty list.
+    pub run_item_ids: Vec<String>,
     pub title: String,
     pub url: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub kind: String,
 }
 
@@ -254,10 +249,9 @@ pub struct SuppressedPolicyItem {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ItemDisposition {
+    #[default]
     Retained,
     Dropped,
-    #[default]
-    Unknown,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]

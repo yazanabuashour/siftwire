@@ -5,6 +5,18 @@ items, and prepares briefs. Agents own scheduling and delivery.
 
 ## Language
 
+### Brief collection and delivery
+
+**Source outcome**:
+The result of processing one fetch: collected items, sports updates, selection
+and suppression evidence, health warnings, and an optional next source marker.
+It describes permitted state changes without writing them.
+
+**Prepared delivery plan**:
+The immutable selection and rendered bodies saved for one durable brief run.
+Confirmation records the plan's exact message and items; it does not assemble a
+new delivery from caller-supplied content.
+
 ### Sports coverage
 
 **Fixture**:

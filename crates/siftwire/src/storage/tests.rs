@@ -16,11 +16,12 @@ use chrono::Utc;
 use rusqlite::Connection;
 use tempfile::TempDir;
 
+use crate::contract::DeliveryItem;
 use crate::domain::{
     SCHEDULE_FILTER_STANDINGS_TOP_TWO, SCHEDULE_FORMAT_RIOT, SOURCE_KIND_SCHEDULE, Source,
 };
 
-use super::{DeliveryPlan, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, Store, StoredSentItem};
+use super::{DeliveryPlan, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, Store};
 
 fn test_store() -> Result<(TempDir, Store)> {
     let temp = TempDir::new()?;
@@ -137,16 +138,12 @@ fn reopening_preserves_configuration_state_and_delivery_evidence() -> Result<()>
     )?;
     let message = "Exact email\r\n  Preserve spacing & punctuation.\n";
     let html = "<p>Exact email &amp; spacing</p>\r\n";
-    store.insert_delivery_plan(&DeliveryPlan {
-        id: format!("plan-{run_id}"),
-        run_id: run_id.clone(),
-        candidate_indexes: Vec::new(),
-        message: message.to_owned(),
-        text: message.to_owned(),
+    let plan = DeliveryPlan {
         html: html.to_owned(),
-        items: Vec::new(),
-    })?;
-    store.insert_delivery(&run_id, message, Vec::new())?;
+        ..delivery_plan(&run_id, message, Vec::new())
+    };
+    store.insert_delivery_plan(&plan)?;
+    store.insert_delivery(&plan)?;
     let state = store.source_state("feed")?.context("original state")?;
     let items = serde_json::to_value(store.run_detail(&run_id)?.context("original run")?.items)?;
     let config_rows: Vec<(String, String, String)> = store
@@ -318,36 +315,71 @@ fn sidecar(path: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(value)
 }
 
+fn delivery_plan(run_id: &str, message: &str, items: Vec<DeliveryItem>) -> DeliveryPlan {
+    DeliveryPlan {
+        id: format!("plan-{run_id}"),
+        run_id: run_id.to_owned(),
+        candidate_indexes: Vec::new(),
+        message: message.to_owned(),
+        text: message.to_owned(),
+        html: String::new(),
+        items,
+    }
+}
+
 #[test]
 fn delivery_replay_returns_original_items_and_changed_messages_conflict() -> Result<()> {
     let (temp, store) = test_store()?;
-    let original = StoredSentItem {
+    let original = DeliveryItem {
         title: "Original Story".to_owned(),
         url: "https://example.test/original".to_owned(),
-        ..StoredSentItem::default()
+        kind: "rss".to_owned(),
+        ..DeliveryItem::default()
     };
-    let inserted = store.insert_delivery("run-1", "same message", vec![original])?;
+    let plan = delivery_plan("run-1", "same message", vec![original]);
+    let inserted = store.insert_delivery(&plan)?;
     let inserted_item = inserted.first().context("inserted sent item")?;
     drop(store);
     let store = Store::open(temp.path().join("siftwire.sqlite"))?;
-    let replay = store.insert_delivery(
-        "run-1",
-        "same message",
-        vec![StoredSentItem {
+    let replay = store.insert_delivery(&DeliveryPlan {
+        items: vec![DeliveryItem {
             title: "Replacement".to_owned(),
             url: "https://example.test/replacement".to_owned(),
-            ..StoredSentItem::default()
+            ..DeliveryItem::default()
         }],
-    )?;
+        ..plan.clone()
+    })?;
     let replayed_item = replay.first().context("replayed sent item")?;
     assert_eq!(replay.len(), 1);
     assert_eq!(replayed_item.title, "Original Story");
     assert_eq!(replayed_item.url, "https://example.test/original");
+    assert_eq!(replayed_item.kind, "rss");
     assert_eq!(replayed_item.sent_at, inserted_item.sent_at);
-    let Err(conflict) = store.insert_delivery("run-1", "changed message", Vec::new()) else {
+    assert_eq!(
+        store
+            .recent_deliveries(1)?
+            .first()
+            .context("original delivery")?
+            .delivered_at,
+        inserted_item.sent_at
+    );
+    let Err(conflict) = store.insert_delivery(&DeliveryPlan {
+        message: "changed message".to_owned(),
+        ..plan.clone()
+    }) else {
         bail!("changed delivery message was accepted");
     };
     assert!(conflict.is_conflict(), "{conflict}");
+    store.connection.execute(
+        "UPDATE delivery_once SET delivery_id = NULL WHERE run_id = ?1",
+        [&plan.run_id],
+    )?;
+    let error = store
+        .insert_delivery(&plan)
+        .err()
+        .context("incomplete claim accepted")?;
+    assert!(!error.is_conflict());
+    assert!(error.to_string().contains("incomplete"));
     assert_eq!(store.recent_deliveries(10)?.len(), 1);
     Ok(())
 }
@@ -357,16 +389,9 @@ fn delivered_run_with_empty_plan_html_has_no_delivery_html() -> Result<()> {
     let (temp, store) = test_store()?;
     let run_id = store.start_run(false)?;
     store.finish_run(&run_id, "ok", "no items")?;
-    store.insert_delivery_plan(&DeliveryPlan {
-        id: format!("plan-{run_id}"),
-        run_id: run_id.clone(),
-        candidate_indexes: Vec::new(),
-        message: "NO_REPLY".to_owned(),
-        text: "NO_REPLY".to_owned(),
-        html: String::new(),
-        items: Vec::new(),
-    })?;
-    store.insert_delivery(&run_id, "NO_REPLY", Vec::new())?;
+    let plan = delivery_plan(&run_id, "NO_REPLY", Vec::new());
+    store.insert_delivery_plan(&plan)?;
+    store.insert_delivery(&plan)?;
     drop(store);
     let store = Store::open(temp.path().join("siftwire.sqlite"))?;
     let detail = store.run_detail(&run_id)?.context("delivered run")?;
@@ -381,24 +406,24 @@ fn sports_delivery_evidence_does_not_enter_normal_recent_suppression() -> Result
     let run_id = store.start_run(false)?;
     let sports_title = "Team Alpha defeated Team Beta";
     let sports_url = "https://example.test/result";
-    store.insert_delivery(
+    store.insert_delivery(&delivery_plan(
         &run_id,
         "message",
         vec![
-            StoredSentItem {
+            DeliveryItem {
                 title: "Normal story".to_owned(),
                 url: "https://example.test/story".to_owned(),
                 kind: "rss".to_owned(),
-                ..StoredSentItem::default()
+                ..DeliveryItem::default()
             },
-            StoredSentItem {
+            DeliveryItem {
                 title: sports_title.to_owned(),
                 url: sports_url.to_owned(),
                 kind: "sports_schedule".to_owned(),
-                ..StoredSentItem::default()
+                ..DeliveryItem::default()
             },
         ],
-    )?;
+    ))?;
     drop(store);
     let store = Store::open(temp.path().join("siftwire.sqlite"))?;
     let recent = store.recent_sent_items(chrono::DateTime::<Utc>::default())?;

@@ -3,7 +3,7 @@
     reason = "assertions report storage contract failures"
 )]
 
-use super::{FetchLog, OutletPolicy, RunListOptions, Store};
+use super::{DeliveryPlan, FetchLog, OutletPolicy, RunListOptions, Store};
 use anyhow::{Context, Result};
 use rusqlite::params;
 
@@ -23,7 +23,15 @@ fn archive_fixture() -> Result<(tempfile::TempDir, Store)> {
         ("new", "2026-02-02T00:00:00Z"),
         ("tie", "2026-02-02T00:00:00Z"),
     ] {
-        store.insert_delivery(id, "NO_REPLY", vec![])?;
+        store.insert_delivery(&DeliveryPlan {
+            id: format!("plan-{id}"),
+            run_id: id.to_owned(),
+            candidate_indexes: Vec::new(),
+            message: "NO_REPLY".to_owned(),
+            text: "NO_REPLY".to_owned(),
+            html: String::new(),
+            items: Vec::new(),
+        })?;
         store.connection.execute(
             "UPDATE delivery SET delivered_at = ?1 WHERE run_id = ?2",
             params![delivered, id],

@@ -11,13 +11,12 @@ use crate::contract::{
     BriefItem, BriefRequest, BriefResult, FetchStatus, HealthDelta, Paths, PreviousBrief,
     SportsUpdate, SuppressedItem, SuppressedPolicyItem, SuppressedUnresolvedItem,
 };
-use crate::domain::{OUTLET_POLICY_BLOCK, SOURCE_KIND_SCHEDULE, Source};
+use crate::domain::{OUTLET_POLICY_BLOCK, Source};
 use crate::engine::{
     CURRENT_NEWS_HOURS, FetchOutput, Fetcher, RecentSuppression, SportsOptions,
-    add_fetch_failure_warning, add_news_date_warning, add_recurring_failure_warnings,
-    add_stale_heartbeat_warning, brief_summary, build_health_footnote, classify_and_dedupe,
-    collect_items, enabled_source_keys, prepare_sports_updates, process_source_items,
-    render_sports_section, sort_brief_items, suppress_recent_candidates,
+    add_recurring_failure_warnings, add_stale_heartbeat_warning, brief_summary,
+    build_health_footnote, classify_and_dedupe, enabled_source_keys, prepare_sports_updates,
+    process_source, render_sports_section, sort_brief_items, suppress_recent_candidates,
 };
 use crate::storage::RUN_ITEM_ANNOTATION;
 use crate::storage::{
@@ -25,7 +24,7 @@ use crate::storage::{
     DEFAULT_SPORTS_TIMEZONE, Delivery, FetchLog, MAX_DELIVERY_ITEMS_UPPER_BOUND,
     RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
     RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS, RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS,
-    RUNTIME_CONFIG_SPORTS_TIMEZONE, RunDeliveryContext, RunItemRow, SourceState, Store,
+    RUNTIME_CONFIG_SPORTS_TIMEZONE, RunDeliveryContext, RunItemRow, Store,
 };
 
 use super::delivery;
@@ -212,7 +211,7 @@ fn collect_sources(
         .iter()
         .zip(fetch_sources(sources, now, sports_options))
     {
-        process_source(source, output, &run, &mut accumulator)?;
+        record_source(source, output, &run, &mut accumulator)?;
     }
     Ok(accumulator)
 }
@@ -225,7 +224,7 @@ struct SourceRun<'a> {
     now: chrono::DateTime<Utc>,
 }
 
-fn process_source(
+fn record_source(
     source: &Source,
     output: Result<FetchOutput>,
     run: &SourceRun<'_>,
@@ -236,96 +235,34 @@ fn process_source(
     } else {
         run.store.source_state(&source.key)?
     };
-    let output = match output {
-        Ok(value) => value,
-        Err(error) => {
-            let message = error.to_string();
-            add_fetch_failure_warning(&source.key, &message, &mut accumulator.warnings);
-            accumulator.statuses.push(FetchStatus {
-                source_label: source.label.clone(),
-                source_key: source.key.clone(),
-                status: "error".to_owned(),
-                error: message.clone(),
-                ..FetchStatus::default()
-            });
-            if !run.dry_run {
-                run.store.insert_fetch_log(&FetchLog {
-                    source_label: source.label.clone(),
-                    run_id: run.run_id.to_owned(),
-                    source_key: source.key.clone(),
-                    status: "error".to_owned(),
-                    error: message,
-                    ..FetchLog::default()
-                })?;
-            }
-            return Ok(());
-        }
-    };
-    let item_count = if source.kind == SOURCE_KIND_SCHEDULE {
-        output.sports_updates.len()
-    } else {
-        output.items.len()
-    };
-    let unresolved_count = output.unresolved.len();
-    let processed = process_source_items(source, output, run.policies, state.as_ref(), run.now);
-    let current_news = processed.current_news.clone();
-    add_news_date_warning(
-        &source.key,
-        current_news.as_ref(),
-        &mut accumulator.warnings,
-    );
-    let new_count = if source.kind == SOURCE_KIND_SCHEDULE {
-        processed.sports_updates.len()
-    } else {
-        processed.eligible_items.len()
-    };
-    let policy_count = processed.suppressed_policy.len();
-    accumulator
-        .collected
-        .extend(collect_items(source, &processed.eligible_items));
-    accumulator.sports_updates.extend(processed.sports_updates);
-    accumulator
-        .suppressed_policy
-        .extend(processed.suppressed_policy);
-    accumulator
-        .suppressed_unresolved
-        .extend(processed.suppressed_unresolved);
+    let outcome = process_source(source, output, run.policies, state.as_ref(), run.now);
     if !run.dry_run {
-        if !source.is_current_news()
-            && let Some(top) = processed.items.first()
-        {
-            run.store.upsert_source_state(&SourceState {
-                source_key: source.key.clone(),
-                latest_identity: top.identity.clone(),
-                latest_feed_identity: top.feed_identity().to_owned(),
-                latest_title: top.title.clone(),
-                latest_url: top.url.clone(),
-                latest_published_at: top.published_at.clone(),
-                checked_at: run.now,
-            })?;
+        if let Some(state) = &outcome.next_state {
+            run.store.upsert_source_state(state)?;
         }
+        let status = &outcome.status;
         run.store.insert_fetch_log(&FetchLog {
-            source_label: source.label.clone(),
             run_id: run.run_id.to_owned(),
-            source_key: source.key.clone(),
-            status: "ok".to_owned(),
-            item_count,
-            new_item_count: current_news.is_none().then_some(new_count),
-            current_news: current_news.clone(),
+            source_label: status.source_label.clone(),
+            source_key: status.source_key.clone(),
+            status: status.status.clone(),
+            error: status.error.clone(),
+            item_count: status.items,
+            new_item_count: status.new_items,
+            current_news: status.current_news.clone(),
             ..FetchLog::default()
         })?;
     }
-    accumulator.statuses.push(FetchStatus {
-        source_label: source.label.clone(),
-        source_key: source.key.clone(),
-        status: "ok".to_owned(),
-        items: item_count,
-        new_items: current_news.is_none().then_some(new_count),
-        current_news,
-        suppressed_policy: policy_count,
-        suppressed_unresolved: unresolved_count,
-        ..FetchStatus::default()
-    });
+    accumulator.collected.extend(outcome.collected);
+    accumulator.sports_updates.extend(outcome.sports_updates);
+    accumulator
+        .suppressed_policy
+        .extend(outcome.suppressed_policy);
+    accumulator
+        .suppressed_unresolved
+        .extend(outcome.suppressed_unresolved);
+    accumulator.warnings.extend(outcome.warnings);
+    accumulator.statuses.push(outcome.status);
     Ok(())
 }
 

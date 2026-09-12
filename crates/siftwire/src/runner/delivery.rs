@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use anyhow::{Context, Result};
-use chrono::{SecondsFormat, Utc};
+use chrono::SecondsFormat;
 use chrono_tz::Tz;
 use url::Url;
 
@@ -20,27 +20,37 @@ pub(super) fn prepare(paths: Paths, store: &Store, request: &BriefRequest) -> Re
     if request.run_id.trim().is_empty() {
         return Ok(rejected(paths, "run_id is required"));
     }
-    let Some(run) = store.run_detail(&request.run_id)? else {
+    let Some(run) = store.delivery_preparation(&request.run_id)? else {
         return Ok(rejected(
             paths,
             "run_id was not produced by the current SiftWire database",
         ));
     };
-    if run.summary.status != "ok" || run.summary.dry_run {
+    if run.status != "ok" || run.dry_run {
         return Ok(rejected(paths, "run_id is not a finished durable brief"));
     }
-    if run.summary.delivered_at.is_some() {
+    if run.delivered {
         return Ok(rejected(paths, "run_id is already delivered"));
     }
-    let Some(context) = &run.delivery_context else {
+    if let Some(plan) = store.delivery_plan_for_run(&request.run_id)? {
+        return Ok(if plan.candidate_indexes == request.candidate_indexes {
+            prepared(paths, plan)
+        } else {
+            rejected(
+                paths,
+                "run_id already has a delivery plan with different candidate indexes",
+            )
+        });
+    }
+    let Some(context) = store.run_delivery_context(&request.run_id)? else {
         return Ok(rejected(paths, "run_id has no recorded delivery context"));
     };
     let plan = match build_plan(
         &request.run_id,
         &request.candidate_indexes,
-        &run.summary.started_at,
-        &run.items,
-        context,
+        &run.started_at,
+        &store.run_delivery_items(&request.run_id)?,
+        &context,
     ) {
         Ok(value) => value,
         Err(error) => return Ok(rejected(paths, &error.to_string())),
@@ -51,7 +61,11 @@ pub(super) fn prepare(paths: Paths, store: &Store, request: &BriefRequest) -> Re
             "run_id already has a delivery plan with different candidate indexes",
         ));
     };
-    Ok(BriefResult {
+    Ok(prepared(paths, plan))
+}
+
+fn prepared(paths: Paths, plan: DeliveryPlan) -> BriefResult {
+    BriefResult {
         paths,
         run_id: plan.run_id,
         delivery_plan_id: plan.id,
@@ -61,7 +75,7 @@ pub(super) fn prepare(paths: Paths, store: &Store, request: &BriefRequest) -> Re
         prepared_items: plan.items,
         summary: "prepared immutable delivery plan".to_owned(),
         ..BriefResult::default()
-    })
+    }
 }
 
 pub(super) fn confirm(paths: Paths, store: &Store, request: &BriefRequest) -> Result<BriefResult> {
@@ -80,17 +94,7 @@ pub(super) fn confirm(paths: Paths, store: &Store, request: &BriefRequest) -> Re
             "run_id does not match the prepared delivery plan",
         ));
     }
-    let items = plan
-        .items
-        .iter()
-        .map(|item| StoredSentItem {
-            title: item.title.clone(),
-            url: item.url.clone(),
-            kind: item.kind.clone(),
-            sent_at: chrono::DateTime::<Utc>::default(),
-        })
-        .collect();
-    record_message(paths, store, &plan, items)
+    record_message(paths, store, &plan)
 }
 
 fn build_plan(
@@ -319,15 +323,10 @@ fn join_parts(parts: &[&str]) -> String {
         .join("\n\n")
 }
 
-fn record_message(
-    paths: Paths,
-    store: &Store,
-    plan: &DeliveryPlan,
-    items: Vec<StoredSentItem>,
-) -> Result<BriefResult> {
+fn record_message(paths: Paths, store: &Store, plan: &DeliveryPlan) -> Result<BriefResult> {
     let run_id = &plan.run_id;
     let message = &plan.message;
-    let stored = match store.insert_delivery(run_id, message, items) {
+    let stored = match store.insert_delivery(plan) {
         Ok(value) => value,
         Err(error) if error.is_conflict() => return Ok(rejected(paths, &error.to_string())),
         Err(error) => return Err(error.into()),

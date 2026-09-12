@@ -1606,18 +1606,20 @@ mod tests {
             images: Vec::new(),
         };
         let source = schedule_source(SCHEDULE_FORMAT_ESPN);
-        let processed = crate::engine::process_source_items(
+        let processed = crate::engine::process_source(
             &source,
-            super::FetchOutput {
+            Ok(super::FetchOutput {
                 sports_updates: vec![upcoming.clone(), upcoming],
                 ..super::FetchOutput::default()
-            },
+            }),
             &[],
             None,
             now()?,
         );
-        assert!(processed.items.is_empty());
-        assert!(processed.eligible_items.is_empty());
+        assert!(processed.collected.is_empty());
+        assert!(processed.next_state.is_none());
+        assert_eq!(processed.status.items, 2);
+        assert_eq!(processed.status.new_items, Some(2));
         let updates = prepare_sports_updates(processed.sports_updates);
         let section = render_sports_section(&updates, chrono_tz::America::New_York);
         assert_eq!(updates.len(), 1, "duplicate fixture survived");

@@ -24,7 +24,41 @@ pub struct DeliveryPlan {
     pub items: Vec<DeliveryItem>,
 }
 
+pub struct DeliveryPreparation {
+    pub started_at: String,
+    pub status: String,
+    pub dry_run: bool,
+    pub delivered: bool,
+}
+
 impl Store {
+    /// Reads preparation eligibility without archive evidence or a saved plan.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when storage or the eligibility fields are invalid.
+    pub fn delivery_preparation(&self, run_id: &str) -> Result<Option<DeliveryPreparation>> {
+        self.connection
+            .query_row(
+                "SELECT r.started_at, r.status, r.dry_run, delivery.delivered_at IS NOT NULL \
+                 FROM brief_run r \
+                 LEFT JOIN delivery_once ON delivery_once.run_id = r.id \
+                 LEFT JOIN delivery ON delivery.id = delivery_once.delivery_id \
+                 WHERE r.id = ?1",
+                [run_id],
+                |row| {
+                    Ok(DeliveryPreparation {
+                        started_at: row.get(0)?,
+                        status: row.get(1)?,
+                        dry_run: row.get::<_, i64>(2)? == 1,
+                        delivered: row.get(3)?,
+                    })
+                },
+            )
+            .optional()
+            .with_context(|| format!("read delivery eligibility for run {run_id}"))
+    }
+
     /// Persists the delivery inputs that must survive beyond `run_brief`.
     ///
     /// # Errors

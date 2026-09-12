@@ -319,6 +319,51 @@ fn assert_normal_prepared_plan(
         Some(&serde_json::Value::Null),
         "prepared HTML must stay hidden until confirmation"
     );
+    let db = rusqlite::Connection::open(database)?;
+    let context: String = db.query_row(
+        "SELECT context_json FROM brief_run_delivery_context WHERE run_id = ?1",
+        [run_id],
+        |row| row.get(0),
+    )?;
+    let selection: String = db.query_row(
+        "SELECT selection_json FROM fetch_log WHERE run_id = ?1",
+        [run_id],
+        |row| row.get(0),
+    )?;
+    db.execute(
+        "UPDATE fetch_log SET selection_json = 'invalid archive JSON' WHERE run_id = ?1",
+        [run_id],
+    )?;
+    db.execute(
+        "UPDATE brief_run_delivery_context SET context_json = \
+         json_set(context_json, '$.sports_timezone', 'invalid renderer timezone') WHERE run_id = ?1",
+        [run_id],
+    )?;
+    let replay: DeliveryResult = decode(invoke_json(
+        &["brief", "--db", database],
+        &json!({"action": "prepare_delivery", "run_id": run_id, "candidate_indexes": [0]}),
+        environment,
+    )?)?;
+    assert!(
+        !replay.rejected,
+        "saved plan replay read archive or rendering inputs"
+    );
+    assert_eq!(
+        replay.delivery_plan_id, prepared.delivery_plan_id,
+        "replay changed the saved plan identifier"
+    );
+    assert_eq!(
+        replay.message, prepared.message,
+        "replay changed the exact Markdown body"
+    );
+    assert_eq!(
+        replay.text, prepared.text,
+        "replay changed the exact plain-text body"
+    );
+    assert_eq!(
+        replay.html, prepared.html,
+        "replay changed the exact HTML body"
+    );
     let changed: DeliveryResult = decode(invoke_json(
         &["brief", "--db", database],
         &json!({"action": "prepare_delivery", "run_id": run_id, "candidate_indexes": []}),
@@ -328,6 +373,20 @@ fn assert_normal_prepared_plan(
         changed.rejected,
         "run accepted a second delivery plan with different candidates"
     );
+    assert!(
+        changed
+            .rejection_reason
+            .contains("different candidate indexes"),
+        "candidate conflict depended on archive or renderer inputs"
+    );
+    db.execute(
+        "UPDATE brief_run_delivery_context SET context_json = ?1 WHERE run_id = ?2",
+        rusqlite::params![context, run_id],
+    )?;
+    db.execute(
+        "UPDATE fetch_log SET selection_json = ?1 WHERE run_id = ?2",
+        rusqlite::params![selection, run_id],
+    )?;
     Ok(prepared)
 }
 

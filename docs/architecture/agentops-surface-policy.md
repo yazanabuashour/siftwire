@@ -26,6 +26,37 @@ consumer. Reconsider an in-process API only when an integration cannot
 reasonably use the process protocol and supplies concrete lifecycle and error
 requirements.
 
+### Private modules own complete outcomes
+
+Keep the process protocol as the reusable building block and deepen its private
+modules around existing caller tasks:
+
+- `crates/siftwire/src/engine/process.rs` owns each source outcome: collected
+  content, the optional next marker, fetch-selection evidence, suppression, and
+  fetch/date warnings.
+  The runner skips marker reads for current news, applies permitted writes only
+  for durable runs, and uses the outcome's status for both JSON and stored fetch
+  evidence. It does not reconstruct marker or count policy.
+- Delivery persistence accepts a prepared plan and derives sent records inside
+  its transaction. The runner must not supply independent message/item copies or
+  placeholder sent timestamps.
+- Preparation reads run eligibility separately from archive details. An eligible
+  run's existing plan replays before loading selection inputs or rendering. New
+  plans retain storage's concurrent-insert conflict protection. Archive reads keep
+  their own full-detail interface.
+
+This replaces caller-owned sequencing rather than adding forwarding modules.
+A public library or generic repository interface would add contracts without
+improving these callers; file splitting alone would leave the same knowledge
+spread across modules.
+
+Safety still requires exact immutable bodies, delivery evidence references,
+rejection after delivery, idempotent confirmation, and unchanged current-news and
+Required marker behavior. Capability and user experience stay on the existing
+process protocol: this redesign adds no actions or agent calls and makes no
+performance claim. Process tests remain the external contract gate; focused
+engine and storage tests protect the private outcome and transaction invariants.
+
 ### Sources stay generic
 
 RSS and Atom share one feed model. GitHub releases remain a separate source kind

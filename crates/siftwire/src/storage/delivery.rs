@@ -3,7 +3,8 @@ use chrono::{DateTime, Utc};
 use rusqlite::{OptionalExtension, Transaction, params};
 
 use super::{
-    Delivery, DeliveryInsertError, Store, StoredSentItem, format_timestamp, parse_timestamp,
+    Delivery, DeliveryInsertError, DeliveryPlan, Store, StoredSentItem, format_timestamp,
+    parse_timestamp,
 };
 
 impl Store {
@@ -90,10 +91,10 @@ impl Store {
     /// work fails.
     pub fn insert_delivery(
         &self,
-        run_id: &str,
-        message: &str,
-        mut items: Vec<StoredSentItem>,
+        plan: &DeliveryPlan,
     ) -> Result<Vec<StoredSentItem>, DeliveryInsertError> {
+        let run_id = &plan.run_id;
+        let message = &plan.message;
         if run_id.trim().is_empty() {
             return Err(anyhow!("run_id is required").into());
         }
@@ -119,9 +120,16 @@ impl Store {
             )
             .with_context(|| format!("insert delivery for run {run_id}"))?;
         let delivery_id = transaction.last_insert_rowid();
-        for item in &mut items {
-            item.sent_at = delivered_at;
-            insert_sent_item(&transaction, delivery_id, run_id, item)?;
+        let mut items = Vec::with_capacity(plan.items.len());
+        for item in &plan.items {
+            let item = StoredSentItem {
+                title: item.title.clone(),
+                url: item.url.clone(),
+                kind: item.kind.clone(),
+                sent_at: delivered_at,
+            };
+            insert_sent_item(&transaction, delivery_id, run_id, &item)?;
+            items.push(item);
         }
         transaction
             .execute(

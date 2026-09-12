@@ -48,7 +48,6 @@ pub struct RunDetail {
     pub summary: RunSummary,
     pub delivery_html: Option<String>,
     pub delivery_plan: Option<super::DeliveryPlan>,
-    pub delivery_context: Option<super::RunDeliveryContext>,
     pub items: Vec<RunItemRow>,
     pub fetch_logs: Vec<FetchLog>,
     pub sent_items: Vec<StoredSentItem>,
@@ -97,6 +96,15 @@ impl Store {
         transaction.commit().context("commit run item insert")
     }
 
+    /// Reads only the required and candidate selection used to prepare delivery.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when stored selection rows cannot be read.
+    pub fn run_delivery_items(&self, run_id: &str) -> Result<Vec<RunItemRow>> {
+        query_run_items(&self.connection, run_id, true)
+    }
+
     /// Returns everything stored for one run, or `None` when unknown.
     ///
     /// # Errors
@@ -130,8 +138,7 @@ impl Store {
         Ok(Some(RunDetail {
             delivery_html,
             delivery_plan: self.delivery_plan_for_run(run_id)?,
-            delivery_context: self.run_delivery_context(run_id)?,
-            items: query_run_items(&self.connection, run_id)?,
+            items: query_run_items(&self.connection, run_id, false)?,
             fetch_logs: query_fetch_logs_for_run(&self.connection, run_id)?,
             sent_items: query_sent_items_for_run(&self.connection, run_id)?,
             summary,
@@ -152,33 +159,46 @@ pub(super) fn run_summary_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<
     })
 }
 
-fn query_run_items(connection: &Connection, run_id: &str) -> Result<Vec<RunItemRow>> {
+fn query_run_items(
+    connection: &Connection,
+    run_id: &str,
+    selection_only: bool,
+) -> Result<Vec<RunItemRow>> {
     let mut statement = connection
         .prepare(
             "SELECT category, source_key, source_label, kind, section, threshold, \
              priority_rank, published_at, outlet, title, url, reason, detail, CAST(id AS TEXT) \
-             FROM brief_run_item WHERE run_id = ?1 ORDER BY id",
+             FROM brief_run_item WHERE run_id = ?1 \
+             AND (NOT ?2 OR category IN (?3, ?4)) ORDER BY id",
         )
         .context("prepare run item query")?;
     let rows = statement
-        .query_map([run_id], |row| {
-            Ok(RunItemRow {
-                id: row.get(13)?,
-                category: row.get(0)?,
-                source_key: row.get(1)?,
-                source_label: row.get(2)?,
-                kind: row.get(3)?,
-                section: row.get(4)?,
-                threshold: row.get(5)?,
-                priority_rank: row.get(6)?,
-                published_at: row.get(7)?,
-                outlet: row.get(8)?,
-                title: row.get(9)?,
-                url: row.get(10)?,
-                reason: row.get(11)?,
-                detail: row.get(12)?,
-            })
-        })
+        .query_map(
+            params![
+                run_id,
+                selection_only,
+                RUN_ITEM_MUST_INCLUDE,
+                RUN_ITEM_CANDIDATE
+            ],
+            |row| {
+                Ok(RunItemRow {
+                    id: row.get(13)?,
+                    category: row.get(0)?,
+                    source_key: row.get(1)?,
+                    source_label: row.get(2)?,
+                    kind: row.get(3)?,
+                    section: row.get(4)?,
+                    threshold: row.get(5)?,
+                    priority_rank: row.get(6)?,
+                    published_at: row.get(7)?,
+                    outlet: row.get(8)?,
+                    title: row.get(9)?,
+                    url: row.get(10)?,
+                    reason: row.get(11)?,
+                    detail: row.get(12)?,
+                })
+            },
+        )
         .context("query run items")?;
     rows.map(|row| row.context("read run item row")).collect()
 }

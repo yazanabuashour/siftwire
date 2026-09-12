@@ -21,10 +21,9 @@ use super::health::{add_recurring_failure_warnings, build_health_footnote};
 use super::http::HttpClient;
 use super::model::FetchedItem;
 use super::policy::apply_outlet_policies;
+use super::process::collect_items;
 use super::selection::select_new_items;
-use super::{
-    CollectedItem, FetchOutput, collect_items, process_source_items, suppress_recent_candidates,
-};
+use super::{CollectedItem, FetchOutput, process_source, suppress_recent_candidates};
 
 fn fetched(title: &str, url: &str, identity: &str) -> FetchedItem {
     FetchedItem {
@@ -596,40 +595,57 @@ fn current_news_uses_the_whole_feed_and_dates_not_markers_or_order() -> Result<(
         latest_identity: "id-0".to_owned(),
         ..SourceState::default()
     };
-    let fresh = process_source_items(&feed, output.clone(), &[], None, now);
+    let fresh = process_source(&feed, Ok(output.clone()), &[], None, now);
     let mut reordered = output.clone();
     reordered.items.reverse();
     feed.threshold = "medium".to_owned();
-    let repeated = process_source_items(&feed, reordered, &[], Some(&state), now);
+    let repeated = process_source(&feed, Ok(reordered), &[], Some(&state), now);
+    assert!(
+        fresh.next_state.is_none(),
+        "optional source proposed a marker"
+    );
+    assert!(
+        repeated.next_state.is_none(),
+        "optional source advanced a marker"
+    );
+    assert_eq!(fresh.status.items, 18, "fetch count must precede selection");
     assert_eq!(
-        serde_json::to_value(&fresh.current_news)?,
+        fresh.status.new_items, None,
+        "current news is not marker-new"
+    );
+    assert!(fresh.warnings.contains_key("news_dates:news"));
+    assert_eq!(
+        serde_json::to_value(&fresh.status.current_news)?,
         serde_json::to_value(&expected)?,
         "publication classifications changed"
     );
     assert_eq!(
-        serde_json::to_value(&repeated.current_news)?,
-        serde_json::to_value(&fresh.current_news)?,
+        serde_json::to_value(&repeated.status.current_news)?,
+        serde_json::to_value(&fresh.status.current_news)?,
         "marker or order changed counts"
     );
-    let identities = |items: &[FetchedItem]| {
+    let urls = |items: &[CollectedItem]| {
         items
             .iter()
-            .map(|item| item.identity.clone())
+            .map(|item| item.brief_item.url.clone())
             .collect::<BTreeSet<_>>()
     };
     assert_eq!(
-        identities(&fresh.eligible_items),
-        BTreeSet::from(["id-0", "id-5", "id-6", "id-7", "id-8", "id-dc"].map(str::to_owned)),
+        urls(&fresh.collected),
+        BTreeSet::from(
+            ["0", "5", "6", "7", "8", "dc"]
+                .map(|id| { format!("https://news.google.com/rss/articles/synthetic-{id}") })
+        ),
         "boundary or beyond-five item lost"
     );
     assert_eq!(
-        identities(&fresh.eligible_items),
-        identities(&repeated.eligible_items),
+        urls(&fresh.collected),
+        urls(&repeated.collected),
         "marker or order changed candidates"
     );
-    let blocked = process_source_items(
+    let blocked = process_source(
         &feed,
-        output,
+        Ok(output),
         &[OutletPolicy {
             name: "Publisher".to_owned(),
             policy: "block".to_owned(),
@@ -640,14 +656,17 @@ fn current_news_uses_the_whole_feed_and_dates_not_markers_or_order() -> Result<(
         now,
     );
     assert_eq!(
-        serde_json::to_value(&blocked.current_news)?,
+        serde_json::to_value(&blocked.status.current_news)?,
         serde_json::to_value(&expected)?,
         "outlet policy changed date accounting"
     );
     assert!(
-        blocked.eligible_items.is_empty(),
+        blocked.collected.is_empty(),
         "blocked outlet survived date eligibility"
     );
+    assert_eq!(blocked.status.suppressed_policy, 6);
+    assert_eq!(blocked.status.new_items, None);
+    assert!(blocked.next_state.is_none());
     Ok(())
 }
 
@@ -678,17 +697,20 @@ fn current_news_atom_requires_publication_while_required_keeps_updated() -> Resu
         </feed>"#;
     let feed = source("atom");
     let now = DateTime::parse_from_rfc3339("2026-04-23T12:00:00Z")?.with_timezone(&Utc);
-    let processed = process_source_items(
+    let processed = process_source(
         &feed,
-        FetchOutput {
+        Ok(FetchOutput {
             items: parse_feed(&feed, xml)?,
             ..FetchOutput::default()
-        },
+        }),
         &[],
         None,
         now,
     );
-    let status = processed.current_news.context("current-news stats")?;
+    let status = processed
+        .status
+        .current_news
+        .context("current-news stats")?;
     assert_eq!(
         (
             status.eligible_items,
@@ -701,10 +723,10 @@ fn current_news_atom_requires_publication_while_required_keeps_updated() -> Resu
     );
     assert_eq!(
         processed
-            .eligible_items
+            .collected
             .first()
-            .map(|item| item.identity.as_str()),
-        Some("published"),
+            .map(|item| item.brief_item.title.as_str()),
+        Some("Publication only"),
         "wrong Atom publication selected"
     );
     let required = Source {
@@ -723,25 +745,30 @@ fn current_news_atom_requires_publication_while_required_keeps_updated() -> Resu
         latest_identity: "invalid".to_owned(),
         ..SourceState::default()
     };
-    let processed = process_source_items(
+    let processed = process_source(
         &required,
-        FetchOutput {
+        Ok(FetchOutput {
             items: required_items,
             ..FetchOutput::default()
-        },
+        }),
         &[],
         Some(&state),
         now,
     );
     assert!(
-        processed.current_news.is_none(),
+        processed.status.current_news.is_none(),
         "Required entered current-news selection"
     );
     assert_eq!(
-        processed.eligible_items.len(),
+        processed.collected.len(),
         2,
         "Required marker selection changed"
     );
+    assert_eq!(processed.status.new_items, Some(2));
+    let next = processed.next_state.context("Required next marker")?;
+    assert_eq!(next.latest_identity, "old");
+    assert_eq!(next.latest_feed_identity, "old");
+    assert_eq!(next.checked_at, now);
     Ok(())
 }
 

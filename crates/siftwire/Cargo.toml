@@ -19,7 +19,7 @@ feed-rs = "2.4"
 fs2 = "0.4"
 getrandom = "0.4"
 path-clean = "1"
-quick-xml = "0.41"
+quick-xml = "0.42"
 regex = "1"
 rusqlite = { version = "0.38", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

@@ -4,6 +4,12 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Releases
 
+- [v0.9.1](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.1)
+  makes agent evaluation harness-neutral through an executable JSON contract,
+  adds a Pi implementation and model-free smoke adapter, and records actual
+  tool executions separately from native lifecycle events. The production
+  runner, skill, database schema, and delivery contract remain unchanged.
+  See the [release notes](docs/release-notes/v0.9.1.md).
 - [v0.9.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.0)
   requires runner protocol v5, matching consumers, and a fresh database instead
   of migrating old configuration or operational state. It deepens source

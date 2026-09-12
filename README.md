@@ -32,19 +32,20 @@ sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/d
 siftwire --version
 ```
 
-The latest documented release is v0.9.0. Upgrading from v0.8.0 or earlier
+The latest documented release is v0.9.1. Upgrading from v0.9.0 preserves the
+existing database and configuration. Upgrading from v0.8.0 or earlier
 requires a fresh database and matching consumers; read the
 [compatibility reset](docs/runner-v5-reset.md) before installing.
 The pinned release installer is:
 
 ```bash
-SIFTWIRE_VERSION=v0.9.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.9.0/install.sh)"
+SIFTWIRE_VERSION=v0.9.1 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.9.1/install.sh)"
 siftwire --version
 ```
 
 Register the matching `skills/siftwire/SKILL.md` with your agent's native skill
-system. For v0.9.0, use the `v0.9.0` repository tag or the release asset
-`siftwire_0.9.0_skill.tar.gz`. Installation is not complete until both the runner
+system. For v0.9.1, use the `v0.9.1` repository tag or the release asset
+`siftwire_0.9.1_skill.tar.gz`. Installation is not complete until both the runner
 and its matching skill are installed. No particular agent or skill directory is
 required.
 

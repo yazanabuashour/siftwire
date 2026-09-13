@@ -1,19 +1,11 @@
-use std::fmt::Write as _;
-
 use anyhow::{Context, Result};
 use chrono::{DateTime, Timelike, Utc};
 use chrono_tz::Tz;
+use email_ui::{Document, Header, Image, Notice, Row, ScheduleGroup, ScheduleRow, Section};
 
-use crate::contract::{SportsImage, SportsUpdate};
+use crate::contract::SportsUpdate;
 use crate::domain::SOURCE_KIND_GITHUB_RELEASE;
 use crate::storage::{RunDeliveryContext, RunItemRow};
-
-const TEXT: &str = "#202124";
-const MUTED: &str = "#5f6368";
-const ACCENT: &str = "#6d4aff";
-const SECONDARY: &str = "#a14200";
-const PANEL: &str = "#f7f5f1";
-const BORDER: &str = "#dadce0";
 
 pub fn render(
     selected: &[&RunItemRow],
@@ -21,6 +13,16 @@ pub fn render(
     started_at: &str,
     timezone: Tz,
 ) -> Result<String> {
+    let document = document(selected, context, started_at, timezone)?;
+    Ok(email_ui::render(&document)?.html)
+}
+
+fn document(
+    selected: &[&RunItemRow],
+    context: &RunDeliveryContext,
+    started_at: &str,
+    timezone: Tz,
+) -> Result<Document> {
     let started_at = DateTime::parse_from_rfc3339(started_at)
         .context("stored brief start time is invalid")?
         .with_timezone(&Utc)
@@ -30,16 +32,19 @@ pub fn render(
     } else {
         "Evening"
     };
-    let releases = selected
-        .iter()
-        .copied()
-        .filter(|item| item.kind == SOURCE_KIND_GITHUB_RELEASE)
-        .collect::<Vec<_>>();
-    let news = selected
-        .iter()
-        .copied()
-        .filter(|item| item.kind != SOURCE_KIND_GITHUB_RELEASE)
-        .collect::<Vec<_>>();
+    let mut releases = Vec::new();
+    let mut news = Vec::new();
+    for item in selected {
+        if item.kind == SOURCE_KIND_GITHUB_RELEASE {
+            releases.push(Row {
+                title: item.title.clone(),
+                url: item.url.clone(),
+                eyebrow: item.source_label.clone(),
+            });
+        } else {
+            news.push(news_row(item));
+        }
+    }
     let count_label = |count: usize, singular: &str, plural: &str| {
         format!("{count} {}", if count == 1 { singular } else { plural })
     };
@@ -53,240 +58,92 @@ pub fn render(
             "sports updates"
         )
     );
-    let mut output = document_start(edition, &started_at, &preheader);
+    let mut sections = Vec::new();
     if !releases.is_empty() {
-        append_releases(&mut output, &releases);
+        sections.push(Section::Cards {
+            heading: "New versions".to_owned(),
+            rows: releases,
+        });
     }
     if !news.is_empty() {
-        append_news(&mut output, &news);
+        sections.push(Section::Stories {
+            heading: "News".to_owned(),
+            rows: news,
+        });
     }
-    append_sports(&mut output, &context.sports_updates, timezone);
-    append_health(&mut output, &context.health_footnote);
-    let _result = write!(
-        output,
-        r#"<tr><td class="mobile-pad" style="padding:12px 20px;border-top:1px solid {BORDER};font-size:11px;line-height:16px;color:{MUTED};">Times: {timezone}</td></tr>
-</table></td></tr></table>
-</body>
-</html>"#,
-    );
-    Ok(output)
-}
-
-fn document_start(edition: &str, started_at: &DateTime<Tz>, preheader: &str) -> String {
-    format!(
-        r#"<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light">
-<meta name="supported-color-schemes" content="light">
-<title>SiftWire {edition} brief</title>
-<style>
-@media only screen and (max-width: 680px) {{
-  .email-shell {{ width:100% !important; }}
-  .mobile-pad {{ padding-left:16px !important; padding-right:16px !important; }}
-  .story-title {{ font-size:16px !important; line-height:21px !important; }}
-  .date-cell {{ width:45px !important; }}
-}}
-</style>
-</head>
-<body style="margin:0;padding:0;background:#ffffff;color:{TEXT};font-family:Arial,Helvetica,sans-serif;">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">{preheader}</div>
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#ffffff;">
-<tr><td align="center" style="padding:0;">
-<table role="presentation" width="680" cellspacing="0" cellpadding="0" border="0" class="email-shell" style="width:680px;max-width:680px;background:#ffffff;border-top:3px solid {ACCENT};">
-<tr><td class="mobile-pad" style="padding:13px 20px 12px;border-bottom:1px solid {BORDER};">
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0"><tr>
-<td valign="top"><div style="font-family:Georgia,'Times New Roman',serif;font-size:21px;line-height:25px;font-weight:bold;color:{TEXT};">SiftWire</div><div style="margin-top:3px;font-size:11px;line-height:15px;color:{MUTED};">{preheader}</div></td>
-<td align="right" valign="top" style="font-size:11px;line-height:15px;color:{SECONDARY};">{edition}<br><span style="color:{MUTED};">{date}</span></td>
-</tr></table>
-</td></tr>"#,
-        preheader = html_escape(preheader),
-        date = started_at.format("%a, %b %-d"),
-    )
-}
-
-fn append_releases(output: &mut String, releases: &[&RunItemRow]) {
-    section_start(output, "New versions");
-    let _result = write!(
-        output,
-        r#"<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:{PANEL};border:1px solid {BORDER};">"#,
-    );
-    for item in releases {
-        let title = linked_title(
-            &item.title,
-            &item.url,
-            "font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:20px;color:#202124;text-decoration:underline;text-decoration-color:#6d4aff;",
-        );
-        let _result = write!(
-            output,
-            r#"<tr><td style="padding:10px 12px;border-bottom:1px solid {BORDER};">
-<div style="font-size:11px;line-height:15px;color:{SECONDARY};margin-bottom:3px;">{source}</div>
-{title}
-</td></tr>"#,
-            source = html_escape(&item.source_label),
-        );
+    if !context.sports_updates.is_empty() {
+        let groups = [("Upcoming", "upcoming"), ("Results", "final")]
+            .into_iter()
+            .filter_map(|(heading, status)| {
+                let rows = context
+                    .sports_updates
+                    .iter()
+                    .filter(|update| update.status == status)
+                    .map(|update| schedule_row(update, timezone))
+                    .collect::<Vec<_>>();
+                (!rows.is_empty()).then(|| ScheduleGroup {
+                    heading: heading.to_owned(),
+                    rows,
+                })
+            })
+            .collect();
+        sections.push(Section::Schedule {
+            heading: "Sports".to_owned(),
+            groups,
+        });
     }
-    output.push_str("</table></td></tr>");
+    Ok(Document {
+        title: format!("SiftWire {edition} brief"),
+        heading: "SiftWire".to_owned(),
+        preheader,
+        header: Header {
+            edition: edition.to_owned(),
+            date: started_at.format("%a, %b %-d").to_string(),
+        },
+        footer: format!("Times: {timezone}"),
+        sections,
+        notice: (!context.health_footnote.is_empty()).then(|| Notice {
+            label: "Source health".to_owned(),
+            text: context.health_footnote.clone(),
+        }),
+    })
 }
 
-fn append_news(output: &mut String, news: &[&RunItemRow]) {
-    section_start(output, "News");
-    for item in news {
-        let section = if item.section.is_empty() {
-            item.source_label.clone()
-        } else {
-            display_label(&item.section)
-        };
-        let outlet = if item.outlet.is_empty() {
-            item.source_label.as_str()
-        } else {
-            item.outlet.as_str()
-        };
-        let title = linked_title(
-            &item.title,
-            &item.url,
-            "font-family:Georgia,'Times New Roman',serif;font-size:17px;line-height:23px;color:#202124;text-decoration:underline;text-decoration-color:#6d4aff;",
-        );
-        let _result = write!(
-            output,
-            r#"<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="border-bottom:1px solid {BORDER};"><tr><td style="padding:10px 0 11px;">
-<div style="font-size:11px;line-height:15px;color:{SECONDARY};margin-bottom:4px;">{section} · {outlet}</div>
-{title}
-</td></tr></table>"#,
-            section = html_escape(&section),
-            outlet = html_escape(outlet),
-        );
-    }
-    output.push_str("</td></tr>");
-}
-
-fn append_sports(output: &mut String, updates: &[SportsUpdate], timezone: Tz) {
-    if updates.is_empty() {
-        return;
-    }
-    section_start(output, "Sports");
-    append_sports_group(output, "Upcoming", "upcoming", updates, timezone);
-    append_sports_group(output, "Results", "final", updates, timezone);
-    output.push_str("</td></tr>");
-}
-
-fn append_sports_group(
-    output: &mut String,
-    heading: &str,
-    status: &str,
-    updates: &[SportsUpdate],
-    timezone: Tz,
-) {
-    let matching = updates
-        .iter()
-        .filter(|update| update.status == status)
-        .collect::<Vec<_>>();
-    if matching.is_empty() {
-        return;
-    }
-    let _result = write!(
-        output,
-        r#"<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin-bottom:12px;background:{PANEL};border:1px solid {BORDER};">
-<tr><td colspan="3" style="padding:8px 10px;border-bottom:1px solid {BORDER};font-size:12px;line-height:16px;color:#5634d4;">{heading}</td></tr>"#,
-    );
-    for update in matching {
-        append_sports_update(output, update, timezone);
-    }
-    output.push_str("</table>");
-}
-
-fn append_sports_update(output: &mut String, update: &SportsUpdate, timezone: Tz) {
-    let when = update.starts_at.with_timezone(&timezone);
-    let _result = write!(
-        output,
-        r#"<tr><td class="date-cell" width="52" valign="middle" style="width:52px;padding:9px 6px 9px 10px;border-bottom:1px solid {BORDER};">
-<div style="font-size:10px;line-height:13px;color:{SECONDARY};">{weekday}</div>
-<div style="font-size:19px;line-height:21px;font-weight:bold;color:{TEXT};">{day}</div>
-<div style="font-size:10px;line-height:13px;color:{MUTED};">{month}</div>
-</td>"#,
-        weekday = when.format("%a"),
-        day = when.format("%-d"),
-        month = when.format("%b"),
-    );
-    append_images(output, &update.images);
-    let title = linked_title(
-        &update.title,
-        &update.url,
-        "font-size:14px;line-height:19px;font-weight:bold;color:#202124;text-decoration:underline;text-decoration-color:#6d4aff;",
-    );
-    let _result = write!(
-        output,
-        r#"<td valign="middle" style="padding:9px 10px;border-bottom:1px solid {BORDER};">
-{title}
-<div style="margin-top:3px;font-size:11px;line-height:15px;color:{MUTED};">{competition} · {time}</div>
-</td></tr>"#,
-        competition = html_escape(&update.competition),
-        time = when.format("%-I:%M %p %Z"),
-    );
-}
-
-fn append_images(output: &mut String, images: &[SportsImage]) {
-    if images.is_empty() {
-        return;
-    }
-    output.push_str(
-        r#"<td width="66" valign="middle" style="width:66px;padding:8px 4px;border-bottom:1px solid #dadce0;"><table role="presentation" cellspacing="0" cellpadding="0" border="0"><tr>"#,
-    );
-    let plate = "#292b31";
-    for image in images.iter().take(2) {
-        let _result = write!(
-            output,
-            r#"<td style="padding-right:3px;"><img src="{url}" alt="" width="28" height="28" style="display:block;width:28px;height:28px;border:1px solid {BORDER};border-radius:50%;background:{plate};object-fit:contain;"></td>"#,
-            url = html_escape(&image.url),
-        );
-    }
-    output.push_str("</tr></table></td>");
-}
-
-fn section_start(output: &mut String, heading: &str) {
-    let _result = write!(
-        output,
-        r#"<tr><td class="mobile-pad" style="padding:17px 20px 0;"><h2 style="margin:0 0 9px;font-family:Georgia,'Times New Roman',serif;font-size:21px;line-height:26px;font-weight:normal;color:{TEXT};">{heading}</h2>"#,
-        heading = html_escape(heading),
-    );
-}
-
-fn append_health(output: &mut String, health: &str) {
-    if health.is_empty() {
-        return;
-    }
-    let _result = write!(
-        output,
-        r#"<tr><td class="mobile-pad" style="padding:5px 20px 14px;"><div style="padding:9px 10px;background:{PANEL};border-left:3px solid {SECONDARY};font-size:11px;line-height:16px;color:{MUTED};"><strong style="color:{TEXT};">Source health</strong> · {health}</div></td></tr>"#,
-        health = html_escape(health),
-    );
-}
-
-fn linked_title(title: &str, url: &str, style: &str) -> String {
-    let title = html_escape(title);
-    if url.is_empty() {
-        format!(r#"<span style="{style}">{title}</span>"#)
+fn news_row(item: &RunItemRow) -> Row {
+    let section = if item.section.is_empty() {
+        item.source_label.clone()
     } else {
-        format!(
-            r#"<a href="{}" style="{style}">{title}</a>"#,
-            html_escape(url)
-        )
+        item.section.replace(['_', '-'], " ")
+    };
+    let outlet = if item.outlet.is_empty() {
+        item.source_label.as_str()
+    } else {
+        item.outlet.as_str()
+    };
+    Row {
+        title: item.title.clone(),
+        url: item.url.clone(),
+        eyebrow: format!("{section} · {outlet}"),
     }
 }
 
-fn display_label(value: &str) -> String {
-    value.replace(['_', '-'], " ")
-}
-
-fn html_escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
+fn schedule_row(update: &SportsUpdate, timezone: Tz) -> ScheduleRow {
+    let when = update.starts_at.with_timezone(&timezone);
+    ScheduleRow {
+        weekday: when.format("%a").to_string(),
+        day: when.format("%-d").to_string(),
+        month: when.format("%b").to_string(),
+        title: update.title.clone(),
+        url: update.url.clone(),
+        metadata: format!("{} · {}", update.competition, when.format("%-I:%M %p %Z")),
+        images: update
+            .images
+            .iter()
+            .map(|image| Image {
+                url: image.url.clone(),
+            })
+            .collect(),
+    }
 }
 
 #[cfg(test)]
@@ -348,27 +205,101 @@ mod tests {
             "2026-08-28T00:00:00Z",
             chrono_tz::America::Chicago,
         )?;
-        assert!(evening.contains("Evening"));
-        assert!(evening.contains("background:#ffffff"));
-        assert!(!evening.contains("Your evening brief"));
-        assert!(evening.contains("Release &lt;one&gt;"));
-        assert!(evening.contains("a=1&amp;b=2"));
-        assert!(evening.contains("https://images.example/alpha.png"));
-        assert!(evening.contains("1 story, 1 release, 2 sports updates."));
-        assert!(evening.contains("Thu, Aug 27"));
-        assert!(evening.contains("Times: America/Chicago"));
-        assert!(evening.contains("Example &amp; Co · Example &amp; Co"));
-        assert!(evening.contains("News &lt;one&gt;</span>"));
-        assert!(evening.contains("Upcoming</td>"));
-        assert!(evening.contains("Results</td>"));
-        assert!(evening.contains("Gamma 2–1 Delta</span>"));
-        assert!(evening.contains("Example League · 7:00 AM CDT"));
-        assert!(evening.contains("Example Cup · 7:00 PM CDT"));
-        assert!(evening.contains("Source &lt;one&gt; &amp; source two unavailable"));
-        assert!(!evening.contains("text-transform:uppercase"));
-        assert!(!evening.contains("letter-spacing:"));
-        assert!(evening.contains("font-size:11px;line-height:15px;color:#a14200;"));
-        assert!(evening.contains("font-size:12px;line-height:16px;color:#5634d4;"));
+        assert_eq!(
+            evening,
+            include_str!("../../tests/fixtures/email/rich-evening.html")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn complementary_html_parity() -> anyhow::Result<()> {
+        let releases = [
+            RunItemRow {
+                title: "Version \"two\" & 'three' <four>".to_owned(),
+                source_label: "Release & <source>".to_owned(),
+                kind: crate::domain::SOURCE_KIND_GITHUB_RELEASE.to_owned(),
+                ..RunItemRow::default()
+            },
+            RunItemRow {
+                title: "Second release".to_owned(),
+                url: "https://example.test/release?x=\"yes\"&y='no'".to_owned(),
+                kind: crate::domain::SOURCE_KIND_GITHUB_RELEASE.to_owned(),
+                ..RunItemRow::default()
+            },
+        ];
+        let news = [
+            RunItemRow {
+                title: "Story & <tag> \"quoted\" 'single'".to_owned(),
+                url: "https://example.test/news?x=1&y=2".to_owned(),
+                source_label: "Unused source".to_owned(),
+                section: "world_news-updates".to_owned(),
+                outlet: "Outlet & <Co>".to_owned(),
+                ..RunItemRow::default()
+            },
+            RunItemRow {
+                title: "Second story".to_owned(),
+                source_label: "Fallback \"source\"".to_owned(),
+                section: "technology".to_owned(),
+                ..RunItemRow::default()
+            },
+        ];
+        let context = RunDeliveryContext {
+            max_delivery_items: 7,
+            sports_timezone: "Asia/Tokyo".to_owned(),
+            sports_updates: vec![SportsUpdate {
+                status: "upcoming".to_owned(),
+                title: "Alpha & Beta <final>".to_owned(),
+                competition: "League \"one\" & 'two'".to_owned(),
+                starts_at: chrono::DateTime::parse_from_rfc3339("2026-01-01T18:05:00Z")?
+                    .with_timezone(&chrono::Utc),
+                images: (1..=3)
+                    .map(|index| SportsImage {
+                        url: format!("https://images.example/{index}.png?a=1&b=2"),
+                        alt: "Not rendered".to_owned(),
+                    })
+                    .collect(),
+                ..SportsUpdate::default()
+            }],
+            health_footnote: "Health \"one\" & 'two' <three>".to_owned(),
+        };
+        let [first_news, second_news] = &news;
+        let [first_release, second_release] = &releases;
+        let morning = render(
+            &[first_news, first_release, second_news, second_release],
+            &context,
+            "2026-01-01T23:00:00Z",
+            chrono_tz::Asia::Tokyo,
+        )?;
+        assert_eq!(
+            morning,
+            include_str!("../../tests/fixtures/email/morning-escaped-images.html")
+        );
+        let empty_context = RunDeliveryContext {
+            sports_updates: vec![],
+            health_footnote: String::new(),
+            ..context
+        };
+        let empty = render(&[], &empty_context, "2026-01-01T12:00:00Z", chrono_tz::UTC)?;
+        assert_eq!(
+            empty,
+            include_str!("../../tests/fixtures/email/empty-noon.html")
+        );
+        let mut unknown_context = empty_context;
+        unknown_context.sports_updates.push(SportsUpdate {
+            status: "in_progress".to_owned(),
+            ..SportsUpdate::default()
+        });
+        let unknown = render(
+            &[],
+            &unknown_context,
+            "2026-01-01T11:59:00Z",
+            chrono_tz::UTC,
+        )?;
+        assert_eq!(
+            unknown,
+            include_str!("../../tests/fixtures/email/unknown-sports-morning.html")
+        );
         Ok(())
     }
 }

@@ -26,6 +26,35 @@ compatibility contracts without a real consumer. Reconsider an in-process API
 only when an integration cannot reasonably use the process protocol and supplies
 concrete lifecycle and error requirements.
 
+### Share email presentation, not runtime APIs
+
+`crates/siftwire/src/runner/email.rs` maps private delivery evidence into
+the standalone `email_ui::Document`. The isolated shared crate owns the fixed HTML
+components and styles; it imports no SiftWire runner, engine, or storage APIs.
+SiftWire still owns edition/date/time-zone labels, counts, grouping, and empty
+section policy. Its process protocol remains the only production consumer
+boundary.
+
+- **Safety:** delivery preparation already normalizes links to credential-free
+  absolute HTTP(S), substitutes empty links for invalid values, and filters
+  images before mapping. The shared renderer validates its presentational
+  inputs and performs no fetching. Prepared-plan persistence, replay,
+  confirmation, and existing Markdown/plain-text/final-answer rendering remain
+  unchanged; SiftWire consumes only the shared result's HTML.
+- **Capability:** the shared components replace the previous private HTML
+  implementation. Exact-byte assertions use [frozen synthetic outputs](../../crates/siftwire/tests/fixtures/email/README.md)
+  captured before extraction, not expected strings regenerated from the new
+  renderer.
+- **User experience:** this is a presentation ownership change, not a redesign.
+  No new production actions, calls, or configuration are required. Byte parity
+  does not establish rendering in every mail client or real delivery success.
+
+Copying the template into each caller would leave style changes independently
+maintained. Sharing the runtime would expose unrelated state and lifecycle
+contracts. The presentational document is the smallest shared contract needed
+by SiftWire and Mailgate's offline rendering caller. Cargo pins the shared crate
+to an email-ui git revision; development-only sibling paths must not ship.
+
 ### Private modules own complete outcomes
 
 Keep the process protocol as the reusable building block. Its private modules

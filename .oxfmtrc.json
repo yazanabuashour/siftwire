@@ -11,6 +11,7 @@
     "apps/web/dist/**",
     "node_modules/**",
     "receipts/**",
+    "crates/siftwire/tests/fixtures/email/*.html",
     "docs/agent-eval-results/**",
     "**/*.md"
   ]

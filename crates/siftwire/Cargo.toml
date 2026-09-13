@@ -15,6 +15,7 @@ autolib = false
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
+email-ui = { git = "https://github.com/yazanabuashour/email-ui.git", rev = "153b5d029551bf5f20566bf5f51a74bdffb2440f" }
 feed-rs = "2.4"
 fs2 = "0.4"
 getrandom = "0.4"

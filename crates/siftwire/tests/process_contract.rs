@@ -126,17 +126,20 @@ fn process_framing_and_exits() -> Result<()> {
     Ok(())
 }
 
+const DELIVERY_STORY_URL: &str = r"https://example.test/article?pattern=\d";
+
+fn delivery_feed_xml() -> String {
+    format!(
+        r#"<?xml version="1.0"?><rss version="2.0"><channel><title>Fixture</title><item><title>Contract story</title><link>{DELIVERY_STORY_URL}</link><guid>story-1</guid><pubDate>{}</pubDate></item></channel></rss>"#,
+        chrono::Utc::now().to_rfc2822()
+    )
+}
+
 #[test]
 fn config_and_delivery_through_process_contract() -> Result<()> {
     let temp = TempDir::new()?;
     let feed = temp.path().join("feed.xml");
-    fs::write(
-        &feed,
-        format!(
-            r#"<?xml version="1.0"?><rss version="2.0"><channel><title>Fixture</title><item><title>Contract story</title><link>https://example.test/story</link><guid>story-1</guid><pubDate>{}</pubDate></item></channel></rss>"#,
-            chrono::Utc::now().to_rfc2822()
-        ),
-    )?;
+    fs::write(&feed, delivery_feed_xml())?;
     let feed_url = url::Url::from_file_path(&feed)
         .map_err(|()| anyhow::anyhow!("fixture path is not an absolute file URL"))?;
     let database = temp.path().join("contract.sqlite");
@@ -202,6 +205,12 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
     let message = format!("- [{}](<{}>)", item.title, item.url);
     let prepared =
         assert_normal_prepared_plan(&database_text, &run.run_id, &message, &environment)?;
+    assert!(
+        prepared
+            .html
+            .contains(&format!(r#"href="{DELIVERY_STORY_URL}""#)),
+        "prepared HTML did not preserve the query backslash"
+    );
     let request = json!({
         "action": "confirm_delivery",
         "run_id": run.run_id.clone(),

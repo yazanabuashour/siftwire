@@ -4,6 +4,11 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Releases
 
+- [v0.9.2](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.2)
+  shares email presentation through the standalone `email-ui` crate while
+  preserving the existing brief layout, supported links, and immutable delivery
+  bodies. No separate renderer installation or database reset is required.
+  See the [release notes](docs/release-notes/v0.9.2.md).
 - [v0.9.1](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.1)
   makes agent evaluation harness-neutral through an executable JSON contract,
   adds a Pi implementation and model-free smoke adapter, and records actual

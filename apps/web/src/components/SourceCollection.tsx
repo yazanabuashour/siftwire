@@ -28,6 +28,7 @@ export default function SourceCollection({
   const [status, setStatus] = useState("all")
   const [kind, setKind] = useState("all")
   const needle = query.trim().toLowerCase()
+
   const visible = [...sources]
     .sort(
       (a, b) => a.label.localeCompare(b.label) || a.key.localeCompare(b.key),
@@ -48,6 +49,7 @@ export default function SourceCollection({
         (status === "all" || source.enabled === (status === "enabled")) &&
         (kind === "all" || sourceType(source.kind) === kind),
     )
+
   return (
     <>
       <div className="folio-source-filters">

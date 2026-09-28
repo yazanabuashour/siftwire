@@ -55,6 +55,7 @@ export function Candidates({ detail }: { detail: RunDetail }) {
 
 function Annotations({ detail }: { detail: RunDetail }) {
   if (!detail.annotations.length) return null
+
   return (
     <details className="folio-evidence-group">
       <summary>Warnings and annotations ({detail.annotations.length})</summary>
@@ -94,11 +95,13 @@ export function Dropped({ detail }: { detail: RunDetail }) {
   if (!detail.dropped.length)
     return <p className="folio-empty">No exclusions were recorded.</p>
   const groups = new Map<string, RunDetail["dropped"]>()
+
   for (const item of detail.dropped) {
     const group = groups.get(item.reason) ?? []
     group.push(item)
     groups.set(item.reason, group)
   }
+
   return (
     <>
       <p className="folio-muted">
@@ -132,6 +135,7 @@ export function Dropped({ detail }: { detail: RunDetail }) {
 export function FetchStatuses({ detail }: { detail: RunDetail }) {
   if (!detail.fetch.length)
     return <p className="folio-empty">No source checks were recorded.</p>
+
   return (
     <div className="folio-fetch-list">
       {detail.fetch.map((status) => (

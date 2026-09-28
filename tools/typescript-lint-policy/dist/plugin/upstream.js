@@ -6,7 +6,9 @@ import { noReduceAccumulatorCopyRule } from "../vendor/anti-slop/src/rules/no-re
 import { noReflectApplyRule } from "../vendor/anti-slop/src/rules/no-reflect-apply.js";
 import { noReflectGetRule } from "../vendor/anti-slop/src/rules/no-reflect-get.js";
 import { noForbiddenTermInSymbolNamesRule } from "../vendor/anti-slop/src/rules/no-shape-in-symbol-names.js";
+import { requireReadableSpacingRule } from "../vendor/anti-slop/src/rules/require-readable-spacing.js";
 export const upstreamRules = {
+    "require-readable-spacing": requireReadableSpacingRule,
     "no-array-filter-map": noArrayFilterMapRule,
     "no-chained-type-assertions": noChainedTypeAssertionsRule,
     "no-conditional-empty-object-spread": noConditionalEmptyObjectSpreadRule,

@@ -9,6 +9,7 @@ import {
 } from "./contract"
 
 const request = requestSchema.parse(JSON.parse(await Bun.stdin.text()))
+
 if (
   request.prompts.some(
     (prompt) =>
@@ -19,16 +20,21 @@ if (
     "The deterministic stub only supports configuration inspection",
   )
 }
+
 const turns: TurnResult[] = []
+
 for (const _prompt of request.prompts) {
   NodeFS.readFileSync(request.skill_path, "utf8")
+
   const execution = NodeChildProcess.spawnSync("siftwire", ["config"], {
     input: '{"action":"inspect_config"}\n',
     encoding: "utf8",
     cwd: request.workspace,
     env: request.tool_env,
   })
+
   if (execution.error) throw execution.error
+
   if (execution.status !== 0)
     throw new Error(`Stub runner failed: ${execution.stderr}`)
   turns.push({
@@ -40,6 +46,7 @@ for (const _prompt of request.prompts) {
     ],
   })
 }
+
 await Bun.stdout.write(
   JSON.stringify(
     responseSchema.parse({

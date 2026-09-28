@@ -59,7 +59,7 @@ it("keeps publisher edits local, preserves notes on failure/refetch, and discard
     }),
   )
   expect(host.textContent).toContain("Overlapping publisher matches")
-  act(() =>
+  await act(async () =>
     client.setQueryData(configQuery.queryKey, {
       ...configuration(),
       outlets: [{ ...publisher, note: "Changed remotely" }],
@@ -95,8 +95,9 @@ it("confirms and acknowledges an empty publisher collection despite a late confi
     }),
   )
   const lateRead = pendingResponse()
+  let refresh: Promise<void> | undefined
   act(() => {
-    void client.refetchQueries(configQuery)
+    refresh = client.refetchQueries(configQuery)
   })
   expect(lateRead.signal.aborted).toBe(false)
   // The runner omits empty collections, including outlets.
@@ -111,6 +112,7 @@ it("confirms and acknowledges an empty publisher collection despite a late confi
   await settle()
   expect(host.textContent).toContain("Publishers saved.")
   lateRead.respond(Response.json(configuration()))
+  await refresh
   await settle()
   expect(client.getQueryData(configQuery.queryKey)).toEqual({
     ...configuration(),
@@ -129,7 +131,7 @@ it("keeps settings drafts during refetch and errors, supports discard, and uses 
   )
   render(<SettingsPage />)
   change("Sports time zone", "GMT")
-  act(() =>
+  await act(async () =>
     client.setQueryData(configQuery.queryKey, {
       ...configuration(),
       runtime_config: {
@@ -151,8 +153,9 @@ it("keeps settings drafts during refetch and errors, supports discard, and uses 
   click("Save settings")
   await settle()
   const lateRead = pendingResponse()
+  let refresh: Promise<void> | undefined
   act(() => {
-    void client.refetchQueries(configQuery)
+    refresh = client.refetchQueries(configQuery)
   })
   expect(lateRead.signal.aborted).toBe(false)
   write.respond(
@@ -165,6 +168,7 @@ it("keeps settings drafts during refetch and errors, supports discard, and uses 
   await settle()
   expect(input("Sports time zone").value).toBe("Etc/UTC")
   lateRead.respond(Response.json(configuration()))
+  await refresh
   await settle()
   expect(input("Sports time zone").value).toBe("Etc/UTC")
   expect(client.getQueryData(configQuery.queryKey)).toEqual({
@@ -183,7 +187,7 @@ it("cancels unapplied publisher edits without leaving a stale collection draft",
   render(<OutletsPage />)
   click("Edit Example")
   change("Publisher name", "Cancelled name")
-  act(() =>
+  await act(async () =>
     client.setQueryData(configQuery.queryKey, {
       ...configuration(),
       outlets: [{ ...publisher, name: "Remote name" }],
@@ -205,7 +209,7 @@ it("adds a local publisher, freezes the collection while editing, and accepts on
   click("Add publisher")
   change("Publisher name", "New publisher")
   change("Aliases", " NEW.TEST, Another name ")
-  act(() =>
+  await act(async () =>
     client.setQueryData(configQuery.queryKey, {
       ...configuration(),
       outlets: [{ ...publisher, note: "Remote change" }],
@@ -214,6 +218,7 @@ it("adds a local publisher, freezes the collection while editing, and accepts on
   await settle()
   click("Apply to draft")
   expect(request).not.toHaveBeenCalled()
+
   const added = {
     name: "New publisher",
     aliases: ["NEW.TEST", "Another name"],
@@ -221,11 +226,13 @@ it("adds a local publisher, freezes the collection while editing, and accepts on
     policy: "allow",
     enabled: true,
   }
+
   const normalized = {
     ...added,
     name: "Normalized publisher",
     aliases: ["new.test"],
   }
+
   const write = pendingResponse()
   click("Save publishers")
   await settle()

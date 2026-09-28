@@ -28,6 +28,25 @@ export class TurnCollector {
 
   observe(event: AgentSessionEvent): void {
     switch (event.type) {
+      // Progress and session metadata do not establish execution receipts.
+      case "auto_retry_end":
+      case "auto_retry_start":
+      case "bash_execution_update":
+      case "compaction_end":
+      case "compaction_start":
+      case "entry_appended":
+      case "message_start":
+      case "message_update":
+      case "queue_update":
+      case "session_info_changed":
+      case "summarization_retry_attempt_start":
+      case "summarization_retry_finished":
+      case "summarization_retry_scheduled":
+      case "thinking_level_changed":
+      case "tool_execution_update":
+      case "turn_end":
+      case "turn_start":
+        break
       case "agent_start":
         if (this.active || this.settled)
           throw new LifecycleError("Duplicate agent start")
@@ -47,22 +66,27 @@ export class TurnCollector {
       case "message_end": {
         if (!this.active) throw new LifecycleError("Message outside agent run")
         this.lastMessage = event.message
+
         if (event.message.role !== "assistant") break
         this.assistantCalls += 1
+
         if (
           event.message.provider !== this.model.provider ||
           event.message.model !== this.model.id
         ) {
           throw new LifecycleError("Assistant provider/model changed")
         }
+
         // Failed attempts may contain partial tool calls that Pi never executes.
         if (
           event.message.stopReason === "error" ||
           event.message.stopReason === "aborted"
         )
           break
+
         for (const part of event.message.content) {
           if (part.type !== "toolCall") continue
+
           if (this.calls.has(part.id))
             throw new LifecycleError("Duplicate tool call")
           this.calls.set(part.id, {
@@ -71,10 +95,13 @@ export class TurnCollector {
             executed: false,
           })
         }
+
         break
       }
+
       case "tool_execution_start": {
         const call = this.calls.get(event.toolCallId)
+
         if (
           !this.active ||
           call?.name !== event.toolName ||
@@ -82,11 +109,14 @@ export class TurnCollector {
         ) {
           throw new LifecycleError("Orphan or duplicate tool start")
         }
+
         call.state = "started"
         break
       }
+
       case "tool_execution_end": {
         const call = this.calls.get(event.toolCallId)
+
         if (
           !this.active ||
           call?.name !== event.toolName ||
@@ -94,6 +124,7 @@ export class TurnCollector {
         ) {
           throw new LifecycleError("Orphan or duplicate tool end")
         }
+
         if (!event.isError && !call.executed)
           throw new LifecycleError(
             "Successful tool result without execution receipt",
@@ -108,12 +139,14 @@ export class TurnCollector {
   // execute hooks establish action receipts, including executions that fail.
   recordExecution(id: string, action: Action): void {
     const call = this.calls.get(id)
+
     const name =
       action.kind === "command"
         ? "bash"
         : action.kind === "read"
           ? "read"
           : action.name
+
     if (
       !this.active ||
       call?.name !== name ||
@@ -125,8 +158,10 @@ export class TurnCollector {
       this.executionError ??= new LifecycleError(
         "Orphan or duplicate tool execution",
       )
+
       return
     }
+
     call.executed = true
     this.actions.push(action)
   }
@@ -140,9 +175,11 @@ export class TurnCollector {
   finish(): TurnResult {
     if (this.executionError) throw this.executionError
     this.assertCallsEnded()
+
     if (!this.settled || this.active)
       throw new LifecycleError("Unsettled agent lifecycle")
     const message = this.lastMessage
+
     if (
       message?.role !== "assistant" ||
       message.stopReason !== "stop" ||
@@ -150,14 +187,18 @@ export class TurnCollector {
     ) {
       throw new LifecycleError("Unsuccessful final assistant response")
     }
+
     let finalMessage = ""
+
     for (const part of message.content) {
       if (part.type === "text") finalMessage += part.text
       else if (part.type !== "thinking")
         throw new LifecycleError("Unexpected terminal content")
     }
+
     if (!finalMessage.trim())
       throw new LifecycleError("Empty final assistant response")
+
     return {
       final_message: finalMessage,
       assistant_calls: this.assistantCalls,

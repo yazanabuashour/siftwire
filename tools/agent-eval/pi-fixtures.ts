@@ -8,8 +8,11 @@ import { z } from "zod"
 import { protocol, type EvalRequest } from "./contract"
 
 const roots: string[] = []
+
 export const poison = "PERSONAL_RESOURCE_MUST_NOT_LOAD"
+
 export const finalText = "  Done exactly.\n\n"
+
 export const failedCommand =
   'printf observed-failure > "$HOME/failed-effect"; exit 9'
 
@@ -42,6 +45,7 @@ export function fixture(baseUrl = "http://127.0.0.1:1") {
   const root = NodeFS.mkdtempSync(
     NodePath.join(NodeOS.tmpdir(), "siftwire-pi-test-"),
   )
+
   roots.push(root)
   const workspace = NodePath.join(root, "workspace")
   const agentDir = NodePath.join(root, "personal-agent")
@@ -65,6 +69,7 @@ export function fixture(baseUrl = "http://127.0.0.1:1") {
     }),
   )
   writeModel(agentDir, baseUrl)
+
   return {
     agentDir,
     input: {
@@ -130,6 +135,7 @@ export function startDriver(
 ) {
   const output = NodePath.join(input.artifact_dir, "response.json")
   const fd = NodeFS.openSync(output, "w")
+
   try {
     const child = Bun.spawn([NodePath.join(import.meta.dir, "pi")], {
       cwd: input.workspace,
@@ -143,6 +149,7 @@ export function startDriver(
       stdout: fd,
       stderr: "pipe",
     })
+
     return { child, output }
   } finally {
     NodeFS.closeSync(fd)
@@ -159,6 +166,7 @@ type CompletionDelta = {
     function: { name: string; arguments: string }
   }[]
 }
+
 export function completion(
   delta: CompletionDelta = { role: "assistant", content: "Done" },
   reason = "stop",
@@ -170,6 +178,7 @@ export function completion(
     model: "synthetic",
     choices: [{ index: 0, delta, finish_reason: reason }],
   }
+
   return new Response(`data: ${JSON.stringify(chunk)}\n\ndata: [DONE]\n\n`, {
     headers: { "Content-Type": "text/event-stream" },
   })
@@ -191,17 +200,21 @@ const bodySchema = z.object({
   ),
   reasoning_effort: z.string(),
 })
+
 export function multiTurnFixture() {
   const requests: z.infer<typeof bodySchema>[] = []
   const { input, agentDir } = fixture()
   input.prompts.push("Follow up")
+
   const server = Bun.serve({
     port: 0,
     hostname: "127.0.0.1",
     async fetch(request) {
       requests.push(bodySchema.parse(await request.json()))
+
       if (requests.length === 1) {
         write(NodePath.join(agentDir, "settings.json"), "{}")
+
         return completion(
           {
             role: "assistant",
@@ -222,6 +235,7 @@ export function multiTurnFixture() {
           "length",
         )
       }
+
       if (requests.length === 2) {
         return completion(
           {
@@ -270,9 +284,12 @@ export function multiTurnFixture() {
           "tool_calls",
         )
       }
+
       return completion({ role: "assistant", content: finalText })
     },
   })
+
   writeModel(agentDir, `http://127.0.0.1:${server.port}/v1`)
+
   return { input, agentDir, server, requests }
 }

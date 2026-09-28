@@ -3,7 +3,9 @@ import * as NodePath from "node:path"
 import { z } from "zod"
 
 export const protocol = "siftwire-agent-eval/v1"
+
 const nonblank = z.string().refine((text) => text.trim().length > 0)
+
 const absolutePath = z
   .string()
   .refine(NodePath.isAbsolute)
@@ -43,6 +45,9 @@ export const responseSchema = z.strictObject({
 })
 
 export type EvalRequest = z.infer<typeof requestSchema>
+
 export type EvalResponse = z.infer<typeof responseSchema>
+
 export type Action = z.infer<typeof actionSchema>
+
 export type TurnResult = EvalResponse["turns"][number]

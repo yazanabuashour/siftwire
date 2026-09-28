@@ -38,11 +38,13 @@ export function mergeSourceResult(
     }
   const sources = new Map(current.sources.map((source) => [source.key, source]))
   const reporting = { ...current.source_reporting }
+
   for (const source of result.sources) {
     sources.set(source.key, source)
     // Never retain an old explanation when the runner omitted the new one.
     delete reporting[source.key]
   }
+
   return {
     ...current,
     sources: [...sources.values()],

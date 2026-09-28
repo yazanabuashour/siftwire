@@ -21,6 +21,7 @@ test.each([200, 502])(
       ),
     )
     const result = request("/health", { method: "GET", schema })
+
     if (status === 200) {
       await expect(result).rejects.toBeInstanceOf(SyntaxError)
     } else {
@@ -55,14 +56,17 @@ test.each([200, 502])(
           }),
           { status },
         )
+
         return response
       }),
     )
+
     const result = request("/health", {
       method: "GET",
       schema,
       signal: external.signal,
     })
+
     const rejection = expect(result).rejects.toBe(cause)
     await vi.waitFor(() => expect(response?.bodyUsed).toBe(true))
     external.abort(cause)

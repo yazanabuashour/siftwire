@@ -51,7 +51,9 @@ function PickerResults({
   useLayoutEffect(() => {
     const container = list.current
     const active = container?.querySelector('[aria-selected="true"]')
+
     if (!container || !(active instanceof HTMLElement)) return
+
     if (active.offsetTop < container.scrollTop)
       container.scrollTop = active.offsetTop
     else if (
@@ -61,6 +63,7 @@ function PickerResults({
       container.scrollTop =
         active.offsetTop + active.offsetHeight - container.clientHeight
   })
+
   return (
     /* oxlint-disable jsx-a11y/prefer-tag-over-role, jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-to-interactive-role -- The combobox owns keyboard focus and option activation through aria-activedescendant. */
     <ul
@@ -101,11 +104,14 @@ function browseOptions(
   choose: (id: string) => void,
 ) {
   if (event.nativeEvent.isComposing) return
+
   if (event.key === "Enter") {
     event.preventDefault()
+
     if (activeId !== undefined) choose(activeId)
   } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
     event.preventDefault()
+
     if (!options.length) return
     const current = options.findIndex(({ id }) => id === activeId)
     const offset = event.key === "ArrowDown" ? 1 : -1
@@ -127,16 +133,20 @@ function PickerPanel({
   const input = useRef<HTMLInputElement>(null)
   const popup = useRef<HTMLDialogElement>(null)
   const style = usePickerPopup(trigger, popup, onClose)
+
   const activeId =
     props.options.find(({ id: optionId }) => optionId === highlight)?.id ??
     props.options[0]?.id
+
   useLayoutEffect(() => {
     if (style.visibility === "visible") input.current?.focus()
   }, [style.visibility])
+
   function choose(id: string) {
     props.onChoose(id)
     onClose(true)
   }
+
   return (
     <dialog
       open
@@ -212,29 +222,37 @@ export function Picker(props: PickerProps) {
   const trigger = useRef<HTMLButtonElement>(null)
   const root = useRef<HTMLDivElement>(null)
   const { onOpenChange, onSearch } = props
+
   const close = useCallback(
     (restoreFocus: boolean) => {
       setOpen(false)
       onOpenChange(false)
       onSearch("")
+
       if (restoreFocus) trigger.current?.focus()
     },
     [onOpenChange, onSearch],
   )
+
   useEffect(() => {
     if (!open) return
+
     function dismissOutside(event: PointerEvent) {
       if (event.target instanceof Node && !root.current?.contains(event.target))
         close(false)
     }
+
     document.addEventListener("pointerdown", dismissOutside, true)
+
     return () =>
       document.removeEventListener("pointerdown", dismissOutside, true)
   }, [open, close])
+
   function show() {
     setOpen(true)
     onOpenChange(true)
   }
+
   return (
     <div
       className={`folio-picker${open ? " folio-picker-open" : ""}`}

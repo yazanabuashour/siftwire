@@ -32,14 +32,17 @@ function settingsDraft(values: Record<string, string>): SettingsDraft {
 
 function settingsError(draft: SettingsDraft): string {
   const stories = Number(draft.max_delivery_items)
+
   if (!Number.isInteger(stories) || stories < 1 || stories > 25) {
     return "Stories per brief must be a whole number from 1 to 25."
   }
+
   for (const raw of [draft.sports_pre_game_days, draft.sports_post_game_days]) {
     if (!raw.trim() || !Number.isSafeInteger(Number(raw)) || Number(raw) < 0) {
       return "Sports windows must be whole numbers of zero or more days."
     }
   }
+
   // The runner owns date-range checks and its supported time-zone database.
   return draft.sports_timezone.trim() ? "" : "Enter a sports time zone."
 }
@@ -55,6 +58,7 @@ function useSettingsEditor() {
   const values = draft ?? configured
   const dirty = JSON.stringify(values) !== JSON.stringify(configured)
   const unavailable = !config.data
+
   const save = useMutation({
     mutationFn: (next: BriefOptionsInput) => setOptions(next),
     onMutate: () => client.cancelQueries(configQuery),
@@ -66,22 +70,26 @@ function useSettingsEditor() {
       setNotice("Settings saved.")
     },
   })
+
   const update = (key: keyof SettingsDraft, value: string): void => {
     setDraft({ ...values, [key]: value })
     setError("")
     setNotice("")
     save.reset()
   }
+
   const discard = (): void => {
     setDraft(null)
     setError("")
     save.reset()
     setNotice("Settings changes discarded.")
   }
+
   const submit = (): void => {
     if (unavailable || !dirty || save.isPending) return
     const problem = settingsError(values)
     setError(problem)
+
     if (problem) return
     save.mutate({
       maxDeliveryItems: Number(values.max_delivery_items),
@@ -90,6 +98,7 @@ function useSettingsEditor() {
       sportsTimezone: values.sports_timezone.trim(),
     })
   }
+
   return {
     config,
     values,
@@ -119,6 +128,7 @@ export default function SettingsPage() {
     notice,
     hasDraft,
   } = useSettingsEditor()
+
   return (
     <section className="config-page">
       <PageHeading title="Settings" />
@@ -129,7 +139,9 @@ export default function SettingsPage() {
           <button
             type="button"
             disabled={config.isFetching}
-            onClick={() => void config.refetch()}
+            onClick={() => {
+              config.refetch().catch(reportError)
+            }}
           >
             Retry
           </button>
@@ -274,6 +286,7 @@ function SettingsFields({
 
 function TechnicalDetails({ config }: { config: ConfigResult }) {
   const editable = settingsDraft(config.runtime_config)
+
   return (
     <details className="folio-advanced">
       <summary>Technical details</summary>

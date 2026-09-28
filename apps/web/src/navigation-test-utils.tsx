@@ -43,6 +43,7 @@ export function detail(run: RunSummary) {
 
 function Pages() {
   const { page } = useNavigation()
+
   return (
     <div className="folio-app">
       {page === "runs" ? <RunsPage /> : <OverviewPage />}
@@ -60,17 +61,26 @@ export function setupRunNavigationTest() {
     vi.stubGlobal(
       "fetch",
       vi.fn<typeof fetch>(async (input, init) => {
-        const url = new URL(String(input), window.location.origin)
+        const url = new URL(
+          input instanceof Request ? input.url : input,
+          window.location.origin,
+        )
+
         const signal = init?.signal ?? undefined
+
         if (url.pathname === "/api/v1/runs") {
           const options: RunListOptions = {
             delivered: url.searchParams.get("delivered") === "true",
             search: url.searchParams.get("search") ?? "",
           }
+
           const before = url.searchParams.get("before")
+
           if (before !== null) options.before = before
+
           return Response.json(await listRuns(options, signal))
         }
+
         if (url.pathname.startsWith("/api/v1/runs/"))
           return Response.json(
             await getRun(
@@ -91,6 +101,7 @@ export function setupRunNavigationTest() {
     client.clear()
     vi.resetAllMocks()
   })
+
   return {
     getRun,
     listRuns,
@@ -110,7 +121,9 @@ export function button(text: string) {
   const found = [...document.querySelectorAll("button")].find(
     (item) => item.textContent === text,
   )
+
   if (!found) throw new Error(`Missing button: ${text}`)
+
   return found
 }
 
@@ -118,6 +131,10 @@ export function setupNavigationTest() {
   let root: Root | undefined
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    // jsdom does not implement the browser's uncaught-error reporting API.
+    vi.stubGlobal("reportError", (error: Error) => {
+      throw error
+    })
     vi.useFakeTimers()
     window.history.replaceState({}, "", "/")
     // jsdom has no layout. These are synthetic visible trigger coordinates.
@@ -126,18 +143,19 @@ export function setupNavigationTest() {
     )
   })
   afterEach(async () => {
-    await act(() => root?.unmount())
+    await act(async () => root?.unmount())
     root = undefined
     document.body.replaceChildren()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
     vi.useRealTimers()
   })
+
   return async (children: ReactNode) => {
     const host = document.createElement("div")
     document.body.append(host)
     root = createRoot(host)
-    await act(() => root?.render(children))
+    await act(async () => root?.render(children))
     await flush()
   }
 }
@@ -149,8 +167,10 @@ export async function flush() {
 
 export function element(selector: string): HTMLElement {
   const found = document.querySelector(selector)
+
   if (!(found instanceof HTMLElement))
     throw new Error(`Missing element: ${selector}`)
+
   return found
 }
 
@@ -160,15 +180,17 @@ export async function click(target: HTMLElement, init: MouseEventInit = {}) {
     cancelable: true,
     ...init,
   })
-  await act(() => {
+
+  await act(async () => {
     target.dispatchEvent(event)
   })
   await flush()
+
   return event
 }
 
 export async function key(value: string, isComposing = false) {
-  await act(() => {
+  await act(async () => {
     element('[role="combobox"]').dispatchEvent(
       new KeyboardEvent("keydown", {
         key: value,
@@ -182,7 +204,7 @@ export async function key(value: string, isComposing = false) {
 }
 
 export async function typeSearch(value: string) {
-  await act(() => {
+  await act(async () => {
     const input = element('[role="combobox"]')
     Object.getOwnPropertyDescriptor(
       HTMLInputElement.prototype,

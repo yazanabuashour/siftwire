@@ -8,6 +8,7 @@ import { RunPicker } from "./RunPicker"
 import { dateLabel, ErrorNote, PageHeading } from "./ui"
 
 const tabs = ["candidates", "dropped", "fetch"] as const
+
 type Tab = (typeof tabs)[number]
 
 export default function RunsPage() {
@@ -15,6 +16,7 @@ export default function RunsPage() {
   const { archive, activeId, detail: result } = useSelectedRun(runId, false)
   const [tab, setTab] = useState<Tab>("candidates")
   const detail = result.data
+
   return (
     <>
       <PageHeading
@@ -140,12 +142,17 @@ function EvidenceTabs({
           onClick={() => onSelect(name)}
           onKeyDown={(event) => {
             let next: Tab | undefined
+
             if (event.key === "ArrowRight")
               next = tabs[(index + 1) % tabs.length]
+
             if (event.key === "ArrowLeft")
               next = tabs[(index + tabs.length - 1) % tabs.length]
+
             if (event.key === "Home") next = tabs[0]
+
             if (event.key === "End") next = tabs[tabs.length - 1]
+
             if (next) {
               event.preventDefault()
               onSelect(next)

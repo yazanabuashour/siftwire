@@ -115,6 +115,7 @@ export function PolicyFields({
         </p>
       </div>
     )
+
   return (
     <div className="config-reporting">
       <Field
@@ -125,6 +126,7 @@ export function PolicyFields({
           value={mode ?? ""}
           onChange={(event) => {
             const next = event.target.value
+
             if (
               next !== "required" &&
               next !== "highlights" &&
@@ -181,6 +183,7 @@ export function PreferenceFields({ draft, update }: SourceFieldsProps) {
 
 export function ScheduleFields({ draft, update }: SourceFieldsProps) {
   if (draft.kind !== "sports_schedule") return null
+
   return (
     <fieldset className="folio-form-group">
       <legend>Sports schedule</legend>

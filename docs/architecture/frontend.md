@@ -62,7 +62,14 @@ console build does not depend on mutable upstream branches.
 Shared rules do not replace runtime checks. SiftWire retains Zod decoding and
 `noPropertyAccessFromIndexSignature`. Runtime, JSX, build, and test settings stay
 local to each consumer.
-`tsconfig.tooling.json` checks root tooling files.
+`tsconfig.tooling.json` checks root tooling files. It temporarily overrides
+`skipLibCheck` for the evaluator's dependency declarations: Pi 0.85.1 references
+`path.PlatformPath`, removed from Node.js 26 types; `@google/genai` 1.52.0 references
+its uninstalled optional MCP SDK peer; and gaxios 7.3.1's `FetchCompliance` requires
+the global fetch type, including Bun's `fetch.preconnect` helper that its method
+does not implement. Remove this override once those declarations are compatible.
+Project-owned tooling still receives strict compiler checks and typed lint;
+the web app retains declaration checking.
 
 ## Changes that need a caller
 

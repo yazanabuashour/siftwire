@@ -10,6 +10,7 @@ test("independent executable stub returns real inspection receipts without Pi co
   const root = NodeFS.mkdtempSync(
     NodePath.join(NodeOS.tmpdir(), "siftwire-stub-"),
   )
+
   try {
     const workspace = NodePath.join(root, "workspace")
     const bin = NodePath.join(root, "bin")
@@ -22,6 +23,7 @@ test("independent executable stub returns real inspection receipts without Pi co
       '#!/bin/sh\n[ "$1" = config ] || exit 1\ncat >> "$HOME/inputs"\nprintf \'{"sources":[]}\\n\'\n',
       { mode: 0o700 },
     )
+
     const request = {
       protocol,
       workspace,
@@ -33,10 +35,12 @@ test("independent executable stub returns real inspection receipts without Pi co
       ],
       tool_env: { PATH: `${bin}:/usr/bin:/bin`, HOME: root },
     }
+
     NodeFS.symlinkSync(
       NodePath.join(import.meta.dir, "stub"),
       NodePath.join(bin, "inspection-adapter"),
     )
+
     const child = Bun.spawn(["inspection-adapter"], {
       stdin: new Blob([JSON.stringify(request)]),
       stdout: "pipe",
@@ -47,12 +51,14 @@ test("independent executable stub returns real inspection receipts without Pi co
         PI_CODING_AGENT_DIR: NodePath.join(root, "no-pi"),
       },
     })
+
     try {
       const [code, stdout, stderr] = await Promise.all([
         child.exited,
         new Response(child.stdout).text(),
         new Response(child.stderr).text(),
       ])
+
       expect(stderr).toBe("")
       expect(code).toBe(0)
       const result = responseSchema.parse(JSON.parse(stdout))

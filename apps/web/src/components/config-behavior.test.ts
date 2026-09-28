@@ -28,6 +28,7 @@ const stored: Source = {
   schedule_format: "",
   schedule_filter: "all",
 }
+
 const publisher: OutletPolicy = {
   name: "Example publisher",
   aliases: ["EXAMPLE.TEST", " Example News "],
@@ -79,10 +80,12 @@ describe("configuration-owned transformations", () => {
 describe("normalized configuration mutation merges", () => {
   it("upserts returned sources without erasing unrelated collections or retaining stale reporting", () => {
     const current = config()
+
     const normalized = {
       ...stored,
       label: "Server normalized",
     }
+
     const result = {
       ...config(),
       sources: [normalized],
@@ -90,6 +93,7 @@ describe("normalized configuration mutation merges", () => {
       outlets: [],
       runtime_config: {},
     }
+
     const next = mergeSourceResult(current, result, "upsert")
     expect(next).toEqual({
       ...current,
@@ -116,9 +120,11 @@ describe("normalized configuration mutation merges", () => {
       ...current,
       runtime_config: { ...current.runtime_config, sports_timezone: "Etc/UTC" },
     })
+
     const result = {
       outlets: [{ ...publisher, note: "Server normalized" }],
     }
+
     expect(mergeOutletsResult(current, result)).toEqual({
       ...current,
       ...result,

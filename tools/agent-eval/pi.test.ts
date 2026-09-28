@@ -37,6 +37,7 @@ test("only the explicit native skill loads; bash replaces inherited environment 
     EVAL_PARENT_SECRET: "synthetic-parent-secret",
     BASH_ENV: poisonScript,
   })
+
   try {
     const prompt = session.agent.state.systemPrompt
     expect(prompt).toContain("You are an expert coding assistant")
@@ -48,13 +49,17 @@ test("only the explicit native skill loads; bash replaces inherited environment 
     expect(session.getActiveToolNames()).toEqual(["read", "bash"])
     expect(session.sessionFile).toBeUndefined()
     const bash = session.agent.state.tools.find((tool) => tool.name === "bash")
+
     if (!bash) throw new Error("missing bash override")
     const result = await bash.execute("test", { command: "/usr/bin/env" })
+
     const text = result.content
       .flatMap((part) => (part.type === "text" ? [part.text] : []))
       .join("\n")
+
     expect(text).toContain("EVAL_TOOL=allowed")
     expect(text).toContain(`HOME=${input.workspace}`)
+
     for (const absent of [
       "EVAL_PARENT_SECRET",
       "BASH_ENV",
@@ -63,15 +68,18 @@ test("only the explicit native skill loads; bash replaces inherited environment 
       poison,
     ])
       expect(text).not.toContain(absent)
+
     const spill = await bash.execute("spill", {
       command: `head -c ${DEFAULT_MAX_BYTES + 1} /dev/zero`,
     })
+
     const details = z
       .object({
         fullOutputPath: z.string(),
         truncation: z.object({ truncated: z.literal(true) }),
       })
       .parse(spill.details)
+
     expect(NodePath.dirname(details.fullOutputPath)).toBe(privateTmp)
     expect(NodeFS.statSync(details.fullOutputPath).size).toBe(
       DEFAULT_MAX_BYTES + 1,
@@ -81,13 +89,16 @@ test("only the explicit native skill loads; bash replaces inherited environment 
       if (parentEnv[key] === undefined) delete NodeProcess.env[key]
       else NodeProcess.env[key] = parentEnv[key]
     }
+
     session.dispose()
   }
+
   expect(NodeFS.existsSync(NodePath.join(agentDir, "sessions"))).toBe(false)
 })
 
 test("invalid skills and non-exact models fail instead of discovering replacements", async () => {
   const { input, agentDir } = fixture()
+
   for (const override of [
     "eval-test/synthe*",
     "missing/synthetic",
@@ -96,15 +107,18 @@ test("invalid skills and non-exact models fail instead of discovering replacemen
   ]) {
     await expect(createEvalSession(input, agentDir, override)).rejects.toThrow()
   }
+
   write(NodePath.join(agentDir, "settings.json"), "{}")
   await expect(createEvalSession(input, agentDir)).rejects.toThrow(
     "defaultProvider/defaultModel",
   )
+
   const session = await createEvalSession(
     input,
     agentDir,
     "eval-test/synthetic",
   )
+
   session.dispose()
   NodeFS.unlinkSync(input.skill_path)
   expect(() => createResources(input, agentDir)).toThrow("Missing or invalid")
@@ -118,6 +132,7 @@ test.each(["complete", "abort", "error", "later-error"])(
     const received = Promise.withResolvers<void>()
     const finish = Promise.withResolvers<void>()
     let requests = 0
+
     const server = Bun.serve({
       port: 0,
       hostname: "127.0.0.1",
@@ -125,18 +140,23 @@ test.each(["complete", "abort", "error", "later-error"])(
         requests += 1
         received.resolve()
         await finish.promise
+
         return outcome === "error" ||
           (outcome === "later-error" && requests === 2)
           ? new Response("Synthetic rejection", { status: 400 })
           : completion()
       },
     })
+
     const { input, agentDir } = fixture(`http://127.0.0.1:${server.port}/v1`)
+
     if (outcome === "later-error") input.prompts.push("Follow up")
     const { child, output } = startDriver(input, agentDir)
+
     try {
       await received.promise
       expect(NodeFS.readFileSync(output, "utf8")).toBe("")
+
       if (outcome === "abort") NodeProcess.kill(child.pid, "SIGTERM")
       else finish.resolve()
       expect(await child.exited).toBe(outcome === "complete" ? 0 : 1)
@@ -149,6 +169,7 @@ test.each(["complete", "abort", "error", "later-error"])(
         NodeFS.statSync(NodePath.join(input.artifact_dir, "pi-events.jsonl"))
           .mode & 0o777,
       ).toBe(0o600)
+
       if (outcome === "complete") {
         expect(
           responseSchema.parse(JSON.parse(NodeFS.readFileSync(output, "utf8"))),
@@ -167,6 +188,7 @@ test.each(["complete", "abort", "error", "later-error"])(
         const diagnostic = await new Response(child.stderr).text()
         expect(diagnostic).not.toBe("")
         expect(diagnostic).not.toContain("Synthetic rejection")
+
         if (outcome === "error" || outcome === "later-error")
           expect(diagnostic).toBe("Unsuccessful final assistant response\n")
       }
@@ -182,11 +204,14 @@ test.each(["complete", "abort", "error", "later-error"])(
 test("one in-memory session retains history, ordered actions, exact text and the initially resolved model", async () => {
   const { input, agentDir, server, requests } = multiTurnFixture()
   const { child, output } = startDriver(input, agentDir)
+
   try {
     expect(await child.exited).toBe(0)
+
     const response = responseSchema.parse(
       JSON.parse(NodeFS.readFileSync(output, "utf8")),
     )
+
     expect(response.turns).toEqual([
       {
         final_message: finalText,

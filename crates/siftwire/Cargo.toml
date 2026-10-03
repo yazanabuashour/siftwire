@@ -16,11 +16,11 @@ anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 email-ui = { git = "https://github.com/yazanabuashour/email-ui.git", rev = "153b5d029551bf5f20566bf5f51a74bdffb2440f" }
-feed-rs = "2.4"
+feed-rs = "3.0"
 fs2 = "0.4"
 getrandom = "0.4"
 path-clean = "1"
-quick-xml = "0.41"
+quick-xml = { version = "0.41", features = ["encoding"] }
 regex = "1"
 rusqlite = { version = "0.40", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }

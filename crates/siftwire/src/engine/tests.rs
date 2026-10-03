@@ -671,6 +671,24 @@ fn current_news_uses_the_whole_feed_and_dates_not_markers_or_order() -> Result<(
 }
 
 #[test]
+fn current_news_preserves_declared_feed_encoding() -> Result<()> {
+    let xml = b"<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>\
+        <rss version=\"2.0\"><channel><title>Fixture</title>\
+        <item><title>Encoded date</title><guid>encoded</guid>\
+        <pubDate>\xA0Thu, 23 Apr 2026 11:00:00 GMT\xA0</pubDate>\
+        </item></channel></rss>";
+    let items = parse_feed(&source("encoded"), xml)?;
+    assert_eq!(items.len(), 1, "encoded feed lost its item");
+    let item = items.first().context("encoded feed item")?;
+    assert_eq!(item.identity, "encoded", "encoded feed identity changed");
+    assert_eq!(
+        item.published_at, "Thu, 23 Apr 2026 11:00:00 GMT",
+        "declared encoding was not applied to publication text"
+    );
+    Ok(())
+}
+
+#[test]
 fn current_news_atom_requires_publication_while_required_keeps_updated() -> Result<()> {
     let xml = br#"<feed xmlns="http://www.w3.org/2005/Atom">
         <title>Fixture</title><id>fixture</id><updated>2026-04-23T12:00:00Z</updated>

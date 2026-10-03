@@ -42,6 +42,7 @@ export function createResources(
     skillPaths: [input.skill_path],
     includeDefaults: false,
   })
+
   if (
     skills.diagnostics.length !== 0 ||
     skills.skills.length !== 1 ||
@@ -51,11 +52,13 @@ export function createResources(
   ) {
     throw new EvalError("Missing or invalid explicit SiftWire skill")
   }
+
   const extensions = {
     extensions: [],
     errors: [],
     runtime: createExtensionRuntime(),
   }
+
   return {
     getExtensions: () => extensions,
     getSkills: () => skills,
@@ -75,6 +78,7 @@ type OnExecution = (id: string, action: Action) => void
 
 function createEvalTools(input: EvalRequest, onExecution?: OnExecution) {
   const read = createReadToolDefinition(input.workspace)
+
   const bash = createBashToolDefinition(input.workspace, {
     shellPath: "/bin/bash",
     exposeSessionEnvironment: false,
@@ -84,11 +88,13 @@ function createEvalTools(input: EvalRequest, onExecution?: OnExecution) {
       env: { ...input.tool_env },
     }),
   })
+
   return [
     defineTool({
       ...read,
       execute: (id, params, signal, onUpdate, ctx) => {
         onExecution?.(id, { kind: "read", path: params.path })
+
         return read.execute(id, params, signal, onUpdate, ctx)
       },
     }),
@@ -96,6 +102,7 @@ function createEvalTools(input: EvalRequest, onExecution?: OnExecution) {
       ...bash,
       execute: (id, params, signal, onUpdate, ctx) => {
         onExecution?.(id, { kind: "command", command: params.command })
+
         return bash.execute(id, params, signal, onUpdate, ctx)
       },
     }),
@@ -111,11 +118,14 @@ export async function createEvalSession(
 ): Promise<AgentSession> {
   let provider: string
   let modelId: string
+
   if (modelOverride !== undefined) {
     const slash = modelOverride.indexOf("/")
+
     if (slash <= 0 || slash === modelOverride.length - 1) {
       throw new EvalError("SIFTWIRE_PI_MODEL must be an exact provider/model")
     }
+
     provider = modelOverride.slice(0, slash)
     modelId = modelOverride.slice(slash + 1)
   } else {
@@ -134,6 +144,7 @@ export async function createEvalSession(
             ),
           ),
         )
+
       provider = defaults.defaultProvider
       modelId = defaults.defaultModel
     } catch {
@@ -142,7 +153,9 @@ export async function createEvalSession(
       )
     }
   }
+
   signal.throwIfAborted()
+
   const runtime = await ModelRuntime.create({
     authPath: NodePath.join(agentDir, "auth.json"),
     modelsPath: NodePath.join(agentDir, "models.json"),
@@ -150,13 +163,17 @@ export async function createEvalSession(
     allowModelNetwork: false,
     signal,
   })
+
   signal.throwIfAborted()
+
   if (runtime.getError())
     throw new EvalError("Pi model configuration could not be loaded")
   const model = runtime.getModel(provider, modelId)
+
   if (!model || model.provider !== provider || model.id !== modelId) {
     throw new EvalError("Exact requested provider/model is unavailable")
   }
+
   const { session } = await createAgentSession({
     cwd: input.workspace,
     agentDir,
@@ -169,6 +186,7 @@ export async function createEvalSession(
     tools: ["read", "bash"],
     customTools: createEvalTools(input, onExecution),
   })
+
   if (
     session.thinkingLevel !== "medium" ||
     session.model?.provider !== provider ||
@@ -179,12 +197,14 @@ export async function createEvalSession(
       "Pi did not retain the exact model and medium reasoning",
     )
   }
+
   return session
 }
 
 function writeJson(fd: number, value: AgentSessionEvent | EvalResponse): void {
   const line = Buffer.from(`${JSON.stringify(value)}\n`)
   let offset = 0
+
   while (offset < line.length)
     offset += NodeFS.writeSync(fd, line, offset, line.length - offset)
 }
@@ -194,13 +214,16 @@ async function runEvaluation(
   signal: AbortSignal,
 ): Promise<EvalResponse> {
   signal.throwIfAborted()
+
   const log = NodeFS.openSync(
     NodePath.join(input.artifact_dir, "pi-events.jsonl"),
     "wx",
     0o600,
   )
+
   try {
     let activeCollector: TurnCollector | undefined
+
     const session = await createEvalSession(
       input,
       getAgentDir(),
@@ -212,20 +235,27 @@ async function runEvaluation(
         activeCollector.recordExecution(id, action)
       },
     )
+
     let aborting: Promise<void> | undefined
+
     const abort = () => {
       aborting ??= session.abort()
     }
+
     signal.addEventListener("abort", abort, { once: true })
+
     try {
       const model = session.model
+
       if (!model) throw new EvalError("Pi session has no model")
       const turns: EvalResponse["turns"] = []
+
       for (const prompt of input.prompts) {
         signal.throwIfAborted()
         const collector = new TurnCollector(model)
         activeCollector = collector
         let observationError: Error | undefined
+
         const unsubscribe = session.subscribe((event) => {
           try {
             if (event.type !== "message_update") writeJson(log, event)
@@ -240,13 +270,16 @@ async function runEvaluation(
                   )
           }
         })
+
         try {
           await session.prompt(prompt, {
             // Cancellation during async preflight must not start a fresh agent run.
             preflightResult: () => signal.throwIfAborted(),
           })
           signal.throwIfAborted()
+
           if (observationError) throw observationError
+
           if (
             session.model?.provider !== model.provider ||
             session.model.id !== model.id ||
@@ -254,12 +287,14 @@ async function runEvaluation(
           ) {
             throw new EvalError("Pi model or reasoning changed during scenario")
           }
+
           turns.push(collector.finish())
         } finally {
           unsubscribe()
           activeCollector = undefined
         }
       }
+
       return responseSchema.parse({
         protocol,
         runtime: {
@@ -285,17 +320,22 @@ async function main(): Promise<number> {
   const controller = new AbortController()
   const abort = () => controller.abort()
   const signals = ["SIGINT", "SIGTERM", "SIGHUP"] satisfies NodeJS.Signals[]
+
   for (const signal of signals) NodeProcess.on(signal, abort)
+
   try {
     let input: EvalRequest
+
     try {
       input = requestSchema.parse(JSON.parse(await Bun.stdin.text()))
     } catch {
       throw new EvalError("Invalid evaluation request")
     }
+
     const response = await runEvaluation(input, controller.signal)
     controller.signal.throwIfAborted()
     writeJson(1, response)
+
     return 0
   } catch (error) {
     // SDK/provider errors can include credential command output or response bodies.
@@ -303,7 +343,9 @@ async function main(): Promise<number> {
       error instanceof EvalError || error instanceof LifecycleError
         ? error.message
         : "Pi evaluation failed; sensitive error details withheld"
+
     NodeFS.writeSync(2, `${diagnostic}\n`)
+
     return 1
   } finally {
     for (const signal of signals) NodeProcess.removeListener(signal, abort)

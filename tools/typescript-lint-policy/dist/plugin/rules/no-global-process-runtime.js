@@ -83,32 +83,45 @@ export const noGlobalProcessRuntimeRule = defineRule({
         const allowed = allowedFiles(context.options);
         function trackImportDeclaration(node) {
             const source = literalStringValue(node.source);
-            if (source === null || !NODE_OS_MODULES.has(source))
+            if (source === null ||
+                !NODE_OS_MODULES.has(source) ||
+                node.importKind === "type")
                 return;
+            const variables = context.sourceCode.getDeclaredVariables(node);
             for (const specifier of node.specifiers) {
-                const localName = specifier.local.name;
+                if (specifier.type === "ImportSpecifier" &&
+                    specifier.importKind === "type")
+                    continue;
+                const variable = variables.find((binding) => binding.name === specifier.local.name);
+                if (variable === undefined)
+                    continue;
                 if (specifier.type === "ImportNamespaceSpecifier" ||
                     specifier.type === "ImportDefaultSpecifier") {
-                    nodeOsNamespaces.add(localName);
+                    nodeOsNamespaces.add(variable);
                     continue;
                 }
                 const imported = getPropertyName(specifier.imported);
                 if (imported !== null && RUNTIME_PROPERTIES.has(imported)) {
-                    nodeOsRuntimeImports.set(localName, imported);
+                    nodeOsRuntimeImports.set(variable, imported);
                 }
             }
         }
         function nodeOsRuntimeCall(callee) {
             const expression = unwrapExpression(callee);
             if (expression?.type === "Identifier") {
-                return nodeOsRuntimeImports.get(expression.name) ?? null;
+                const variable = resolveVariable(context.sourceCode, expression);
+                return variable === null
+                    ? null
+                    : (nodeOsRuntimeImports.get(variable) ?? null);
             }
             if (expression?.type !== "MemberExpression")
                 return null;
             const object = unwrapExpression(expression.object);
-            if (object?.type !== "Identifier" || !nodeOsNamespaces.has(object.name)) {
+            if (object?.type !== "Identifier")
                 return null;
-            }
+            const variable = resolveVariable(context.sourceCode, object);
+            if (variable === null || !nodeOsNamespaces.has(variable))
+                return null;
             const property = getPropertyName(expression.property);
             return property !== null && RUNTIME_PROPERTIES.has(property)
                 ? property

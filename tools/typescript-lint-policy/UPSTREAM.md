@@ -1,11 +1,13 @@
 # anti-slop provenance and local differences
 
 This policy uses selected files from
-[dmmulroy/anti-slop](https://github.com/dmmulroy/anti-slop/tree/95a56e5d24fb3d849673c2d51eb0908b8bd2d33b),
-revision `95a56e5d24fb3d849673c2d51eb0908b8bd2d33b`.
+[dmmulroy/anti-slop](https://github.com/dmmulroy/anti-slop/tree/c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b),
+revision `c44ef22ca116d0ba62a3ff663a0bd13a3f3fa40b`.
 [UPSTREAM-SOURCE.json](UPSTREAM-SOURCE.json) records the SHA-256 digest of each
 vendored file. [LICENSE.anti-slop](LICENSE.anti-slop) preserves the upstream MIT
-notice verbatim. Both notices accompany compiled distributions.
+notice verbatim. [LICENSE.eslint-stylistic](LICENSE.eslint-stylistic) preserves
+the MIT notice for the vendored ESLint Stylistic padding-line implementation.
+All license notices accompany compiled distributions.
 
 ## Exact upstream modules
 
@@ -25,12 +27,28 @@ assumed registry release.
 - `no-reflect-apply`
 - `no-reflect-get`
 - `no-shape-in-symbol-names`
+- `require-readable-spacing`
 
-The optional Effect plugin directly imports `no-service-constructor-imports`.
+The optional Effect plugin directly imports `no-service-constructor-imports`
+and `no-manual-tagged-construction`. Local ports of `no-manual-effect-error-tag`
+and `no-manual-tag-comparison` retain upstream metadata and tag-detection helpers
+but treat every nested function, including declarations, as a handler boundary.
+Upstream's handler helper skips function declarations and misattributes their
+branches to an outer catch handler.
+
+The plugin wraps `prefer-effect-match` locally to avoid competing Match advice
+for tagged ternaries in broad Effect catch handlers, where the error-tag rule
+prescribes `catchTag` or `catchReason`. All three rules use the corrected handler
+boundary. Non-tag ternary checks remain active inside those handlers.
+
 Local overrides also import upstream's parameter helpers. There are no local
-copies of those algorithms. Personal formatting and lint exclude only the
-vendored source directory. TypeScript checks those files, and the test command
+copies of those algorithms. Oxfmt and Oxlint leave vendored source untouched. TypeScript checks those files, and the test command
 runs their upstream regressions unchanged through Oxlint's `RuleTester`.
+The upstream spacing CLI test assumes pnpm and the upstream source entry point;
+project-owned integration coverage instead checks multi-file diagnostics,
+attached comments, whitespace-only fixes, and repeated-fix stability against the
+compiled plugin. The embedded Stylistic license, provenance notice, and input
+declaration file are copied into `dist/` and included in build integrity hashes.
 
 ## Local overrides and additions
 
@@ -72,7 +90,8 @@ the exact files now vendored and the comparison base for retained ports. It does
 not establish pristine ancestry for the earlier adaptation. Project-owned work
 uses [LICENSE](LICENSE); adapted upstream work also retains `LICENSE.anti-slop`.
 
-Analysis remains syntactic, not full TypeScript inference. Imported types and
+Custom-rule analysis remains syntactic, not full TypeScript inference. The
+native Oxlint rules separately enable type-aware analysis. Imported types and
 cross-file signatures are unsupported. Dictionary interface analysis collects
 only top-level interfaces. Known predicate calls use direct unknown-input syntax
 and same-file signatures. Unknown array receivers and lazy iterators remain

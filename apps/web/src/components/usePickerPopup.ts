@@ -15,6 +15,7 @@ export function usePickerPopup(
   const [style, setStyle] = useState<CSSProperties>({ visibility: "hidden" })
   useLayoutEffect(() => {
     const viewport = window.visualViewport
+
     function position(event?: Event) {
       if (
         event?.target instanceof Node &&
@@ -22,15 +23,19 @@ export function usePickerPopup(
       )
         return
       const rect = trigger.current?.getBoundingClientRect()
+
       if (!rect || !popup.current) return
       const top = viewport?.offsetTop ?? 0
       const left = viewport?.offsetLeft ?? 0
       const width = viewport?.width ?? window.innerWidth
       const height = viewport?.height ?? window.innerHeight
+
       if (rect.bottom <= top || rect.top >= top + height) {
         onClose(false)
+
         return
       }
+
       const gap = Number.parseFloat(getComputedStyle(popup.current).rowGap) || 0
       const above = Math.max(0, rect.top - top - gap)
       const below = Math.max(0, top + height - rect.bottom - gap)
@@ -48,11 +53,13 @@ export function usePickerPopup(
         visibility: "visible",
       })
     }
+
     position()
     window.addEventListener("resize", position)
     window.addEventListener("scroll", position, true)
     viewport?.addEventListener("resize", position)
     viewport?.addEventListener("scroll", position)
+
     return () => {
       window.removeEventListener("resize", position)
       window.removeEventListener("scroll", position, true)
@@ -60,5 +67,6 @@ export function usePickerPopup(
       viewport?.removeEventListener("scroll", position)
     }
   }, [onClose, popup, trigger])
+
   return style
 }

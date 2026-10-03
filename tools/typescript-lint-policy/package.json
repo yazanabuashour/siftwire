@@ -19,8 +19,9 @@
     "node": ">=22.18.0"
   },
   "peerDependencies": {
-    "@oxlint/plugins": "1.78.0",
-    "oxlint": "1.78.0"
+    "@oxlint/plugins": "1.85.0",
+    "oxlint": "1.85.0",
+    "oxlint-tsgolint": "7.0.2002"
   },
   "files": [
     "dist",
@@ -30,6 +31,7 @@
     "UPSTREAM-SOURCE.json",
     "LICENSE",
     "LICENSE.anti-slop",
+    "LICENSE.eslint-stylistic",
     "SOURCE.json"
   ]
 }

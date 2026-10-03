@@ -12,6 +12,7 @@ function runOption(run: RunSummary, delivered: boolean): PickerOption {
     : run.dry_run
       ? "Preview only"
       : `Not sent · ${run.status}`
+
   return {
     id: run.run_id,
     label: `${delivered && run.delivered_at ? "Delivered" : "Started"} ${dateLabel(delivered ? (run.delivered_at ?? run.started_at) : run.started_at, true)} · ${state}`,
@@ -31,10 +32,12 @@ export function RunPicker({
   const [search, setSearch] = useState("")
   const [open, setOpen] = useState(false)
   const archive = useRuns(delivered, search, open)
+
   const options =
     archive.data?.pages.flatMap((page) =>
       page.runs.map((run) => runOption(run, delivered)),
     ) ?? []
+
   return (
     <div className="folio-run-navigation">
       <Picker
@@ -57,9 +60,11 @@ export function RunPicker({
                   type="button"
                   disabled={archive.isFetching}
                   onClick={() => {
-                    if (archive.isFetchNextPageError)
-                      void archive.fetchNextPage()
-                    else void archive.refetch()
+                    const retry = archive.isFetchNextPageError
+                      ? archive.fetchNextPage()
+                      : archive.refetch()
+
+                    retry.catch(reportError)
                   }}
                 >
                   Retry
@@ -73,7 +78,7 @@ export function RunPicker({
                 type="button"
                 disabled={archive.isFetching}
                 onClick={() => {
-                  void archive.fetchNextPage()
+                  archive.fetchNextPage().catch(reportError)
                 }}
               >
                 {archive.isFetchingNextPage

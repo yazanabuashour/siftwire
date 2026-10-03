@@ -40,6 +40,7 @@ it.each(["/deliveries", "/runs"])(
     expect(element(".folio-page-heading a").getAttribute("href")).toBe(
       runHref(destination === "/" ? "/runs" : "/", "archived / id"),
     )
+
     if (destination === "/")
       expect(element("iframe").getAttribute("srcdoc")).toContain(
         "Saved archived / id",
@@ -101,7 +102,7 @@ it("asks the server for latest delivery, while Activity retains failed and unsen
   expect(element(".folio-page-heading a").getAttribute("href")).toBe(
     "/runs?run=delayed-delivery",
   )
-  await act(() => navigate("/runs"))
+  await act(async () => navigate("/runs"))
   await flush()
   await flush()
   expect(listRuns).toHaveBeenCalledWith(
@@ -112,7 +113,7 @@ it("asks the server for latest delivery, while Activity retains failed and unsen
     "Not sent · failed",
   )
   expect(document.querySelector(".folio-page-heading a")).toBeNull()
-  await act(() => navigate("/?run=new-failure"))
+  await act(async () => navigate("/?run=new-failure"))
   await flush()
   expect(document.body.textContent).toContain("This run has no delivered brief")
   expect(element(".folio-page-heading a").getAttribute("href")).toBe(
@@ -126,7 +127,7 @@ it("distinguishes empty archives from retrieval errors", async () => {
   await open("/")
   expect(document.body.textContent).toContain("No sent briefs yet")
   vi.mocked(listRuns).mockRejectedValue(new Error("Archive unavailable"))
-  await act(() => navigate("/runs"))
+  await act(async () => navigate("/runs"))
   await flush()
   expect(element('[role="alert"]').textContent).toContain("Archive unavailable")
   expect(getRun).not.toHaveBeenCalled()
@@ -136,6 +137,7 @@ it("loads older pages explicitly, searches beyond loaded records with fresh curs
   vi.mocked(listRuns).mockImplementation(async (options) => {
     if (options?.search)
       return { runs: [summary("archive-match")], next_before: null }
+
     return options?.before
       ? { runs: [summary("older")], next_before: null }
       : { runs: [summary("newest")], next_before: "page-cursor" }
@@ -154,6 +156,7 @@ it("loads older pages explicitly, searches beyond loaded records with fresh curs
       (option) => option.textContent,
     ),
   ).toEqual(["newest · Summary newest", "older · Summary older"])
+
   for (const search of ["2020-01-01", "% literal_summary"]) {
     await typeSearch(search)
     expect(listRuns).toHaveBeenLastCalledWith(
@@ -163,6 +166,7 @@ it("loads older pages explicitly, searches beyond loaded records with fresh curs
     expect(document.querySelectorAll('[role="option"]')).toHaveLength(1)
     expect(window.location.search).toBe("?run=selected")
   }
+
   await key("Enter")
   expect(window.location.search).toBe("?run=archive-match")
   expect(document.activeElement).toBe(element(".folio-picker-trigger"))
@@ -175,16 +179,20 @@ it("loads older pages explicitly, searches beyond loaded records with fresh curs
 
 it("aborts superseded searches and ignores their late results", async () => {
   let abandonedSignal: AbortSignal | undefined
+
   let finishAbandoned:
     | ((value: { runs: RunSummary[]; next_before: null }) => void)
     | undefined
+
   vi.mocked(listRuns).mockImplementation(async (options, signal) => {
     if (options?.search === "abandoned") {
       abandonedSignal = signal
+
       return new Promise<RunsList>((resolve) => {
         finishAbandoned = resolve
       })
     }
+
     return { runs: [summary(options?.search || "newest")], next_before: null }
   })
   await open("/runs?run=selected")
@@ -193,7 +201,7 @@ it("aborts superseded searches and ignores their late results", async () => {
   expect(abandonedSignal?.aborted).toBe(false)
   await typeSearch("current")
   expect(abandonedSignal?.aborted).toBe(true)
-  await act(() =>
+  await act(async () =>
     finishAbandoned?.({ runs: [summary("stale")], next_before: null }),
   )
   await flush()
@@ -208,6 +216,7 @@ it("cancels an unneeded archive request when the picker closes", async () => {
   let archiveSignal: AbortSignal | undefined
   vi.mocked(listRuns).mockImplementation(async (_, signal) => {
     archiveSignal = signal
+
     return new Promise((_, reject) => {
       signal?.addEventListener("abort", () => reject(signal.reason), {
         once: true,
@@ -249,6 +258,7 @@ it("passes cancellation to direct record requests when selection changes", async
   vi.mocked(getRun).mockImplementation(async (id, requestSignal) => {
     if (id === "waiting") {
       signal = requestSignal
+
       return new Promise((_, reject) => {
         requestSignal?.addEventListener(
           "abort",
@@ -257,11 +267,12 @@ it("passes cancellation to direct record requests when selection changes", async
         )
       })
     }
+
     return detail(summary(id))
   })
   await open("/?run=waiting")
   expect(signal?.aborted).toBe(false)
-  await act(() => navigate("/?run=ready"))
+  await act(async () => navigate("/?run=ready"))
   await flush()
   expect(signal?.aborted).toBe(true)
   expect(element("iframe").getAttribute("srcdoc")).toContain("Saved ready")

@@ -6,6 +6,7 @@ import { dateLabel } from "./ui"
 export function RecordedBrief({ detail }: { detail: RunDetail }) {
   if (detail.delivery_html?.trim())
     return <EmailBrief key={detail.run.run_id} html={detail.delivery_html} />
+
   return <p className="folio-empty">No saved email HTML for this brief.</p>
 }
 

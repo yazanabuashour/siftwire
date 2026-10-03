@@ -10,12 +10,14 @@ export default function EmailBrief({ html }: { html: string }) {
 
   useEffect(() => {
     const element = frame.current
+
     if (!element) return
     let pending = 0
     let observer: ResizeObserver | undefined
 
     function observe() {
       const document = element?.contentDocument
+
       // Do not wait for the frame's load event: slow logos must not delay layout.
       if (
         !document?.body ||
@@ -23,28 +25,36 @@ export default function EmailBrief({ html }: { html: string }) {
         document.readyState === "loading"
       ) {
         pending = requestAnimationFrame(observe)
+
         return
       }
+
       for (const link of document.querySelectorAll("a")) {
         link.target = "_blank"
         link.rel = "noopener noreferrer"
+
         if (!/^https?:\/\//i.test(link.getAttribute("href") ?? ""))
           link.removeAttribute("href")
       }
+
       const resize = () => {
         if (element)
           element.style.height = `${Math.ceil(document.body.getBoundingClientRect().height)}px`
       }
+
       observer = new ResizeObserver(resize)
       observer.observe(document.body)
       resize()
     }
 
     observe()
+
     return () => {
       cancelAnimationFrame(pending)
       observer?.disconnect()
     }
+    // The replaced srcDoc needs a fresh observer even though setup reads the frame.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [html])
 
   return (

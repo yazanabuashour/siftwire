@@ -13,13 +13,16 @@ snapshot intentionally omits their inputs.
 2. Run `npm ci` and `npm run check` there.
 3. Run `npm run vendor -- <new-destination>` there. Use a new directory next to
    this snapshot, not this directory itself.
-4. Compare the export, including both licenses, `UPSTREAM.md`, and provenance.
+4. Compare the export, including all license notices, `UPSTREAM.md`, and provenance.
 5. Replace the old snapshot after review.
 6. Update the consumer's dependency lockfile and run its gates.
 
-Install through the consumer's local file dependency. Install the exact `oxlint`
-and `@oxlint/plugins` peer versions from this snapshot's `package.json` in the
-consumer project.
+Install through the consumer's local file dependency. Install the exact `oxlint`,
+`@oxlint/plugins`, and `oxlint-tsgolint` peer versions from this snapshot's
+`package.json` in the consumer project. Type-aware linting is on by default;
+missing `oxlint-tsgolint` is a lint failure, not a syntax-only fallback.
+Use the consumer's npm scripts or `npm exec -- oxlint` so local tool binaries are
+available. Keep the consumer's TypeScript compiler check as a separate gate.
 
 ```ts
 import policy from "@yazanabuashour/oxlint-config"
@@ -36,6 +39,13 @@ import { defineConfig } from "oxlint"
 
 export default defineConfig({ extends: [policy, effectConfig] })
 ```
+
+The default rejects unhandled promises (including `void promise`), misused
+promises, awaiting non-thenables, and non-exhaustive union switches. It also
+enforces unused-disable directives and structural blank lines. Run
+Oxlint's `--fix` for spacing fixes and Oxfmt for formatting; neither tool replaces
+the other. Effect consumers get tagged construction, branching, error-handler,
+and service-ownership rules through `effectConfig`.
 
 Keep consumer-specific exemptions in the consumer's config. The snapshot does
 not include host-runtime allowlists, generated-file exemptions, or restricted

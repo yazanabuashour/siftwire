@@ -12,6 +12,7 @@ import {
 import { Picker, type PickerOption } from "./Picker"
 
 const render = setupNavigationTest()
+
 const records: PickerOption[] = [
   { id: "new", label: "Newest", description: "New summary" },
   { id: "middle", label: "Middle", description: "Middle summary" },
@@ -22,6 +23,7 @@ function Example({ choose }: { choose?: (id: string) => void }) {
   const [search, setSearch] = useState("")
   const [value, setValue] = useState(records[1])
   const [open, setOpen] = useState(false)
+
   return (
     <div className="folio-app">
       <Picker
@@ -51,6 +53,7 @@ function Example({ choose }: { choose?: (id: string) => void }) {
 }
 
 const trigger = () => element(".folio-picker-trigger")
+
 const active = () => element('[role="option"][aria-selected="true"]')
 
 // Adapted from Salary Atlas's CitySearch interactions, without its catalog or ranking.
@@ -105,7 +108,7 @@ describe("record picker commit and cancellation", () => {
     expect(document.querySelector("dialog")).not.toBeNull()
     await key("Escape")
     expect(document.activeElement).toBe(trigger())
-    await act(() => {
+    await act(async () => {
       trigger().dispatchEvent(
         new KeyboardEvent("keydown", {
           key: "ArrowDown",
@@ -126,15 +129,15 @@ describe("record picker commit and cancellation", () => {
     await render(<Example choose={choose} />)
     await click(trigger())
     await typeSearch("New")
-    await act(() => element(".folio-picker-footer button").focus())
+    await act(async () => element(".folio-picker-footer button").focus())
     expect(document.querySelector("dialog")).not.toBeNull()
     // Focus transfer models Tab leaving the popup; jsdom does not perform native tab traversal.
-    await act(() => element("#outside").focus())
+    await act(async () => element("#outside").focus())
     expect(document.querySelector("dialog")).toBeNull()
     expect(document.activeElement).toBe(element("#outside"))
     await click(trigger())
     expect(element('[role="combobox"]').getAttribute("value")).toBe("")
-    await act(() => {
+    await act(async () => {
       element("#outside").dispatchEvent(
         new Event("pointerdown", { bubbles: true }),
       )
@@ -178,6 +181,7 @@ describe("record picker viewport behavior", () => {
       width: 320,
       height: 600,
     })
+
     vi.stubGlobal("visualViewport", viewport)
     const bounds = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect")
     bounds.mockReturnValue(new DOMRect(280, 500, 300, 44))
@@ -190,7 +194,7 @@ describe("record picker viewport behavior", () => {
         Number.parseFloat(popup.style.width),
     ).toBeLessThanOrEqual(viewport.width)
     bounds.mockReturnValue(new DOMRect(20, 30, 280, 44))
-    await act(() => {
+    await act(async () => {
       viewport.dispatchEvent(new Event("resize"))
     })
     expect(popup.style.transform).toBe("")
@@ -200,13 +204,13 @@ describe("record picker viewport behavior", () => {
     ).toBeLessThanOrEqual(viewport.height)
     const top = popup.style.top
     bounds.mockReturnValue(new DOMRect(20, 1000, 280, 44))
-    await act(() => {
+    await act(async () => {
       element('[role="listbox"]').dispatchEvent(
         new Event("scroll", { bubbles: true }),
       )
     })
     expect(popup.style.top).toBe(top)
-    await act(() => {
+    await act(async () => {
       window.dispatchEvent(new Event("scroll"))
     })
     await flush()

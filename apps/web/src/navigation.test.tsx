@@ -23,7 +23,11 @@ beforeEach(() => {
   vi.stubGlobal(
     "fetch",
     vi.fn<typeof fetch>(async (input) => {
-      const url = new URL(String(input), window.location.origin)
+      const url = new URL(
+        input instanceof Request ? input.url : input,
+        window.location.origin,
+      )
+
       if (url.pathname === "/api/v1/config")
         return Response.json({
           runner_protocol: "siftwire-runner/v5",
@@ -37,6 +41,7 @@ beforeEach(() => {
             sports_timezone: "UTC",
           },
         })
+
       if (url.pathname.startsWith("/api/v1/runs/"))
         return Response.json({
           run: {
@@ -66,6 +71,7 @@ beforeEach(() => {
 
 function Location() {
   const { page, runId } = useNavigation()
+
   return (
     <output>
       {page}:{runId ?? "latest"}
@@ -77,7 +83,9 @@ function link(text: string) {
   const found = [...document.querySelectorAll("a")].find(
     (anchor) => anchor.textContent === text,
   )
+
   if (!found) throw new Error(`Missing link: ${text}`)
+
   return found
 }
 
@@ -105,6 +113,7 @@ it("keeps selected IDs across Brief, Activity, Sources subnavigation and Setting
     document.querySelectorAll('[aria-label="Main navigation"] a'),
   ).toHaveLength(4)
   expect(link("Brief").getAttribute("aria-current")).toBe("page")
+
   for (const label of [
     "Activity",
     "Sources",
@@ -120,14 +129,17 @@ it("keeps selected IDs across Brief, Activity, Sources subnavigation and Setting
     expect(new URLSearchParams(window.location.search).get("run")).toBe(
       "older / ? & brief",
     )
+
     if (label === "Sources") {
       expect(link("Feeds").getAttribute("aria-current")).toBe("page")
     }
+
     if (label === "Publisher rules") {
       expect(link("Sources").getAttribute("aria-current")).toBe("page")
       expect(link("Publisher rules").getAttribute("aria-current")).toBe("page")
     }
   }
+
   expect(window.location.pathname).toBe("/")
   expect(document.title).toBe("Brief | SiftWire")
 })
@@ -136,13 +148,13 @@ it("pushes only changed URLs, preserves unrelated query/hash, and responds to re
   window.history.replaceState({}, "", "/runs?filter=kept#details")
   await render(<Location />)
   const push = vi.spyOn(window.history, "pushState")
-  await act(() => selectRun("older/id"))
+  await act(async () => selectRun("older/id"))
   expect(element("output").textContent).toBe("runs:older/id")
   expect(window.location.search).toBe("?filter=kept&run=older%2Fid")
   expect(window.location.hash).toBe("#details")
-  await act(() => selectRun("older/id"))
+  await act(async () => selectRun("older/id"))
   expect(push).toHaveBeenCalledTimes(1)
-  await act(() => navigate(runHref("/", "older/id")))
+  await act(async () => navigate(runHref("/", "older/id")))
   expect(element("output").textContent).toBe("overview:older/id")
   await act(async () => {
     window.history.back()
@@ -156,7 +168,7 @@ it("pushes only changed URLs, preserves unrelated query/hash, and responds to re
   })
   await flush()
   expect(element("output").textContent).toBe("overview:older/id")
-  await act(() => selectRun(undefined))
+  await act(async () => selectRun(undefined))
   expect(element("output").textContent).toBe("overview:latest")
   expect(runHref("/", "")).toBe("/?run=")
 })
@@ -181,11 +193,14 @@ it("intercepts ordinary app links but leaves modified clicks, targets, downloads
   const push = vi.spyOn(window.history, "pushState")
   // Observe the React handler, then suppress jsdom's unimplemented native navigation.
   const prevented: boolean[] = []
+
   const preventNative = (event: Event) => {
     prevented.push(event.defaultPrevented)
     event.preventDefault()
   }
+
   document.addEventListener("click", preventNative)
+
   try {
     for (const init of [
       { ctrlKey: true },
@@ -195,6 +210,7 @@ it("intercepts ordinary app links but leaves modified clicks, targets, downloads
       { button: 1 },
     ])
       await click(link("Activity"), init)
+
     for (const label of ["New tab", "Download", "External"])
       await click(link(label))
     expect(prevented).toEqual(Array.from({ length: 8 }, () => false))

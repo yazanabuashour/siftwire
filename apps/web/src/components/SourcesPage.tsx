@@ -25,16 +25,20 @@ export default function SourcesPage() {
     editing: boolean
     reporting: string | undefined
   } | null>(null)
+
   const [removing, setRemoving] = useState<Source | null>(null)
   const [notice, setNotice] = useState("")
+
   const { config, save, remove } = useSources((message) => {
     setNotice(message)
     setEditor(null)
     setRemoving(null)
   })
+
   const busy = save.isPending || remove.isPending
   const ready = !!config.data
   const sources = config.data?.sources ?? []
+
   const startEditing = (source: Source, editing: boolean): void => {
     save.reset()
     remove.reset()
@@ -45,6 +49,7 @@ export default function SourcesPage() {
       reporting: config.data?.source_reporting[source.key],
     })
   }
+
   return (
     <section className="config-page">
       <PageHeading
@@ -116,6 +121,7 @@ export default function SourcesPage() {
 function useSources(onSaved: (message: string) => void) {
   const client = useQueryClient()
   const config = useConfig()
+
   const save = useMutation({
     mutationFn: (source: Source) => saveSource(source),
     onMutate: () => client.cancelQueries(configQuery),
@@ -126,6 +132,7 @@ function useSources(onSaved: (message: string) => void) {
       onSaved(`${result.sources[0]?.label ?? "Source"} saved.`)
     },
   })
+
   const remove = useMutation({
     mutationFn: (key: string) => deleteSource(key),
     onMutate: () => client.cancelQueries(configQuery),
@@ -136,19 +143,22 @@ function useSources(onSaved: (message: string) => void) {
       onSaved(`${key} removed.`)
     },
   })
+
   return { config, save, remove }
 }
 
 function SourceLoadState({ config }: { config: UseQueryResult<ConfigResult> }) {
   if (config.isPending) return <output>Loading sources…</output>
+
   if (!config.isError) return null
+
   return (
     <div className="folio-error" role="alert">
       <p>{config.error.message}</p>
       <button
         type="button"
         onClick={() => {
-          void config.refetch()
+          config.refetch().catch(reportError)
         }}
       >
         Retry

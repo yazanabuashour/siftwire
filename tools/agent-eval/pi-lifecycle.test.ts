@@ -35,11 +35,14 @@ function assistant(overrides: Partial<Assistant> = {}): AgentSessionEvent {
     },
   }
 }
+
 function collector(): TurnCollector {
   const turn = new TurnCollector({ provider: "eval-test", id: "synthetic" })
   turn.observe({ type: "agent_start" })
+
   return turn
 }
+
 function settle(turn: TurnCollector): void {
   turn.observe({ type: "agent_end", messages: [], willRetry: false })
   turn.observe({ type: "agent_settled" })
@@ -53,6 +56,7 @@ test("native translation counts failed attempts and rejects unsuccessful final o
   retried.observe(assistant())
   settle(retried)
   expect(retried.finish().assistant_calls).toBe(2)
+
   const invalid: Partial<Assistant>[] = [
     ...(["length", "error", "aborted", "toolUse"] as const).map(
       (stopReason) => ({ stopReason }),
@@ -61,12 +65,14 @@ test("native translation counts failed attempts and rejects unsuccessful final o
     { content: [{ type: "text", text: " \n" }] },
     { content: [{ type: "thinking", thinking: "No answer" }] },
   ]
+
   for (const overrides of invalid) {
     const turn = collector()
     turn.observe(assistant(overrides))
     settle(turn)
     expect(() => turn.finish()).toThrow()
   }
+
   expect(() => collector().observe(assistant({ model: "other" }))).toThrow(
     "provider/model",
   )
@@ -80,12 +86,14 @@ test("native lifecycle and execution hooks reject orphan, duplicate, mismatched 
   const declaration = assistant({
     content: [{ type: "toolCall", id: "call", name: "other", arguments: {} }],
   })
+
   const start: AgentSessionEvent = {
     type: "tool_execution_start",
     toolCallId: "call",
     toolName: "other",
     args: {},
   }
+
   const end: AgentSessionEvent = {
     type: "tool_execution_end",
     toolCallId: "call",
@@ -93,6 +101,7 @@ test("native lifecycle and execution hooks reject orphan, duplicate, mismatched 
     result: {},
     isError: false,
   }
+
   expect(() => collector().observe(start)).toThrow("Orphan")
   expect(() => collector().observe(end)).toThrow("Orphan")
   const turn = collector()

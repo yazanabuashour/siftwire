@@ -58,6 +58,7 @@ function editor(
       onSave={onSave}
     />,
   )
+
   return onSave
 }
 
@@ -139,11 +140,12 @@ it("preserves a source draft through refetch and server rejection, then merges t
     sources: [stored],
     source_reporting: { example: "required" },
   }
+
   client.setQueryData(configQuery.queryKey, configured)
   render(<SourcesPage />)
   click("Edit Example")
   change("Name", "Draft")
-  act(() =>
+  await act(async () =>
     client.setQueryData(configQuery.queryKey, {
       ...configured,
       sources: [{ ...stored, label: "Remote name" }],
@@ -163,7 +165,7 @@ it("preserves a source draft through refetch and server rejection, then merges t
   click("Save source")
   await settle()
   expect(button("Close dialog").disabled).toBe(true)
-  act(() =>
+  await act(async () =>
     host
       .querySelector("dialog")
       ?.dispatchEvent(new Event("cancel", { cancelable: true })),
@@ -177,8 +179,9 @@ it("preserves a source draft through refetch and server rejection, then merges t
     }),
   )
   const lateRead = pendingResponse()
+  let refresh: Promise<void> | undefined
   act(() => {
-    void client.refetchQueries(configQuery)
+    refresh = client.refetchQueries(configQuery)
   })
   expect(lateRead.signal.aborted).toBe(false)
   write.respond(
@@ -194,6 +197,7 @@ it("preserves a source draft through refetch and server rejection, then merges t
   expect(host.querySelector("dialog")).toBeNull()
   expect(host.textContent).toContain("Normalized name")
   lateRead.respond(Response.json(configured))
+  await refresh
   await settle()
   expect(host.querySelector("article h2")?.textContent).toBe("Normalized name")
   expect(client.getQueryData(configQuery.queryKey)).toEqual({
@@ -209,6 +213,7 @@ it("pauses without rewriting raw policy and removes the last source using the se
     sources: [stored],
     source_reporting: { example: "required" },
   }
+
   client.setQueryData(configQuery.queryKey, configured)
   request.mockResolvedValueOnce(
     Response.json({
@@ -236,8 +241,9 @@ it("pauses without rewriting raw policy and removes the last source using the se
     expect.objectContaining({ method: "DELETE" }),
   )
   const lateRead = pendingResponse()
+  let refresh: Promise<void> | undefined
   act(() => {
-    void client.refetchQueries(configQuery)
+    refresh = client.refetchQueries(configQuery)
   })
   expect(lateRead.signal.aborted).toBe(false)
   write.respond(
@@ -246,6 +252,7 @@ it("pauses without rewriting raw policy and removes the last source using the se
   await settle()
   expect(host.textContent).toContain("example removed.")
   lateRead.respond(Response.json(configured))
+  await refresh
   await settle()
   expect(host.querySelector("dialog")).toBeNull()
   expect(host.querySelectorAll("article")).toHaveLength(0)
@@ -259,6 +266,7 @@ it("searches feeds without altering the collection", () => {
     { ...stored, key: "rss", kind: "rss", label: "Alpha" },
     { ...stored, key: "release", kind: "github_release", label: "Release" },
   ]
+
   render(
     <SourceCollection
       sources={sources}

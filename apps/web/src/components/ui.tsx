@@ -8,11 +8,14 @@ import {
 
 export function dateLabel(value: string, withTime = false): string {
   if (!value || Number.isNaN(Date.parse(value))) return value || "Not recorded"
+
   const options: Intl.DateTimeFormatOptions = {
     dateStyle: "long",
     timeZone: "UTC",
   }
+
   if (withTime) options.timeStyle = "short"
+
   return (
     new Intl.DateTimeFormat("en-GB", options).format(new Date(value)) +
     (withTime ? " UTC" : "")
@@ -24,11 +27,15 @@ export function ErrorNote({ error }: { error: Error }) {
   useEffect(() => {
     const message = ref.current
     const body = message?.closest(".folio-dialog-body")
+
     // Fixed Save actions must reveal repeated failures, not just new messages.
     if (message && body instanceof HTMLElement)
       body.scrollTop +=
         message.getBoundingClientRect().top - body.getBoundingClientRect().top
+    // A repeated failure must scroll again even when its message is unchanged.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [error])
+
   return (
     <p ref={ref} className="folio-error" role="alert">
       {error.message}
@@ -79,6 +86,7 @@ export function Field({
 function isBackdrop(event: PointerEvent<HTMLDialogElement>): boolean {
   if (event.target !== event.currentTarget) return false
   const bounds = event.currentTarget.getBoundingClientRect()
+
   return (
     event.clientX < bounds.left ||
     event.clientX > bounds.right ||
@@ -107,8 +115,10 @@ export function Dialog({
     const dialog = ref.current
     const opener = document.activeElement
     dialog?.showModal()
+
     return () => {
       dialog?.close()
+
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus()
       else
         document
@@ -116,6 +126,7 @@ export function Dialog({
           ?.focus()
     }
   }, [])
+
   return (
     <dialog
       ref={ref}
@@ -123,6 +134,7 @@ export function Dialog({
       aria-labelledby={titleId}
       onCancel={(event) => {
         event.preventDefault()
+
         if (!busy) onClose()
       }}
       onPointerDown={(event) => {

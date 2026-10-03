@@ -30,6 +30,7 @@ it.each([
       threshold,
       url_canonicalization: "google_news_article_url",
     }
+
     const onSave = vi.fn()
     render(
       <SourceEditor

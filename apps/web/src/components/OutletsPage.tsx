@@ -10,6 +10,7 @@ export default function OutletsPage() {
   const model = useOutletEditor()
   const { config, rows, save, editor, startEditing } = model
   const [confirmClear, setConfirmClear] = useState(false)
+
   return (
     <section className="config-page">
       <PageHeading
@@ -36,7 +37,9 @@ export default function OutletsPage() {
           <button
             type="button"
             disabled={config.isFetching}
-            onClick={() => void config.refetch()}
+            onClick={() => {
+              config.refetch().catch(reportError)
+            }}
           >
             Retry
           </button>
@@ -220,6 +223,7 @@ function OutletEditor({
 }: OutletEditorProps) {
   const formId = useId()
   const { draft, error, update, validate } = useOutletDraft(row, rows, index)
+
   return (
     <Dialog
       title={index === null ? "Add publisher" : "Edit publisher"}
@@ -246,6 +250,7 @@ function OutletEditor({
         onSubmit={(event) => {
           event.preventDefault()
           const next = validate()
+
           if (next) onApply(next)
         }}
       >

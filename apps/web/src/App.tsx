@@ -18,6 +18,7 @@ const client = new QueryClient({
     mutations: { retry: false },
   },
 })
+
 const pages = [
   { id: "overview", path: "/", label: "Brief" },
   { id: "sources", path: "/sources", label: "Sources" },
@@ -29,9 +30,11 @@ export default function App() {
   const { page, runId } = useNavigation()
   const section = page === "outlets" ? "sources" : page
   useEffect(() => {
-    document.title = `${pages.find(({ id }) => id === section)?.label} | SiftWire`
+    const activeSection = page === "outlets" ? "sources" : page
+    document.title = `${pages.find(({ id }) => id === activeSection)?.label} | SiftWire`
     window.scrollTo(0, 0)
-  }, [page, section])
+  }, [page])
+
   return (
     <QueryClientProvider client={client}>
       <div className="folio-app">

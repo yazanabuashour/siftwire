@@ -10,7 +10,8 @@ export declare const strictestConfig: {
         specifier: string;
     }[];
     options: {
-        typeAware: false;
+        reportUnusedDisableDirectives: "error";
+        typeAware: true;
         typeCheck: false;
     };
     rules: {
@@ -30,6 +31,12 @@ export declare const strictestConfig: {
         "unicorn/no-array-sort": "off";
         "react/exhaustive-deps": "error";
         "react/rules-of-hooks": "error";
+        "typescript/await-thenable": "error";
+        "typescript/no-floating-promises": ["error", {
+            ignoreVoid: false;
+        }];
+        "typescript/no-misused-promises": "error";
+        "typescript/switch-exhaustiveness-check": "error";
         "typescript/no-explicit-any": "error";
         "typescript/no-non-null-assertion": "error";
         "oxc/no-accumulating-spread": "error";
@@ -53,17 +60,18 @@ export declare const strictestConfig: {
         "project/no-unknown-type-aliases": "error";
         "project/no-unsafe-dictionary-type": "error";
         "project/no-widen-then-assert": "error";
+        "project/require-readable-spacing": "error";
         "project/require-safety-comment-for-type-assertion": "error";
         "eslint/max-lines": ["error", {
             max: number;
-            skipBlankLines: boolean;
-            skipComments: boolean;
+            skipBlankLines: true;
+            skipComments: true;
         }];
         "eslint/max-lines-per-function": ["error", {
-            IIFEs: boolean;
+            IIFEs: true;
             max: number;
-            skipBlankLines: boolean;
-            skipComments: boolean;
+            skipBlankLines: true;
+            skipComments: true;
         }];
     };
 };
@@ -74,7 +82,11 @@ export declare const effectConfig: {
         specifier: string;
     }[];
     rules: {
+        "project-effect/no-manual-effect-error-tag": "error";
+        "project-effect/no-manual-tag-comparison": "error";
+        "project-effect/no-manual-tagged-construction": "error";
         "project-effect/no-service-constructor-imports": "error";
+        "project-effect/prefer-effect-match": "error";
     };
 };
 export default strictestConfig;

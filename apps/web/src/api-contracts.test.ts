@@ -43,6 +43,7 @@ describe("ConfigResultSchema", () => {
       capabilities: ["future-capability/v1", "current-news/v1"],
       future_metadata: { detail: "Not consumed by this console" },
     })
+
     expect(decoded.runner_protocol).toBe("siftwire-runner/v5")
     expect(decoded.sources[0]?.url_canonicalization).toBe("")
     expect(decoded.sources[0]?.priority_rank).toBe("0")
@@ -125,6 +126,7 @@ describe("RunDetailSchema", () => {
         },
       ],
     }
+
     const decoded = RunDetailSchema.parse(fixture)
     expect(decoded.fetch[0]?.items).toBe(7)
     expect(decoded.candidates[0]?.priority_rank).toBe("9223372036854775807")
@@ -161,6 +163,7 @@ describe("runner response ownership", () => {
         capabilities: configFixture.capabilities,
         ...invalidMetadata,
       }
+
       const fetch = vi
         .fn()
         .mockResolvedValueOnce(
@@ -182,6 +185,7 @@ describe("runner response ownership", () => {
             runtime_config: configFixture.runtime_config,
           }),
         )
+
       vi.stubGlobal("fetch", fetch)
       await expect(fetchConfig()).rejects.toThrow(field)
       await expect(replaceOutlets([])).rejects.toThrow(field)
@@ -222,6 +226,7 @@ describe("runner response ownership", () => {
         new Response(JSON.stringify({ runs: [], next_before: "older-run" })),
       ),
     )
+
     vi.stubGlobal("fetch", fetch)
     expect(
       await listRuns({
@@ -251,12 +256,15 @@ describe("lossless priorities", () => {
         ...configFixture,
         sources: [{ ...configFixture.sources[0], priority_rank: rank }],
       }
+
       const fetch = vi.fn(() =>
         Promise.resolve(new Response(JSON.stringify(payload))),
       )
+
       vi.stubGlobal("fetch", fetch)
       const config = await fetchConfig()
       const source = config.sources[0]
+
       if (!source) throw new Error("Missing fixture source")
       const draft = { ...source, label: "Renamed source", enabled: false }
       expect(sourceError(draft, config.sources, source.key)).toBe("")

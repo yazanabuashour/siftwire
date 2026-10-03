@@ -36,6 +36,7 @@ export default function SourceEditor({
 }: SourceEditorProps) {
   const formId = useId()
   const [draft, setDraft] = useState(() => structuredClone(source))
+
   // Type changes do not change the raw feed policy or the user's selection.
   const [feedMode, setFeedMode] = useState<string | undefined>(
     !editing
@@ -44,15 +45,19 @@ export default function SourceEditor({
         ? reporting
         : undefined,
   )
+
   const [error, setError] = useState<Error | null>(null)
   const displayedError = error ?? saveError
   const suggestedKey = suggestKey(draft.label, sources)
+
   const update = (patch: Partial<Source>): void => {
     setDraft((current) => ({ ...current, ...patch }))
     setError(null)
   }
+
   const save = (): void => {
     if (busy) return
+
     const next = {
       ...draft,
       url: draft.kind === "github_release" ? "" : draft.url,
@@ -60,10 +65,13 @@ export default function SourceEditor({
         ? source.key
         : draft.key.trim().toLowerCase() || suggestedKey,
     }
+
     const problem = sourceError(next, sources, editing ? source.key : null)
     setError(problem ? new Error(problem) : null)
+
     if (!problem) onSave(next)
   }
+
   return (
     <Dialog
       title={editing ? "Edit source" : "Add source"}

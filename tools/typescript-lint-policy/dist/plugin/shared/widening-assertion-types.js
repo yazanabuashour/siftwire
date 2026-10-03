@@ -84,6 +84,7 @@ function typesHaveSameSyntax(sourceText, left, right) {
 }
 function isDefinitelyObjectType(type) {
     const unwrapped = unwrapTypeParentheses(type);
+    // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- This predicate recognizes only definitely-object syntax; other AST variants intentionally return false.
     switch (unwrapped.type) {
         case "TSArrayType":
         case "TSConstructorType":

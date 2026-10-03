@@ -14,7 +14,9 @@ export function useRuns(delivered: boolean, search = "", enabled = true) {
       pageParam: string | null
     }) => {
       const options: RunListOptions = { delivered, search }
+
       if (pageParam !== null) options.before = pageParam
+
       return listRuns(options, signal)
     },
     getNextPageParam: (lastPage) => lastPage.next_before ?? undefined,
@@ -38,5 +40,6 @@ export function useSelectedRun(runId: string | undefined, delivered: boolean) {
   const archive = useRuns(delivered, "", runId === undefined)
   const activeId = runId ?? archive.data?.pages[0]?.runs[0]?.run_id
   const detail = useRun(activeId)
+
   return { archive, activeId, detail }
 }

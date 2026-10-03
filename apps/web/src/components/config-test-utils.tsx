@@ -18,10 +18,13 @@ export function pendingResponse() {
   let signal: AbortSignal | undefined
   request.mockImplementationOnce((_url, init) => {
     const requestSignal = init?.signal
+
     if (!requestSignal) throw new Error("Missing request AbortSignal")
     signal = requestSignal
+
     return new Promise<Response>((resolve, reject) => {
       const abort = () => reject(requestSignal.reason)
+
       if (requestSignal.aborted) abort()
       else requestSignal.addEventListener("abort", abort, { once: true })
       respond = (response) => {
@@ -30,6 +33,7 @@ export function pendingResponse() {
       }
     })
   })
+
   return {
     respond(response: Response) {
       if (!respond) throw new Error("Request has not started")
@@ -37,6 +41,7 @@ export function pendingResponse() {
     },
     get signal() {
       if (!signal) throw new Error("Request has not started")
+
       return signal
     },
   }
@@ -44,10 +49,12 @@ export function pendingResponse() {
 
 export function sentOutlets(): OutletPolicy[] {
   const body = z.string().parse(request.mock.lastCall?.[1]?.body)
+
   return z
     .object({ outlets: z.array(OutletPolicySchema) })
     .parse(JSON.parse(body)).outlets
 }
+
 export const publisher: OutletPolicy = {
   name: "Example",
   aliases: ["EXAMPLE.TEST"],
@@ -55,6 +62,7 @@ export const publisher: OutletPolicy = {
   note: "  Keep exact optional note  ",
   enabled: true,
 }
+
 export const configuration = () =>
   ConfigResultSchema.parse({
     runner_protocol: "siftwire-runner/v5",
@@ -69,13 +77,20 @@ export const configuration = () =>
       sports_timezone: "UTC",
     },
   })
+
 export let host: HTMLDivElement
+
 export let client: QueryClient
+
 let root: Root
 
 export function setupConfigTest(): void {
   beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    // jsdom does not implement the browser's uncaught-error reporting API.
+    vi.stubGlobal("reportError", (error: Error) => {
+      throw error
+    })
     vi.stubGlobal("fetch", request)
     // jsdom does not implement the modal dialog lifecycle.
     Object.defineProperties(HTMLDialogElement.prototype, {
@@ -122,37 +137,51 @@ export function render(node: ReactNode): void {
     ),
   )
 }
+
 export function button(label: string): HTMLButtonElement {
   const found = [...host.querySelectorAll("button")].find(
     (element) =>
       (element.getAttribute("aria-label") ?? element.textContent) === label,
   )
+
   if (!found) throw new Error(`Missing button ${label}`)
+
   return found
 }
+
 export function click(label: string): void {
   act(() => button(label).click())
 }
+
 function field(label: string): HTMLLabelElement {
   const found = [...host.querySelectorAll("label")].find(
     (element) => element.querySelector("span")?.textContent === label,
   )
+
   if (!found) throw new Error(`Missing field ${label}`)
+
   return found
 }
+
 export function input(label: string): HTMLInputElement {
   const found = field(label).querySelector("input")
+
   if (!found) throw new Error(`Missing input ${label}`)
+
   return found
 }
+
 export function select(label: string): HTMLSelectElement {
   const found =
     [...host.querySelectorAll("select")].find(
       (element) => element.getAttribute("aria-label") === label,
     ) ?? field(label).querySelector("select")
+
   if (!found) throw new Error(`Missing select ${label}`)
+
   return found
 }
+
 export function choose(label: string, value: string): void {
   act(() => {
     const element = select(label)
@@ -160,6 +189,7 @@ export function choose(label: string, value: string): void {
     element.dispatchEvent(new Event("change", { bubbles: true }))
   })
 }
+
 export function change(label: string, value: string): void {
   act(() => {
     const element = input(label)
@@ -170,6 +200,7 @@ export function change(label: string, value: string): void {
     element.dispatchEvent(new Event("input", { bubbles: true }))
   })
 }
+
 export async function settle(): Promise<void> {
   // Flush the query observer's queued notification after a cache update.
   await act(async () => {

@@ -23,15 +23,18 @@ export function useOutletEditor() {
   const client = useQueryClient()
   // A null draft follows refetches; a local draft preserves the collection.
   const [draft, setDraft] = useState<OutletPolicy[] | null>(null)
+
   const [editor, setEditor] = useState<{
     index: number | null
     row: OutletPolicy
     hadDraft: boolean
   } | null>(null)
+
   const [notice, setNotice] = useState("")
   const configured = config.data?.outlets ?? []
   const rows = draft ?? configured
   const dirty = JSON.stringify(rows) !== JSON.stringify(configured)
+
   const save = useMutation({
     mutationFn: (outlets: OutletPolicy[]) => replaceOutlets(outlets),
     onMutate: () => client.cancelQueries(configQuery),
@@ -43,11 +46,13 @@ export function useOutletEditor() {
       setNotice("Publishers saved.")
     },
   })
+
   const update = (next: OutletPolicy[]): void => {
     setDraft(next)
     setNotice("")
     save.reset()
   }
+
   const updateRow = (
     index: number,
     patch: Partial<Pick<OutletPolicy, "policy" | "enabled">>,
@@ -55,14 +60,17 @@ export function useOutletEditor() {
     if (save.isPending || editor) return
     update(rows.map((row, at) => (at === index ? { ...row, ...patch } : row)))
   }
+
   const startEditing = (index: number | null, row = emptyOutlet): void => {
     update(rows)
     setEditor({ index, row, hadDraft: draft !== null })
   }
+
   const closeEditor = (): void => {
     if (!editor?.hadDraft) setDraft(null)
     setEditor(null)
   }
+
   const apply = (row: OutletPolicy): void => {
     if (!editor) return
     update(
@@ -72,16 +80,19 @@ export function useOutletEditor() {
     )
     setEditor(null)
   }
+
   const remove = (): void => {
     if (!editor || editor.index === null) return
     update(rows.filter((_row, index) => index !== editor.index))
     setEditor(null)
   }
+
   const discard = (): void => {
     setDraft(null)
     save.reset()
     setNotice("Publisher changes discarded.")
   }
+
   return {
     config,
     rows,
@@ -106,16 +117,20 @@ export function useOutletDraft(
 ) {
   const [draft, setDraft] = useState(() => outletDraft(row))
   const [error, setError] = useState<Error | null>(null)
+
   const update = (patch: Partial<OutletDraft>): void => {
     setDraft((current) => ({ ...current, ...patch }))
     setError(null)
   }
+
   const validate = (): OutletPolicy | null => {
     const next = outletFromDraft(draft)
     const problem = outletError(next, rows, index)
     setError(problem ? new Error(problem) : null)
+
     return problem ? null : next
   }
+
   return { draft, error, update, validate }
 }
 
@@ -148,6 +163,7 @@ export function outletError(
   index: number | null,
 ): string {
   if (!outlet.name.trim()) return "Enter a publisher name."
+
   if (
     rows.some(
       (row, at) =>
@@ -156,5 +172,6 @@ export function outletError(
     )
   )
     return "That publisher name already exists. Edit its rule instead."
+
   return ""
 }

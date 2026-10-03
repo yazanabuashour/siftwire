@@ -5,7 +5,9 @@ import { Field } from "./ui"
 export default function SourceHandling({ draft, update }: SourceFieldsProps) {
   const currentNews =
     draft.kind === "rss" && ["high", "medium"].includes(draft.threshold)
+
   if (draft.kind !== "rss") return null
+
   return (
     <fieldset className="folio-form-group">
       <legend>Feed processing</legend>

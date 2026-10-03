@@ -1,4 +1,5 @@
 export declare const upstreamRules: {
+    "require-readable-spacing": import("@oxlint/plugins").CreateRule;
     "no-array-filter-map": import("@oxlint/plugins").Rule;
     "no-chained-type-assertions": import("@oxlint/plugins").Rule;
     "no-conditional-empty-object-spread": import("@oxlint/plugins").Rule;

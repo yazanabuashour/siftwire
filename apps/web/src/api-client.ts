@@ -12,9 +12,7 @@ import {
 } from "./api-contracts"
 import { request } from "./http-client"
 
-export function fetchConfig(
-  signal?: AbortSignal | undefined,
-): Promise<ConfigResult> {
+export function fetchConfig(signal?: AbortSignal): Promise<ConfigResult> {
   return request("/config", {
     method: "GET",
     schema: ConfigResultSchema,
@@ -24,7 +22,7 @@ export function fetchConfig(
 
 export function saveSource(
   source: Source,
-  signal?: AbortSignal | undefined,
+  signal?: AbortSignal,
 ): Promise<ConfigResult> {
   return request("/sources", {
     method: "POST",
@@ -36,7 +34,7 @@ export function saveSource(
 
 export function deleteSource(
   key: string,
-  signal?: AbortSignal | undefined,
+  signal?: AbortSignal,
 ): Promise<ConfigResult> {
   return request(`/sources/${encodeURIComponent(key)}`, {
     method: "DELETE",
@@ -51,6 +49,7 @@ const OptionsResultSchema = ConfigResultSchema.pick({
 }).extend({
   runtime_config: z.record(z.string(), z.string()),
 })
+
 const OutletsResultSchema = ConfigResultSchema.pick({
   runner_protocol: true,
   capabilities: true,
@@ -66,7 +65,7 @@ export type BriefOptionsInput = {
 
 export function setOptions(
   options: BriefOptionsInput,
-  signal?: AbortSignal | undefined,
+  signal?: AbortSignal,
 ): Promise<z.infer<typeof OptionsResultSchema>> {
   return request("/options", {
     method: "PUT",
@@ -83,7 +82,7 @@ export function setOptions(
 
 export function replaceOutlets(
   outlets: OutletPolicy[],
-  signal?: AbortSignal | undefined,
+  signal?: AbortSignal,
 ): Promise<z.infer<typeof OutletsResultSchema>> {
   return request("/outlets", {
     method: "PUT",
@@ -102,13 +101,18 @@ export type RunListOptions = {
 
 export function listRuns(
   options: RunListOptions = {},
-  signal?: AbortSignal | undefined,
+  signal?: AbortSignal,
 ): Promise<RunsList> {
   const query = new URLSearchParams()
+
   if (options.limit !== undefined) query.set("limit", String(options.limit))
+
   if (options.delivered) query.set("delivered", "true")
+
   if (options.before) query.set("before", options.before)
+
   if (options.search) query.set("search", options.search)
+
   return request(`/runs?${query}`, {
     method: "GET",
     schema: RunsListSchema,
@@ -118,7 +122,7 @@ export function listRuns(
 
 export function getRun(
   runId: string,
-  signal?: AbortSignal | undefined,
+  signal?: AbortSignal,
 ): Promise<RunDetail> {
   return request(`/runs/${encodeURIComponent(runId)}`, {
     method: "GET",

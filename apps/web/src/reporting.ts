@@ -10,6 +10,7 @@ export const reportingLabels = {
 export function reportingLabel(mode: string | null | undefined): string {
   if (!mode) return "Reporting unavailable"
   const known = ReportingModeSchema.safeParse(mode)
+
   return known.success
     ? reportingLabels[known.data]
     : `Unknown reporting: ${mode}`

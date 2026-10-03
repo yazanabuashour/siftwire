@@ -4,8 +4,10 @@ import { z } from "zod"
 // browser boundary; JavaScript numbers cannot represent the full range.
 export const PriorityRankSchema = z.string().refine((value) => {
   const digits = value.startsWith("-") ? value.slice(1) : value
+
   if (!digits || /[^0-9]/.test(digits)) return false
   const rank = BigInt(value)
+
   return rank >= -9223372036854775808n && rank <= 9223372036854775807n
 }, "Priority must be a whole number from -9223372036854775808 to 9223372036854775807.")
 
@@ -15,6 +17,7 @@ export const ReportingModeSchema = z.enum([
   "major",
   "highlights",
 ])
+
 export type ReportingMode = z.infer<typeof ReportingModeSchema>
 
 export const SourceSchema = z.object({
@@ -46,6 +49,7 @@ export const SourceSchema = z.object({
     .default("all"),
   api_key: z.string().optional().default(""),
 })
+
 export type Source = z.infer<typeof SourceSchema>
 
 export const OutletPolicySchema = z.object({
@@ -55,6 +59,7 @@ export const OutletPolicySchema = z.object({
   note: z.string().optional().default(""),
   enabled: z.boolean(),
 })
+
 export type OutletPolicy = z.infer<typeof OutletPolicySchema>
 
 const StringMapSchema = z.record(z.string(), z.string())
@@ -77,6 +82,7 @@ export const ConfigResultSchema = z.object({
     .optional()
     .default({}),
 })
+
 export type ConfigResult = z.infer<typeof ConfigResultSchema>
 
 const RunSummarySchema = z.object({
@@ -89,6 +95,7 @@ const RunSummarySchema = z.object({
   delivered_at: z.string().nullable(),
   message: z.string().nullable(),
 })
+
 export type RunSummary = z.infer<typeof RunSummarySchema>
 
 export const RunItemSchema = z.object({
@@ -104,6 +111,7 @@ export const RunItemSchema = z.object({
   reporting: ReportingModeSchema,
   delivery_status: z.enum(["sent", "not_selected", "not_delivered", "unknown"]),
 })
+
 export type RunItem = z.infer<typeof RunItemSchema>
 
 const DroppedSchema = z.object({
@@ -140,6 +148,7 @@ export const RunsListSchema = z.object({
   runs: z.array(RunSummarySchema),
   next_before: z.string().nullable(),
 })
+
 export type RunsList = z.infer<typeof RunsListSchema>
 
 export const RunDetailSchema = z.object({
@@ -158,4 +167,5 @@ export const RunDetailSchema = z.object({
     }),
   ),
 })
+
 export type RunDetail = z.infer<typeof RunDetailSchema>

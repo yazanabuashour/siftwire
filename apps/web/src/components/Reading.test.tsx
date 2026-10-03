@@ -54,6 +54,7 @@ it("reports missing saved HTML without interpreting recorded Markdown", () => {
   const detail = recorded(
     "- [Recorded headline](https://example.test/news)\n\n## Sports\n\nFinal score: 2 to 1.\n\nOne source could not be checked.",
   )
+
   const html = renderToStaticMarkup(<RecordedBrief detail={detail} />)
   expect(html).toContain("No saved email HTML")
   expect(html).not.toContain("Recorded headline")
@@ -111,6 +112,7 @@ it("distinguishes current-news eligibility, required-source new counts, and fail
     undated_items: 2,
     future_items: 1,
   }
+
   const detail = RunDetailSchema.parse({
     ...recorded(null),
     fetch: [
@@ -146,14 +148,17 @@ it("distinguishes current-news eligibility, required-source new counts, and fail
       },
     ],
   })
+
   expect(detail.fetch[0]?.current_news).toEqual(currentNews)
   expect(detail.fetch[1]?.current_news).toBeUndefined()
   const html = renderToStaticMarkup(<FetchStatuses detail={detail} />)
   const host = document.createElement("div")
   host.innerHTML = html
+
   const rows = [...host.querySelectorAll(".folio-fetch")].map(
     (row) => row.textContent,
   )
+
   expect(rows[0]).toContain("4 eligible · 10 fetched")
   expect(rows[0]).toContain(
     `Publication window: ${currentNews.since} to ${currentNews.until}`,

@@ -69,6 +69,11 @@ fn references_disambiguate_identical_sports_links_and_preserve_large_ids() -> Re
     };
     let prepared = crate::runner::delivery::prepare(Paths::default(), &store, &request)?;
     assert!(!prepared.rejected);
+    assert_eq!(
+        prepared.prepared_items.len(),
+        3,
+        "normal item and both sports fixtures must survive preparation"
+    );
     let wire = serde_json::to_value(&prepared.prepared_items)?;
     assert_eq!(
         wire.pointer("/0/run_item_ids/0")

@@ -1328,7 +1328,7 @@ mod tests {
 
     use super::{
         RiotStandingsResponse, SPORTS_STATUS_FINAL, SPORTS_STATUS_UPCOMING, SportsOptions,
-        espn_range_endpoint, espn_scoreboard_updates_from_body, espn_updates, parse_kickoff,
+        espn_range_endpoint, espn_scoreboard_updates_from_body, espn_updates,
         prepare_sports_updates, provider_http_url, provider_image_url, render_sports_section,
         riot_event_matches_selection, riot_first_rankings, riot_schedule_events,
         riot_team_selection, riot_top_two_rankings, riot_updates, update_status,
@@ -1386,6 +1386,7 @@ mod tests {
                 {"homeAway":"home","score":"3","winner":true,"team":{"displayName":"Team Alpha"}},
                 {"homeAway":"away","score":"1","winner":false,"team":{"displayName":"Team Gamma"}}]}]},
             {"id":"402","date":"2026-09-20T20:00Z","name":"Far fixture"},
+            {"id":"invalid","date":"not-a-date","name":"Invalid kickoff"},
             {"id":"399","date":"2026-08-20T20:00Z","name":"Old result",
              "status":{"type":{"completed":true}}}
         ],"season":{"displayName":"Example League"}}"#;
@@ -1696,12 +1697,5 @@ mod tests {
         assert!(provider_image_url("https://tracker.example/logo.png").is_none());
         assert!(provider_image_url("https://a.espncdn.com/logo.png").is_some());
         assert!(provider_image_url("http://static.lolesports.com/logo.png").is_some());
-    }
-
-    #[test]
-    fn kickoff_parser_handles_espn_and_riot_timestamps() {
-        assert!(parse_kickoff("2026-03-17T20:00Z").is_some());
-        assert!(parse_kickoff("2026-03-17T20:00:00Z").is_some());
-        assert!(parse_kickoff("not-a-date").is_none());
     }
 }

@@ -33,7 +33,7 @@ fn write_runner(dir: &TempDir, stdout: &str, exit: i32) -> String {
     let path = dir.path().join("fake-runner.sh");
     std::fs::write(dir.path().join("output.json"), stdout).expect("write runner output");
     let body = format!(
-        "#!/usr/bin/env bash\ncd -- '{}' || exit 1\nprintf '%s\\n' \"$*\" >args\ncat >input.json\ncat output.json\nexit {exit}\n",
+        "#!/usr/bin/env bash\ncd -- '{}' || exit 1\nprintf '%s\\0' \"$@\" >args\ncat >input.json\ncat output.json\nexit {exit}\n",
         dir.path().display(),
     );
     std::fs::write(&path, body).expect("write fake runner");
@@ -118,14 +118,14 @@ async fn options_forward_sports_settings_to_the_runner() {
         serde_json::from_slice(&std::fs::read(input).expect("read runner input"))
             .expect("decode runner input");
     assert_eq!(
-        forwarded.get("sports_timezone").and_then(Value::as_str),
-        Some("America/Chicago")
-    );
-    assert_eq!(
-        forwarded
-            .get("sports_pre_game_days")
-            .and_then(Value::as_i64),
-        Some(7)
+        forwarded,
+        json!({
+            "action": "set_brief_options",
+            "max_delivery_items": 7,
+            "sports_pre_game_days": 7,
+            "sports_post_game_days": 3,
+            "sports_timezone": "America/Chicago"
+        })
     );
 }
 
@@ -234,14 +234,14 @@ async fn every_configuration_response_stringifies_source_priorities() {
 async fn archive_queries_proxy_filters_cursors_and_literal_search() {
     let output = json!({"runs": [{"run_id": "old"}], "next_before": "old"});
     for (uri, arguments) in [
-        ("/api/v1/runs", "runs list --json\n"),
+        ("/api/v1/runs", "runs\0list\0--json\0"),
         (
             "/api/v1/runs?delivered=true&before=old&search=100%25%20literal&limit=1",
-            "runs list --json --limit 1 --delivered --before old --search 100% literal\n",
+            "runs\0list\0--json\0--limit\x001\0--delivered\0--before\0old\0--search\x00100% literal\0",
         ),
         (
             "/api/v1/runs?delivered=false&search=--db",
-            "runs list --json --search --db\n",
+            "runs\0list\0--json\0--search\0--db\0",
         ),
     ] {
         let temp = TempDir::new().expect("temp dir");
@@ -340,7 +340,7 @@ async fn recorded_priorities_are_strings_without_rewriting_other_evidence() {
     assert_eq!(body, expected);
     assert_eq!(
         std::fs::read_to_string(temp.path().join("args")).expect("args"),
-        "runs show --json fixture\n"
+        "runs\0show\0--json\0fixture\0"
     );
 }
 
@@ -392,7 +392,7 @@ async fn source_writes_forward_exact_i64_numbers_and_preserve_omission() {
         );
         assert_eq!(
             std::fs::read_to_string(temp.path().join("args")).expect("args"),
-            "config\n"
+            "config\0"
         );
     }
 }

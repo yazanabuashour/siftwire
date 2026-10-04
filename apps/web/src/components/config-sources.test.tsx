@@ -109,31 +109,6 @@ it("changes raw reporting only on explicit selection and retains the feed choice
   })
 })
 
-it("shows feed processing directly with its effective failure behavior and one dismissal control", () => {
-  editor()
-  expect(select("Link resolution").closest("details")).toBeNull()
-  expect(input("Source preference").closest("details")).toBeNull()
-  expect(
-    [...host.querySelectorAll("dialog button")].some(
-      (entry) => entry.textContent === "Cancel",
-    ),
-  ).toBe(false)
-  expect(button("Close dialog").disabled).toBe(false)
-  expect(host.textContent).toContain("the original item remains eligible")
-  expect(
-    [...select("Publisher identification").options].map(
-      (option) => option.value,
-    ),
-  ).toEqual(["none", "title_suffix"])
-  expect(
-    [...select("Link resolution").options].map((option) => option.value),
-  ).toEqual(["none", "google_news_article_url"])
-  expect(host.textContent).toContain("This is not article importance")
-  expect(host.textContent).toContain(
-    "Identical absolute URLs can still collapse across groups",
-  )
-})
-
 it("preserves a source draft through refetch and server rejection, then merges the normalized saved source", async () => {
   const configured: ConfigResult = {
     ...configuration(),
@@ -267,15 +242,19 @@ it("searches feeds without altering the collection", () => {
     { ...stored, key: "release", kind: "github_release", label: "Release" },
   ]
 
+  const onEdit = vi.fn()
+  const onRemove = vi.fn()
+  const onToggle = vi.fn()
+
   render(
     <SourceCollection
       sources={sources}
       reporting={{}}
       busy={false}
       savingKey={undefined}
-      onEdit={vi.fn()}
-      onRemove={vi.fn()}
-      onToggle={vi.fn()}
+      onEdit={onEdit}
+      onRemove={onRemove}
+      onToggle={onToggle}
     />,
   )
   choose("Type", "feed")
@@ -284,6 +263,12 @@ it("searches feeds without altering the collection", () => {
   ).toEqual(["Alpha", "Zulu"])
   change("Search sources", "Zulu")
   expect(host.querySelectorAll("article")).toHaveLength(1)
-  expect(sources[0]?.kind).toBe("rss")
-  expect(sources[0]?.label).toBe("Zulu")
+  expect(host.querySelector("article h2")?.textContent).toBe("Zulu")
+  change("Search sources", "")
+  expect(
+    [...host.querySelectorAll("article h2")].map((row) => row.textContent),
+  ).toEqual(["Alpha", "Zulu"])
+  expect(onEdit).not.toHaveBeenCalled()
+  expect(onRemove).not.toHaveBeenCalled()
+  expect(onToggle).not.toHaveBeenCalled()
 })

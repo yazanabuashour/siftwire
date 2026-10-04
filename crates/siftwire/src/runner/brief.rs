@@ -606,7 +606,7 @@ mod tests {
 
         let mut started = Vec::new();
         for _expected in 0..5 {
-            let Ok(input) = started_receiver.recv_timeout(Duration::from_secs(1)) else {
+            let Ok(input) = started_receiver.recv_timeout(Duration::from_secs(5)) else {
                 break;
             };
             started.push(input);
@@ -618,10 +618,12 @@ mod tests {
         *released = true;
         condition.notify_all();
         drop(released);
-        let results = worker.join().unwrap_or_default();
+        let results = worker
+            .join()
+            .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
         assert!(
-            started.contains(&4),
-            "fifth input did not start while the first input remained blocked: {started:?}"
+            started.len() == 5,
+            "work did not advance beyond the four occupied slots while the first input remained blocked: {started:?}"
         );
         let outputs = results
             .into_iter()

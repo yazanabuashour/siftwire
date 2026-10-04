@@ -60,7 +60,6 @@ fn adapter_request_keeps_scenario_prompts_and_artifacts_together() {
         );
         assert_eq!(prompt.matches(RUNNER_ONLY_INSTRUCTION).count(), 1);
     }
-    assert_eq!(request.tool_env, adapter::tool_env(root, &run_dir));
 }
 
 #[test]

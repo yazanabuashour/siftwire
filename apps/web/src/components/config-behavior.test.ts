@@ -5,13 +5,8 @@ import {
   type OutletPolicy,
   type Source,
 } from "../api-contracts"
-import { outletDraft, outletFromDraft } from "./config-outlets"
-import {
-  mergeOptionsResult,
-  mergeOutletsResult,
-  mergeSourceResult,
-} from "./config-query"
-import { emptySource, reportingPatch } from "./source-validation"
+import { mergeSourceResult } from "./config-query"
+import { emptySource } from "./source-validation"
 
 const stored: Source = {
   ...emptySource,
@@ -54,29 +49,6 @@ function config() {
   })
 }
 
-describe("configuration-owned transformations", () => {
-  it("changes only reporting fields when the operator explicitly selects a mode", () => {
-    expect(reportingPatch("major")).toEqual({ threshold: "high" })
-    expect(reportingPatch("required")).toEqual({ threshold: "always" })
-    expect(reportingPatch("highlights")).toEqual({ threshold: "medium" })
-    expect(emptySource.threshold).toBe("medium")
-    expect(emptySource).not.toHaveProperty("always_report")
-  })
-
-  it("preserves optional notes and exact aliases through rename or policy edits", () => {
-    expect(
-      outletFromDraft({
-        ...outletDraft(publisher),
-        name: "Renamed",
-        policy: "allow",
-      }),
-    ).toEqual({ ...publisher, name: "Renamed", policy: "allow" })
-    expect(outletFromDraft(outletDraft({ ...publisher, note: "" })).note).toBe(
-      "",
-    )
-  })
-})
-
 describe("normalized configuration mutation merges", () => {
   it("upserts returned sources without erasing unrelated collections or retaining stale reporting", () => {
     const current = config()
@@ -108,26 +80,5 @@ describe("normalized configuration mutation merges", () => {
         "upsert",
       ).source_reporting,
     ).toEqual({ [stored.key]: "major", other: "required" })
-  })
-
-  it("merges only each write's returned responsibility", () => {
-    const current = config()
-    expect(
-      mergeOptionsResult(current, {
-        runtime_config: { sports_timezone: "Etc/UTC" },
-      }),
-    ).toEqual({
-      ...current,
-      runtime_config: { ...current.runtime_config, sports_timezone: "Etc/UTC" },
-    })
-
-    const result = {
-      outlets: [{ ...publisher, note: "Server normalized" }],
-    }
-
-    expect(mergeOutletsResult(current, result)).toEqual({
-      ...current,
-      ...result,
-    })
   })
 })

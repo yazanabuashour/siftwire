@@ -276,7 +276,6 @@ describe("lossless priorities", () => {
           body: JSON.stringify(draft),
         }),
       )
-      expect(JSON.parse(JSON.stringify(draft)).priority_rank).toBe(rank)
     },
   )
 

@@ -38,14 +38,23 @@ it("prefers the saved email in a script-disabled frame over reconstructed conten
   detail.delivery_html =
     '<!doctype html><html><body><img src="https://images.example/club.png" alt=""><p>Saved sports card</p></body></html>'
   const html = renderToStaticMarkup(<RecordedBrief detail={detail} />)
-  expect(html).toContain("<iframe")
-  expect(html).toContain('title="Recorded email brief"')
-  expect(html).toContain("Saved sports card")
-  expect(html).toContain("https://images.example/club.png")
-  expect(html).toContain(
-    'sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"',
+  const host = document.createElement("div")
+  host.innerHTML = html
+  const frame = host.querySelector("iframe")
+
+  if (!frame) throw new Error("Missing recorded email frame")
+  expect(frame.title).toBe("Recorded email brief")
+  expect(frame.srcdoc).toContain(detail.delivery_html)
+  // Sandbox tokens are a capability set; their order is not a contract.
+  const sandbox = frame.getAttribute("sandbox")
+  expect(sandbox).not.toBeNull()
+  expect(new Set(sandbox?.split(/\s+/))).toEqual(
+    new Set([
+      "allow-same-origin",
+      "allow-popups",
+      "allow-popups-to-escape-sandbox",
+    ]),
   )
-  expect(html).not.toContain("allow-scripts")
   expect(html).not.toContain("Plain text fallback")
   expect(html).not.toContain("Stored fallback")
 })

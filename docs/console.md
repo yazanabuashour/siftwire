@@ -18,7 +18,7 @@ for collection and delivery.
 
    ```bash
    mise install
-   mise exec -- bun install
+   mise exec -- bun install --frozen-lockfile
    mise exec -- ./scripts/install-console.sh
    ```
 

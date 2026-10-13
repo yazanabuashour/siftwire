@@ -9,7 +9,7 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "cargo build --locked --release -p siftwire-console && bun --cwd apps/web build",
+    "build:console": "cargo build --locked --release -p siftwire-console && bun --cwd apps/web build",
     "dev:web": "bun --cwd apps/web dev",
     "typecheck": "bun --cwd apps/web typecheck && bun node_modules/@typescript/native/bin/tsc -p tsconfig.tooling.json --noEmit",
     "test:web": "vitest run",

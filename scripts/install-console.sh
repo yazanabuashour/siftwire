@@ -7,8 +7,7 @@ cd "$repo_root"
 install_dir="${SIFTWIRE_CONSOLE_INSTALL_DIR:-$HOME/.local/bin}"
 web_dir="${SIFTWIRE_CONSOLE_WEB_INSTALL_DIR:-$HOME/.local/share/siftwire-console/web}"
 
-cargo build --locked --release -p siftwire-console
-bun --cwd apps/web build
+bun run build:console
 
 install -d -m 755 "$install_dir"
 install -m 755 target/release/siftwire-console "$install_dir/siftwire-console"

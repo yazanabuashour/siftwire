@@ -1,4 +1,4 @@
-# Release Verification
+# Verify a release
 
 A SiftWire release publishes exactly nine assets:
 
@@ -37,20 +37,27 @@ Fix a bad artifact with a new patch release; never replace a published asset.
 
 ## Smoke-test installation
 
-```bash
-install_dir="$(mktemp -d)"
-SIFTWIRE_INSTALL_DIR="$install_dir" \
-  SIFTWIRE_VERSION=v0.2.0 \
-  sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.2.0/install.sh)"
+Set `tag` to the release you are verifying. Use an explicit temporary install
+directory so the test does not replace your installed runner:
 
-export PATH="$install_dir:$PATH"
-command -v siftwire
-siftwire --version
-siftwire --help
+```bash
+(
+  set -eu
+  tag=v0.9.2
+  install_dir="$(mktemp -d)"
+  trap 'rm -rf "$install_dir"' EXIT
+  SIFTWIRE_INSTALL_DIR="$install_dir" \
+    SIFTWIRE_VERSION="$tag" \
+    sh -c "$(curl -fsSL "https://github.com/yazanabuashour/siftwire/releases/download/$tag/install.sh")"
+
+  test "$("$install_dir/siftwire" --version)" = "siftwire $tag"
+  "$install_dir/siftwire" --help
+)
 ```
 
-The runner commands are `config` and `brief`. Register the matching
-`skills/siftwire/SKILL.md` before treating installation as complete.
+For process actions and operator commands, use the [runner contract](runner-contract.md) and
+[run history guide](run-history.md). Register the same-tag
+`skills/siftwire/SKILL.md` before treating a production installation as complete.
 
 ## Software bill of materials
 

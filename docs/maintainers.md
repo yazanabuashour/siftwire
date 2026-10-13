@@ -1,6 +1,8 @@
-# Maintainer Notes
+# Maintain and release SiftWire
 
-This public repository includes the production `siftwire` runner binary and a single-file SiftWire skill. Keep maintainer docs aligned with this supported interface.
+Use the [contributor guide](../CONTRIBUTING.md) for checkout setup, checks, and
+public-artifact rules. This guide covers repository administration and releases
+for the production `siftwire` runner and its single-file skill.
 
 Keep `skills/siftwire/SKILL.md` thin. Before expanding it substantially, check
 whether the detail belongs in an existing runner action, a new narrow
@@ -12,25 +14,9 @@ by adding long-lived workflow recipes to the skill.
 
 Use [Security Operations](security-operations.md) for dependency review cadence, advisory rehearsal, threat-model refreshes, and deeper testing expectations.
 
-## Initial Setup
+## Administer the repository
 
-Install the repository-pinned developer tools:
-
-```bash
-mise install
-```
-
-Use GitHub issues and pull requests for tracked project work.
-
-## Public Repo Expectations
-
-- Contributors must be able to work from the public Git repository and GitHub project history.
-- Policy and workflow files are part of the public contract and should stay reviewable in Git alone.
-- Do not document machine-absolute filesystem paths in committed docs.
-- Do not assume private infrastructure, deploy secrets, or internal services exist unless they have been added explicitly.
-- Do not commit personal source inventories, outlet policy evidence, delivery logs, run history, `.openclaw` content, workspace backups, or local SQLite databases.
-
-## Repository Administration
+Keep policy and workflow files reviewable in Git alone.
 
 Current readiness assumptions:
 
@@ -69,15 +55,17 @@ When changing GitHub settings, keep the repo aligned with:
 - [.github/workflows/pull-request.yml](../.github/workflows/pull-request.yml) for fork-safe checks.
 - [.github/workflows/release.yml](../.github/workflows/release.yml) for release publication, checksums, SBOMs, and attestations.
 
-## Release Publication
+## Publish a release
 
-Public releases use annotated semantic version tags in the `v0.y.z` range and include the `siftwire` binary and single-file SiftWire skill. Tag a version like `v0.2.0`, then push the tag. The release workflow runs these steps:
+Public releases use annotated semantic version tags in the `v0.y.z` range and
+include the `siftwire` binary and single-file skill. Pushing a version tag starts
+the [release workflow](../.github/workflows/release.yml):
 
 - validate release notes, formatting, lint, skill validation, and tests before publish
 - build binaries with `siftwire --version` set from the tag
 - require `docs/release-notes/<tag>.md` and a matching `CHANGELOG.md` entry before publishing
 - create or reuse only a draft GitHub Release before assets are attached
-- use `docs/release-notes/<tag>.md`, for example `docs/release-notes/v0.2.0.md`, as the GitHub Release body
+- use `docs/release-notes/<tag>.md` as the GitHub Release body
 - keep release-note paragraphs and list items on one source line so GitHub Releases and API clients do not show hard-wrapped prose
 - attach four platform binaries, the skill archive, canonical source archive, root installer, SHA256 checksums, and SPDX SBOM
 - verify the draft release has the expected asset set before publication

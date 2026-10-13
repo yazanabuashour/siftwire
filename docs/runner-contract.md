@@ -2,7 +2,10 @@
 
 The installed `siftwire` executable accepts one JSON request per process and
 returns one JSON result. Production consumers use this interface, not Rust
-implementation modules or direct SQLite access.
+implementation modules or direct SQLite access. See the
+[request examples](../README.md#configure-your-brief) to get started and the
+[console process client](../crates/siftwire-console/src/runner.rs) for a maintained
+consumer.
 
 ## Invocation
 
@@ -84,6 +87,7 @@ runtime configuration. A partial mutation result does not replace an entire
 cached configuration.
 
 `source_reporting` is a read-only map keyed by each returned source's key.
+
 ### Reporting policies
 
 `source_reporting` has these values:
@@ -283,17 +287,3 @@ retain their permissions. All commands that open storage can initialize an empty
 database, including inspection and archive reads. Older database formats are
 rejected without migration; use a fresh database when upgrading to v0.9.0. Keep the old
 database and its matching released runner separately if you need historical reads.
-
-## Minimal consumer
-
-`crates/siftwire/examples/inspect_config.rs` is a minimal process consumer:
-
-```bash
-run_root="$(mktemp -d)"
-mise exec -- cargo build --locked --bin siftwire
-mise exec -- cargo run --locked --example inspect_config -- \
-	--binary target/debug/siftwire \
-	--db "$run_root/siftwire.sqlite"
-```
-
-It uses only this documented process interface and does not inspect storage.

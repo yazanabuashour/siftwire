@@ -12,27 +12,19 @@ rejections, and caller judgment are insufficient, and document follow-up work
 to remove or replace that text. Do not repair routine brief or configuration UX
 by adding long-lived workflow recipes to the skill.
 
-Use [Security Operations](security-operations.md) for dependency review cadence, advisory rehearsal, threat-model refreshes, and deeper testing expectations.
+Use [Security Operations](security-operations.md) for dependency review cadence, threat-model refreshes, and deeper testing expectations.
 
 ## Administer the repository
 
 Keep policy and workflow files reviewable in Git alone.
 
-Require these repository controls. Verify GitHub-owned settings separately from
-workflow policy:
+The default branch is `main`. Branch and release-environment protections are not
+configured. Workflow policy remains separate from those GitHub-owned settings:
 
-- Protect the default branch `main`.
 - Pull requests run only untrusted-safe validation with read-only token scope.
-- Pull requests enforce formatting, lint, unit tests, and skill validation.
+- Pull requests run formatting, lint, unit tests, and skill validation.
 - GitHub Releases are created from version tags in the `v0.y.z` form.
-- Protect the `release` environment used for publication; keep write permissions narrowly scoped.
-- Enable GitHub private vulnerability reporting.
-
-Review enforcement has these constraints:
-
-- The repository has a single maintainer account.
-- `main` should require pull requests, status checks, conversation resolution, and one approving review, but code-owner review enforcement and admin enforcement may remain off until a second maintainer can satisfy the review requirement.
-- Tighten code-owner review enforcement, admin bypass, and maintainer isolation once a second maintainer can satisfy those controls without blocking routine maintenance.
+- Release publication keeps write permissions narrowly scoped.
 
 Untrusted pull request policy:
 
@@ -45,10 +37,10 @@ Maintainer and automation isolation:
 
 - Prefer `GITHUB_TOKEN` with explicit job-scoped permissions over personal access tokens or long-lived bot credentials.
 - Use a dedicated low-privilege bot identity only when new automation needs privileges that `GITHUB_TOKEN` cannot safely provide.
-- Keep release and deployment writes behind the protected `release` environment.
+- Keep release publication write permissions scoped to the `publish` job.
 - Do not use self-hosted runners for untrusted pull requests. Only consider self-hosted runners for trusted branches or tags after documenting isolation, secret exposure, cleanup, and network-access controls.
 
-When changing GitHub settings, keep the repo aligned with:
+Repository policy and workflows are defined in:
 
 - [SECURITY.md](../SECURITY.md) for disclosure handling and patch timing.
 - [docs/security-operations.md](security-operations.md) for recurring security operations and deeper testing expectations.
@@ -72,8 +64,6 @@ the [release workflow](../.github/workflows/release.yml):
 - verify the draft release has the expected asset set before publication
 - generate GitHub attestations for the published assets
 - publish the draft only after all assets and attestations are ready, then verify the release is latest
-
-The `release` environment should remain protected so only approved maintainers can publish release assets.
 
 Before tagging, add `docs/release-notes/<tag>.md`, update `CHANGELOG.md`, and run `mise exec -- ./scripts/validate-release-docs.sh <tag>` locally. The release workflow runs the same check before publishing and does not fall back to generated GitHub release notes.
 

@@ -4,9 +4,12 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+- Distinguish config and preparation runtime failures from validation refusals. Report unreadable confirmation history instead of silently omitting it; same-plan confirmation retries remain safe after a committed write.
+- Serialize durable collections by database file identity so overlapping runs cannot reuse or regress Required markers. Interrupted collection is still not safe to retry automatically.
+- Verify earlier answers in multi-turn evaluation, not just the last turn.
 - Correct fractional-second ordering for recent delivery history and repeat suppression.
 - Reject non-object JSON requests before opening storage. Nullable request fields, runner protocol v5, and the database schema remain unchanged.
-- Require literal `printf` payloads in evaluator pipelines and flag file redirections as hygiene failures. Evaluation remains an after-the-fact receipt check, not a sandbox.
+- Require literal `printf` payloads in evaluator pipelines and flag file redirections and outer-shell expansions in wrapped heredocs as hygiene failures. Evaluation remains an after-the-fact receipt check, not a sandbox.
 - Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
 
 ## Releases

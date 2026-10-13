@@ -35,7 +35,7 @@ pub fn parse(output: &[u8], request: &Request) -> Result<ParsedOutput> {
         assistant_calls: Some(0),
         ..Metrics::default()
     };
-    let mut final_message = String::new();
+    let mut final_messages = Vec::new();
     for (index, turn) in result.turns.into_iter().enumerate() {
         ensure!(
             !turn.final_message.trim().is_empty(),
@@ -74,11 +74,11 @@ pub fn parse(output: &[u8], request: &Request) -> Result<ParsedOutput> {
                 }
             }
         }
-        final_message = turn.final_message;
+        final_messages.push(turn.final_message);
     }
     Ok(ParsedOutput {
         metrics,
-        final_message,
+        final_messages,
         runtime: result.runtime,
     })
 }
@@ -111,14 +111,19 @@ fn add_evidence(metrics: &mut Metrics, label: &str, command: &str) {
 }
 
 fn allowed_skill_then_runner(lower: &str) -> bool {
-    let Some((reader, runner)) = trim_shell_wrapper(lower).split_once(" && ") else {
+    let Some(body) = trim_shell_wrapper(lower) else {
+        return false;
+    };
+    let Some((reader, runner)) = body.split_once(" && ") else {
         return false;
     };
     allowed_skill_read(reader) && allowed_runner_command(runner)
 }
 
 fn allowed_runner_command(lower: &str) -> bool {
-    let body = trim_shell_wrapper(lower);
+    let Some(body) = trim_shell_wrapper(lower) else {
+        return false;
+    };
     if body.contains(" && ") && allowed_runner_chain(body) {
         return true;
     }
@@ -251,7 +256,7 @@ fn trim_database_assignment(command: &str) -> &str {
         .map_or(command, |(_value, body)| body.trim_start())
 }
 
-fn trim_shell_wrapper(command: &str) -> &str {
+fn trim_shell_wrapper(command: &str) -> Option<&str> {
     let mut body = command;
     for prefix in [
         "/usr/bin/bash -c ",
@@ -265,14 +270,17 @@ fn trim_shell_wrapper(command: &str) -> &str {
         }
     }
     let body = body.trim();
-    body.strip_prefix('"')
+    let unquoted = body
+        .strip_prefix('"')
         .and_then(|value| value.strip_suffix('"'))
         .or_else(|| {
             body.strip_prefix('\'')
                 .and_then(|value| value.strip_suffix('\''))
-        })
-        .unwrap_or(body)
-        .trim()
+        });
+    if unquoted.is_some() && has_shell_substitution(body) {
+        return None;
+    }
+    Some(unquoted.unwrap_or(body).trim())
 }
 
 fn runner_command_tail(command: &str) -> bool {
@@ -293,7 +301,9 @@ fn allowed_skill_read(lower: &str) -> bool {
     if literal_sed_address {
         return true;
     }
-    let body = trim_shell_wrapper(lower);
+    let Some(body) = trim_shell_wrapper(lower) else {
+        return false;
+    };
     let body = body.strip_prefix("pwd && ").unwrap_or(body);
     let Some(reader) = body.strip_suffix(" .agents/skills/siftwire/skill.md") else {
         return false;

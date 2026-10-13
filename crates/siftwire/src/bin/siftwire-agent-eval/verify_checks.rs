@@ -131,20 +131,30 @@ impl<'connection> Checker<'connection> {
     }
 
     pub fn recorded_delivery(&mut self, final_answer: &str) {
-        match self.delivery_answer() {
+        self.recorded_delivery_at(final_answer, 0);
+    }
+
+    pub fn recorded_deliveries(&mut self, final_answers: &[String]) {
+        for (offset, answer) in final_answers.iter().rev().enumerate() {
+            self.recorded_delivery_at(answer, offset);
+        }
+    }
+
+    fn recorded_delivery_at(&mut self, final_answer: &str, offset: usize) {
+        match self.delivery_answer(offset) {
             Ok(expected) if expected == final_answer => {}
             Ok(_) => {
-                self.fail_assistant("final answer differs from recorded current/history bodies");
+                self.fail_assistant(format!("final answer at delivery offset {offset} differs from recorded current/history bodies"));
             }
             Err(error) => self.fail_database(format!("delivery history: {error}")),
         }
     }
 
-    fn delivery_answer(&self) -> anyhow::Result<String> {
+    fn delivery_answer(&self, offset: usize) -> anyhow::Result<String> {
         let mut statement = self.database.prepare(
-            "SELECT message, delivered_at FROM delivery ORDER BY rtrim(delivered_at, 'Z') DESC, id DESC LIMIT 3",
+            "SELECT message, delivered_at FROM delivery ORDER BY rtrim(delivered_at, 'Z') DESC, id DESC LIMIT 3 OFFSET ?1",
         )?;
-        let mut rows = statement.query([])?;
+        let mut rows = statement.query([i64::try_from(offset)?])?;
         let current = rows.next()?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;
         let mut answer = format!("Current brief\n\n{}", current.get::<_, String>(0)?);
         while let Some(previous) = rows.next()? {

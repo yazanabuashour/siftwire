@@ -10,7 +10,7 @@ Public release notes are mirrored in `docs/release-notes/`.
 - Put ESPN scoreboard dates in the URL query rather than its fragment, replacing conflicting endpoint dates with the configured sports window.
 - Correct fractional-second ordering for recent delivery history and repeat suppression.
 - Reject non-object JSON requests before opening storage. Nullable request fields, runner protocol v5, and the database schema remain unchanged.
-- Require literal `printf` payloads in evaluator pipelines and flag file redirections and outer-shell expansions in wrapped heredocs as hygiene failures. Evaluation remains an after-the-fact receipt check, not a sandbox.
+- Require literal `printf` payloads in evaluator pipelines and flag file redirections, outer-shell expansions, and quote breakouts in wrapped commands as hygiene failures. Evaluation remains an after-the-fact receipt check, not a sandbox.
 - Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
 
 ## Releases

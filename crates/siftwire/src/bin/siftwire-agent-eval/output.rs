@@ -277,8 +277,25 @@ fn trim_shell_wrapper(command: &str) -> Option<&str> {
             body.strip_prefix('\'')
                 .and_then(|value| value.strip_suffix('\''))
         });
-    if unquoted.is_some() && has_shell_substitution(body) {
-        return None;
+    if let Some(value) = unquoted {
+        if has_shell_substitution(body) {
+            return None;
+        }
+        let quote = body.chars().next()?;
+        let mut escaped = false;
+        for character in value.chars() {
+            if quote == '"' && character == '\\' {
+                escaped = !escaped;
+                continue;
+            }
+            if character == quote && !escaped {
+                return None;
+            }
+            escaped = false;
+        }
+        if escaped {
+            return None;
+        }
     }
     Some(unquoted.unwrap_or(body).trim())
 }

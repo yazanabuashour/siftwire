@@ -2,6 +2,13 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
+## Unreleased
+
+- Correct fractional-second ordering for recent delivery history and repeat suppression.
+- Reject non-object JSON requests before opening storage. Nullable request fields, runner protocol v5, and the database schema remain unchanged.
+- Require literal `printf` payloads in evaluator pipelines and flag file redirections as hygiene failures. Evaluation remains an after-the-fact receipt check, not a sandbox.
+- Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
+
 ## Releases
 
 - [v0.9.2](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.2)

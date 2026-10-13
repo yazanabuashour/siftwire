@@ -12,8 +12,8 @@ use std::process::ExitCode;
 use anyhow::{Result, bail};
 use chrono::{TimeDelta, Utc};
 use chrono_tz::Tz;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 
 use crate::contract::{BriefRequest, BriefResult, ConfigRequest, ConfigResult, Paths};
 use crate::paths;
@@ -168,11 +168,14 @@ fn parse_database_argument(arguments: &[String]) -> Result<Option<String>> {
     Ok(database)
 }
 
-fn decode_request<T: Default + DeserializeOwned>() -> Result<T> {
+fn decode_request<T: DeserializeOwned>() -> Result<T> {
     let mut input = Vec::new();
     let _bytes_read = io::stdin().read_to_end(&mut input)?;
+    if !input.trim_ascii_start().starts_with(b"{") {
+        bail!("request must be a JSON object");
+    }
     let mut decoder = serde_json::Deserializer::from_slice(&input);
-    let request = Option::<T>::deserialize(&mut decoder)?.unwrap_or_default();
+    let request = T::deserialize(&mut decoder)?;
     decoder.end()?;
     Ok(request)
 }

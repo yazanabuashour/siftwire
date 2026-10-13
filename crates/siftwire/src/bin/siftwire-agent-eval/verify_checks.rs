@@ -142,7 +142,7 @@ impl<'connection> Checker<'connection> {
 
     fn delivery_answer(&self) -> anyhow::Result<String> {
         let mut statement = self.database.prepare(
-            "SELECT message, delivered_at FROM delivery ORDER BY delivered_at DESC, id DESC LIMIT 3",
+            "SELECT message, delivered_at FROM delivery ORDER BY rtrim(delivered_at, 'Z') DESC, id DESC LIMIT 3",
         )?;
         let mut rows = statement.query([])?;
         let current = rows.next()?.ok_or(rusqlite::Error::QueryReturnedNoRows)?;

@@ -107,6 +107,13 @@ actions as unexpected tools. Assistant counts aggregate across turns; an
 unknown count makes the aggregate unknown. Zero is valid for a deterministic
 adapter that makes no assistant calls, not a substitute for missing evidence.
 
+`printf` pipelines must use a literal single-quoted payload and pipe only to
+`siftwire config` or `siftwire brief`. File redirections are not runner actions,
+whether the pipeline runs alone or in an `&&` chain. A `SIFTWIRE_DATABASE_PATH`
+prefix must use a literal unquoted path token containing only letters, digits,
+`/`, `.`, `_`, `-`, or `:`. Quoted heredocs remain available for payloads that need
+other quoting.
+
 Emit a complete result only after every native turn completes and the adapter
 finishes cleanup. The adapter must validate its native terminal answer,
 model evidence where available, and completed tool lifecycle before translating

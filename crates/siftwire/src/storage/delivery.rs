@@ -21,7 +21,7 @@ impl Store {
             .connection
             .prepare(
                 "SELECT run_id, message, delivered_at FROM delivery \
-                 ORDER BY delivered_at DESC, id DESC LIMIT ?1",
+                 ORDER BY rtrim(delivered_at, 'Z') DESC, id DESC LIMIT ?1",
             )
             .context("prepare recent delivery query")?;
         let rows = statement
@@ -50,12 +50,14 @@ impl Store {
     ///
     /// Returns an error when `SQLite` cannot read a sent item row.
     pub fn recent_sent_items(&self, since: DateTime<Utc>) -> Result<Vec<StoredSentItem>> {
+        // The raw lower bound retains index use; normalization orders fractions correctly.
         let mut statement = self
             .connection
             .prepare(
                 "SELECT title, url, kind, sent_at FROM sent_item \
-                 WHERE sent_at >= ?1 AND kind != 'sports_schedule' \
-                 ORDER BY sent_at DESC, id DESC",
+                 WHERE sent_at >= rtrim(?1, 'Z') AND rtrim(sent_at, 'Z') >= rtrim(?1, 'Z') \
+                 AND kind != 'sports_schedule' \
+                 ORDER BY rtrim(sent_at, 'Z') DESC, id DESC",
             )
             .context("prepare recent sent item query")?;
         let rows = statement

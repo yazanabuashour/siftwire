@@ -28,8 +28,8 @@ replace capability checks.
 ## Framing and exits
 
 - Send exactly one JSON object on stdin.
-- Unknown request fields, malformed JSON, and additional JSON values are
-  transport failures.
+- Non-object JSON, unknown request fields, malformed JSON, and additional JSON
+  values are transport failures.
 - An exit-0 task result is exactly one JSON object followed by a newline on
   stdout. Exit-1 and exit-2 failures do not produce result JSON.
 - Stderr contains diagnostics, never result JSON.

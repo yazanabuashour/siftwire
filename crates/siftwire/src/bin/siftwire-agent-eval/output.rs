@@ -152,9 +152,8 @@ fn allowed_runner_command(lower: &str) -> bool {
     };
     let producer = trim_database_assignment(producer.trim());
     if producer.starts_with("printf ") {
-        let arguments = producer.strip_prefix("printf '%s\n' ").unwrap_or(producer);
         return !has_shell_substitution(body)
-            && !arguments.contains('\n')
+            && allowed_literal_printf(producer)
             && runner_command_tail(trim_database_assignment(consumer.trim()));
     }
     allowed_quoted_heredoc(producer, consumer)
@@ -166,18 +165,22 @@ fn allowed_runner_chain(body: &str) -> bool {
         let Some((producer, consumer)) = command.split_once(" | ") else {
             return false;
         };
-        [
-            "printf '%s' '",
-            "printf '%s\n' '",
-            "printf '%s\\n' '",
-            "printf '%s\\\\n' '",
-        ]
-        .iter()
-        .find_map(|prefix| producer.strip_prefix(prefix))
-        .and_then(|payload| payload.strip_suffix('\''))
-        .is_some_and(|payload| {
-            !payload.contains(['\'', '\n', '\r']) && !has_shell_substitution(payload)
-        }) && runner_command_tail(consumer)
+        allowed_literal_printf(producer) && runner_command_tail(consumer)
+    })
+}
+
+fn allowed_literal_printf(producer: &str) -> bool {
+    [
+        "printf '%s' '",
+        "printf '%s\n' '",
+        "printf '%s\\n' '",
+        "printf '%s\\\\n' '",
+    ]
+    .iter()
+    .find_map(|prefix| producer.strip_prefix(prefix))
+    .and_then(|payload| payload.strip_suffix('\''))
+    .is_some_and(|payload| {
+        !payload.contains(['\'', '\n', '\r']) && !has_shell_substitution(payload)
     })
 }
 
@@ -239,6 +242,12 @@ fn trim_database_assignment(command: &str) -> &str {
     command
         .strip_prefix("siftwire_database_path=")
         .and_then(|assignment| assignment.split_once(' '))
+        .filter(|(value, _body)| {
+            !value.is_empty()
+                && value.chars().all(|character| {
+                    character.is_alphanumeric() || matches!(character, '/' | '.' | '_' | '-' | ':')
+                })
+        })
         .map_or(command, |(_value, body)| body.trim_start())
 }
 

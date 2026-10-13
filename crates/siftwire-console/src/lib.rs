@@ -72,19 +72,21 @@ async fn deny_rebound_hosts(
     let Ok(host) = header.to_str() else {
         return StatusCode::MISDIRECTED_REQUEST.into_response();
     };
-    // Strip a numeric port from an RFC 3986 authority; a bracketed IPv6 host
-    // keeps its colons because its name already ends with ']'.
+    // Leave unbracketed IPv6 intact when its final segment is numeric.
     let name = match host.rsplit_once(':') {
         Some((name, port))
             if !port.is_empty()
                 && port.bytes().all(|byte| byte.is_ascii_digit())
-                && !name.ends_with(']') =>
+                && (name.ends_with(']') || !name.contains(':')) =>
         {
             name
         }
         _ => host,
     };
-    let name = name.trim_start_matches('[').trim_end_matches(']');
+    let name = name
+        .strip_prefix('[')
+        .and_then(|name| name.strip_suffix(']'))
+        .unwrap_or(name);
     let allowed = name.parse::<IpAddr>().is_ok()
         || name.eq_ignore_ascii_case("localhost")
         || name.is_empty()

@@ -272,7 +272,11 @@ retry-safe with the same database and `delivery_plan_id`. An identical retry
 returns the existing delivery. The runner rejects an unknown plan or a supplied
 `run_id` that does not match. A delivered run cannot create a new plan.
 `record_delivery` is no longer an action. Database corruption or an incomplete
-idempotency record remains an exit-1 runtime error.
+idempotency record remains an exit-1 runtime error. If reading history fails after
+confirmation commits, the runner reports exit 1 rather than returning incomplete
+history. Repair the storage failure, then retry the same plan; do not resend its
+transport bodies. An exit-1 configuration write can also have committed before
+a result read or output failure; inspect configuration before retrying.
 
 Result JSON can contain local paths, source URLs, brief text, and delivery
 history. Do not treat raw requests or results as telemetry-safe.

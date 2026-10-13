@@ -124,6 +124,34 @@ impl From<anyhow::Error> for DeliveryInsertError {
     }
 }
 
+#[derive(Debug)]
+pub enum ConfigMutationError {
+    Validation(anyhow::Error),
+    Storage(anyhow::Error),
+}
+
+impl fmt::Display for ConfigMutationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Validation(error) | Self::Storage(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl Error for ConfigMutationError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Validation(error) | Self::Storage(error) => Some(error.as_ref()),
+        }
+    }
+}
+
+impl From<anyhow::Error> for ConfigMutationError {
+    fn from(error: anyhow::Error) -> Self {
+        Self::Storage(error)
+    }
+}
+
 pub struct Store {
     connection: Connection,
     now: fn() -> DateTime<Utc>,

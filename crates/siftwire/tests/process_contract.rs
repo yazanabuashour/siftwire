@@ -7,6 +7,8 @@
 mod architecture;
 #[path = "process_contract/current_news.rs"]
 mod current_news;
+#[path = "process_contract/errors.rs"]
+mod errors;
 
 use std::collections::BTreeMap;
 use std::fs;

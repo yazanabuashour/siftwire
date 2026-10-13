@@ -23,8 +23,7 @@ export async function applyConfigResult(
   )
 }
 
-// Source upserts return only the normalized source. Other configuration
-// collections in that response do not belong to this mutation.
+// Source upserts own only returned sources, not other response collections.
 export function mergeSourceResult(
   current: ConfigResult,
   result: ConfigResult,

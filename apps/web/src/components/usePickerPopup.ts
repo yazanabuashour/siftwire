@@ -5,8 +5,6 @@ import {
   type RefObject,
 } from "react"
 
-// Adapted locally from Salary Atlas's useCityPopup. Available viewport space,
-// not an option count or a fixed popup height, bounds the archive list.
 export function usePickerPopup(
   trigger: RefObject<HTMLButtonElement | null>,
   popup: RefObject<HTMLDialogElement | null>,

@@ -32,8 +32,6 @@ const TIMEOUT_MS = 30_000
 
 const BASE = "/api/v1"
 
-/// One owner per request: creates the abort controller, applies the timeout,
-/// and decodes the response through the supplied schema.
 export async function request<T>(
   path: string,
   options: RequestOptions<T>,

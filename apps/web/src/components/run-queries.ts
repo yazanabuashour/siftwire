@@ -21,8 +21,7 @@ export function useRuns(delivered: boolean, search = "", enabled = true) {
     },
     getNextPageParam: (lastPage) => lastPage.next_before ?? undefined,
     enabled,
-    // A closed picker must release its request, not just stop future fetches.
-    // TanStack keeps shared latest-record requests alive for remaining observers.
+    // Unsubscribe closed pickers while preserving requests owned by other observers.
     subscribed: enabled,
   })
 }

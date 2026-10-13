@@ -1,7 +1,6 @@
 import { z } from "zod"
 
-// The runner stores priority_rank as i64. Only decimal strings cross the
-// browser boundary; JavaScript numbers cannot represent the full range.
+// Decimal strings preserve the runner's full i64 range across JavaScript.
 export const PriorityRankSchema = z.string().refine((value) => {
   const digits = value.startsWith("-") ? value.slice(1) : value
 

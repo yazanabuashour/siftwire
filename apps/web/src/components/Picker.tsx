@@ -214,8 +214,7 @@ function PickerPanel({
   )
 }
 
-// Locally adapted from Salary Atlas's CitySearch. Filtering and order belong to
-// the caller; typing and highlighting never change the committed value.
+// The caller owns filtering; typing and highlighting never commit a value.
 export function Picker(props: PickerProps) {
   const id = useId()
   const [open, setOpen] = useState(false)

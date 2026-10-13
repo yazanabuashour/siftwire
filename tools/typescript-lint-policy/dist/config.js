@@ -49,6 +49,7 @@ export const strictestConfig = defineConfig({
         "project/no-known-value-widening": "error",
         "project/no-manual-effect-runtime-in-tests": "error",
         "project/no-module-mocking": "error",
+        "project/no-multiline-comments": "error",
         "project/no-object-parameters": "error",
         "project/no-reflect-apply": "error",
         "project/no-reflect-get": "error",

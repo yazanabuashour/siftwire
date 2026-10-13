@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react"
 
-// Keep email CSS inside the frame. Only remote images may load automatically;
-// scripts, forms, embedded pages, and external styles stay disabled.
+// Keep email CSS isolated from the app; only remote images load automatically.
 const emailPolicy =
   "default-src 'none'; img-src https: http:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
 

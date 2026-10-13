@@ -62,8 +62,7 @@ export function selectRun(runId: string | undefined) {
   navigate(url.href)
 }
 
-// Only authored app links use this handler. Recorded HTML and story links keep
-// their browser behavior, including links inside the isolated email frame.
+// Recorded story links retain browser behavior outside this app handler.
 export function AppLink({
   onClick,
   href,

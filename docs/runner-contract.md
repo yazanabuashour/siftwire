@@ -259,6 +259,11 @@ with the current brief and recorded prior messages.
 
 Durable configuration writes require operator approval.
 
+Durable `run_brief` calls against the same database serialize collection and
+evidence publication with an advisory file lock. A waiting call reads configuration
+and markers after the earlier call finishes. Process exit releases the lock;
+interruption does not roll back published state. Dry runs do not take this lock.
+
 `run_brief` can change run, Required latest-seen, fetch, and health state before
 a caller receives its result. Automatic retry after an interruption or uncertain
 outcome is unsafe. The caller saves the result, chooses candidate indexes, and

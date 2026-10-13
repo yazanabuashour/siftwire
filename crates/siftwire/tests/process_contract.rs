@@ -5,6 +5,9 @@
 
 #[path = "process_contract/architecture.rs"]
 mod architecture;
+#[cfg(unix)]
+#[path = "process_contract/concurrency.rs"]
+mod concurrency;
 #[path = "process_contract/current_news.rs"]
 mod current_news;
 #[path = "process_contract/errors.rs"]

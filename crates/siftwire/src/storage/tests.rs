@@ -23,6 +23,53 @@ use crate::domain::{
 
 use super::{DeliveryPlan, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, Store};
 
+#[cfg(unix)]
+#[test]
+fn collection_descriptor_preserves_sqlite_lifetime_locks() -> Result<()> {
+    const PROBE: &str = "SIFTWIRE_TEST_SQLITE_LOCK_PROBE";
+    const EXPECTED: &str = "SIFTWIRE_TEST_SQLITE_LOCK_EXPECTED";
+    if let Some(path) = std::env::var_os(PROBE) {
+        let file = fs::OpenOptions::new().read(true).write(true).open(path)?;
+        let result =
+            rustix::fs::fcntl_lock(&file, rustix::fs::FlockOperation::NonBlockingLockExclusive);
+        let locked = matches!(
+            result,
+            Err(rustix::io::Errno::ACCESS | rustix::io::Errno::AGAIN)
+        );
+        assert_eq!(
+            locked,
+            std::env::var(EXPECTED)?.as_str() == "locked",
+            "SQL exclusive probe: {result:?}"
+        );
+        return Ok(());
+    }
+    let temp = TempDir::new()?;
+    let path = temp.path().join("lifetime.sqlite");
+    let store = Store::open(&path)?;
+    store.runtime_config()?;
+    store.lock_collection()?;
+    let probe = |expected: &str| -> Result<()> {
+        let output = std::process::Command::new(std::env::current_exe()?)
+            .args([
+                "--exact",
+                "storage::tests::collection_descriptor_preserves_sqlite_lifetime_locks",
+                "--nocapture",
+            ])
+            .env(PROBE, &path)
+            .env(EXPECTED, expected)
+            .output()?;
+        assert!(
+            output.status.success(),
+            "SQL lock lifetime failed: {output:?}"
+        );
+        Ok(())
+    };
+    probe("locked")?;
+    drop(store);
+    probe("unlocked")?;
+    Ok(())
+}
+
 fn test_store() -> Result<(TempDir, Store)> {
     let temp = TempDir::new()?;
     let store = Store::open(temp.path().join("siftwire.sqlite"))?;

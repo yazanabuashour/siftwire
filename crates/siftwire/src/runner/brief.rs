@@ -53,6 +53,9 @@ pub(super) fn run_action(
 }
 
 fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
+    if !dry_run {
+        store.lock_collection()?;
+    }
     let sources = store.list_sources(true)?;
     if sources.is_empty() {
         return Ok(delivery::rejected(paths, "no enabled sources configured"));

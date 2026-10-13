@@ -154,6 +154,8 @@ impl From<anyhow::Error> for ConfigMutationError {
 
 pub struct Store {
     connection: Connection,
+    // SQLite's POSIX locks require this descriptor to close after the connection.
+    collection_lock: File,
     now: fn() -> DateTime<Utc>,
 }
 
@@ -173,6 +175,7 @@ impl Store {
         create_database_directory(&parent)?;
         let sidecars = sidecar_states(path)?;
         let _created = create_database_file(path)?;
+        let collection_lock = File::open(path).context("open collection lock on database")?;
         let initialization_lock = open_initialization_lock(path)?;
         initialization_lock
             .lock_exclusive()
@@ -188,6 +191,7 @@ impl Store {
                 .with_context(|| format!("open sqlite database {}", path.display()))?;
             let store = Self {
                 connection,
+                collection_lock,
                 now: Utc::now,
             };
             store.init_schema()?;
@@ -196,6 +200,20 @@ impl Store {
         protect_new_sidecars(&sidecars)?;
         drop(initialization_lock);
         opened
+    }
+
+    /// Serializes durable collections for this database, including path aliases.
+    ///
+    /// The store holds the advisory lock until its `SQLite` connection closes or the
+    /// process exits.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the database file cannot be locked.
+    pub fn lock_collection(&self) -> Result<()> {
+        self.collection_lock
+            .lock_exclusive()
+            .context("lock durable collection")
     }
 
     fn timestamp(&self) -> DateTime<Utc> {

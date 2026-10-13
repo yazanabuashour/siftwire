@@ -149,6 +149,7 @@ fn incompatible_uncheckpointed_wal_is_rejected_without_mutation() -> Result<()> 
 #[test]
 fn reopening_preserves_configuration_state_and_delivery_evidence() -> Result<()> {
     let (temp, store) = test_store()?;
+    store.lock_collection()?;
     let runtime = store.runtime_config()?;
     assert_eq!(
         runtime

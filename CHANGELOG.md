@@ -5,7 +5,7 @@ Public release notes are mirrored in `docs/release-notes/`.
 ## Unreleased
 
 - Distinguish config and preparation runtime failures from validation refusals. Report unreadable confirmation history instead of silently omitting it; same-plan confirmation retries remain safe after a committed write.
-- Serialize durable collections by database file identity so overlapping runs cannot reuse or regress Required markers. Interrupted collection is still not safe to retry automatically.
+- Serialize durable collections so overlapping runs cannot reuse or regress Required markers. Unix locks the database inode; Windows locks a canonical-path sidecar without blocking SQLite. Interrupted collection is still not safe to retry automatically.
 - Verify earlier answers in multi-turn evaluation, not just the last turn.
 - Put ESPN scoreboard dates in the URL query rather than its fragment, replacing conflicting endpoint dates with the configured sports window.
 - Correct fractional-second ordering for recent delivery history and repeat suppression.

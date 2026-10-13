@@ -175,8 +175,8 @@ impl Store {
         create_database_directory(&parent)?;
         let sidecars = sidecar_states(path)?;
         let _created = create_database_file(path)?;
-        let collection_lock = File::open(path).context("open collection lock on database")?;
-        let initialization_lock = open_initialization_lock(path)?;
+        let collection_lock = open_collection_lock(path)?;
+        let initialization_lock = open_database_lock_file(path, ".siftwire-initialization.lock")?;
         initialization_lock
             .lock_exclusive()
             .context("lock sqlite initialization")?;
@@ -238,15 +238,27 @@ fn create_database_directory(path: &Path) -> Result<()> {
         .with_context(|| format!("create database directory {}", path.display()))
 }
 
-fn open_initialization_lock(path: &Path) -> Result<File> {
-    let path = sidecar_path(path, ".siftwire-initialization.lock");
+#[cfg(not(windows))]
+fn open_collection_lock(path: &Path) -> Result<File> {
+    File::open(path).context("open collection lock on database")
+}
+
+#[cfg(windows)]
+fn open_collection_lock(path: &Path) -> Result<File> {
+    // Windows byte-range locks must not overlap SQLite's data or native locks.
+    let path = fs::canonicalize(path).context("resolve collection lock database")?;
+    open_database_lock_file(&path, ".siftwire-collection.lock")
+}
+
+fn open_database_lock_file(path: &Path, suffix: &str) -> Result<File> {
+    let path = sidecar_path(path, suffix);
     let mut options = OpenOptions::new();
     options.read(true).write(true).create(true);
     #[cfg(unix)]
     options.mode(0o600);
     options
         .open(&path)
-        .with_context(|| format!("open sqlite initialization lock {}", path.display()))
+        .with_context(|| format!("open database lock {}", path.display()))
 }
 
 fn create_database_file(path: &Path) -> Result<bool> {

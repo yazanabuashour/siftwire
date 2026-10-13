@@ -261,8 +261,10 @@ with the current brief and recorded prior messages.
 Durable configuration writes require operator approval.
 
 Durable `run_brief` calls against the same database serialize collection and
-evidence publication with an advisory file lock. A waiting call reads configuration
-and markers after the earlier call finishes. Process exit releases the lock;
+evidence publication with a file lock. Unix uses the database inode; Windows uses
+a lock sidecar beside the canonical database path so locking cannot block SQLite's
+own handle. A waiting call reads configuration and markers after the earlier call
+finishes. Process exit releases the lock;
 interruption does not roll back published state. Dry runs do not take this lock.
 
 `run_brief` can change run, Required latest-seen, fetch, and health state before

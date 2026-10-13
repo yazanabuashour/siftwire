@@ -18,14 +18,15 @@ Use [Security Operations](security-operations.md) for dependency review cadence,
 
 Keep policy and workflow files reviewable in Git alone.
 
-Current readiness assumptions:
+Require these repository controls. Verify GitHub-owned settings separately from
+workflow policy:
 
-- `main` is the protected default branch.
+- Protect the default branch `main`.
 - Pull requests run only untrusted-safe validation with read-only token scope.
 - Pull requests enforce formatting, lint, unit tests, and skill validation.
 - GitHub Releases are created from version tags in the `v0.y.z` form.
-- Release publication runs in a protected `release` environment with narrowly scoped write permissions.
-- Security reports are expected through GitHub private vulnerability reporting.
+- Protect the `release` environment used for publication; keep write permissions narrowly scoped.
+- Enable GitHub private vulnerability reporting.
 
 Review enforcement has these constraints:
 
@@ -83,4 +84,4 @@ or skill-only recipes, classify the gap as SiftWire workflow ceremony and
 compare runner-owned surface candidates before expanding
 `skills/siftwire/SKILL.md`.
 
-GitHub release immutability is enabled. Treat published tags and assets as immutable; fix bad artifacts with a new patch release instead of replacing an existing release.
+Require GitHub release immutability. Treat published tags and assets as immutable; fix bad artifacts with a new patch release instead of replacing an existing release.

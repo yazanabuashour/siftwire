@@ -128,8 +128,9 @@ recurring-update design.
 filter emits matches involving teams in the first two standings positions and
 includes ties at the second-position boundary. It falls back to schedule
 records only when Riot returns no populated standings section. Rankings request
-and decode failures fail the source. `espn_scoreboard` adds the configured
-sports window to an ESPN UFC scoreboard endpoint. Upcoming events produce one
+and decode failures fail the source. `espn_scoreboard` sets an ESPN UFC scoreboard
+endpoint's `dates` query parameter to the configured sports window, replacing
+existing `dates` values while preserving other parameters and the URL fragment. Upcoming events produce one
 card-level update. Completed events produce one update per usable bout with the
 winner, loser, records, weight class, and provider-supplied round and clock.
 Every update links to an ESPN FightCenter page, never the JSON endpoint.

@@ -89,6 +89,75 @@ async fn rejected_results_map_to_400() {
 }
 
 #[tokio::test]
+async fn runner_timeout_covers_request_writes_and_output_collection() {
+    for reads_request in [false, true] {
+        let temp = TempDir::new().expect("temp dir");
+        let path = temp.path().join("stalled-runner.sh");
+        let read = if reads_request {
+            "cat >input.json\n"
+        } else {
+            ""
+        };
+        std::fs::write(
+            &path,
+            format!(
+                "#!/usr/bin/env bash\ncd -- '{}' || exit 1\nprintf '%s' \"$$\" >pid\n{read}exec sleep 60\n",
+                temp.path().display(),
+            ),
+        )
+        .expect("write stalled runner");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod stalled runner");
+        let mut state =
+            state_with_runner(&path.to_string_lossy(), temp.path().to_str().expect("utf8"));
+        state.settings.run_timeout = std::time::Duration::from_secs(1);
+        let request = json!({"outlets": [{"name": "Fixture", "note": "x".repeat(1_048_576)}]});
+        let (status, body) = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            call(
+                crate::router(state),
+                json_request("PUT", "/api/v1/outlets", &request),
+            ),
+        )
+        .await
+        .expect("the runner deadline must cover a blocked stdin write");
+        assert_eq!(
+            status,
+            StatusCode::BAD_GATEWAY,
+            "reads_request={reads_request}: {body}"
+        );
+        assert!(
+            body.pointer("/error/message")
+                .and_then(Value::as_str)
+                .is_some_and(|message| message.contains("runner did not finish")),
+            "timeout must retain its diagnostic: {body}"
+        );
+        assert_eq!(temp.path().join("input.json").exists(), reads_request);
+        if reads_request {
+            let forwarded: Value = serde_json::from_slice(
+                &std::fs::read(temp.path().join("input.json")).expect("read runner input"),
+            )
+            .expect("fixture must consume the whole request before stalling");
+            assert_eq!(forwarded.get("outlets"), request.get("outlets"));
+        }
+        let pid = std::fs::read_to_string(temp.path().join("pid")).expect("runner pid");
+        tokio::time::timeout(std::time::Duration::from_secs(5), async {
+            while std::process::Command::new("kill")
+                .args(["-0", pid.as_str()])
+                .stderr(std::process::Stdio::null())
+                .status()
+                .expect("check runner exit")
+                .success()
+            {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await
+        .expect("a timed-out runner must be killed and reaped");
+    }
+}
+
+#[tokio::test]
 async fn options_forward_sports_settings_to_the_runner() {
     let temp = TempDir::new().expect("temp dir");
     let input = temp.path().join("input.json");

@@ -37,9 +37,11 @@ Automatic query and mutation retries are disabled. Reads can recover through
 explicit refetch or the existing focus-refetch behavior. Writes are not replayed
 because a browser request failed.
 
-The request owner forwards cancellation and removes its listeners and timer on
-every exit. A browser abort stops the browser's wait. It does not prove that a
-runner write did not commit.
+The browser request owner forwards cancellation and removes its listeners and
+timer on every exit. The console process client applies one runner deadline to
+writing stdin and collecting output; expiration drops and kills the child.
+A browser abort stops the browser's wait. Neither an abort nor a runner timeout
+proves that a write did not commit.
 
 ## Policy distribution
 

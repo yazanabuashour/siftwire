@@ -56,21 +56,27 @@ pub async fn invoke(invocation: &Invocation) -> Result<Outcome> {
     let mut child = command
         .spawn()
         .with_context(|| format!("spawn runner {}", invocation.runner_bin))?;
-    if let Some(request) = &invocation.request {
-        let payload = serde_json::to_vec(request).context("encode runner request")?;
-        if let Some(mut stdin) = child.stdin.take() {
-            stdin
-                .write_all(&payload)
-                .await
-                .context("write runner request")?;
-            stdin
-                .write_all(b"\n")
-                .await
-                .context("terminate runner request")?;
+    let exchange = async move {
+        if let Some(request) = &invocation.request {
+            let payload = serde_json::to_vec(request).context("encode runner request")?;
+            if let Some(mut stdin) = child.stdin.take() {
+                stdin
+                    .write_all(&payload)
+                    .await
+                    .context("write runner request")?;
+                stdin
+                    .write_all(b"\n")
+                    .await
+                    .context("terminate runner request")?;
+            }
         }
-    }
-    let output = match tokio::time::timeout(invocation.timeout, child.wait_with_output()).await {
-        Ok(result) => result.context("collect runner output")?,
+        child
+            .wait_with_output()
+            .await
+            .context("collect runner output")
+    };
+    let output = match tokio::time::timeout(invocation.timeout, exchange).await {
+        Ok(result) => result?,
         Err(_) => {
             return Err(anyhow::anyhow!(
                 "runner did not finish within {:?}",

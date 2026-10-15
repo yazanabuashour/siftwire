@@ -3,6 +3,8 @@
     reason = "process tests return Result for setup while assertions report contract failures"
 )]
 
+#[path = "process_contract/admission.rs"]
+mod admission;
 #[path = "process_contract/architecture.rs"]
 mod architecture;
 #[cfg(unix)]

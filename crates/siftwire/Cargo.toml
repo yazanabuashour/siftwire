@@ -1,6 +1,6 @@
 [package]
 name = "siftwire"
-version = "0.9.2"
+version = "0.9.3"
 edition.workspace = true
 rust-version.workspace = true
 description = "Local-first brief runtime for agents"
@@ -30,6 +30,7 @@ ureq = { version = "3.3", default-features = false, features = [
   "platform-verifier",
   "rustls",
 ] }
+unicode-normalization = "0.1"
 url = "2.5"
 
 [dev-dependencies]

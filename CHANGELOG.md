@@ -4,6 +4,10 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+## v0.9.3
+
+- Reject promotional sports livestream headlines and embedded query loaders before optional selection, recording exclusions in existing evidence. Keep legitimate match reporting and structured fixtures/results available.
+
 - Distinguish config and preparation runtime failures from validation refusals. Report unreadable confirmation history instead of silently omitting it; same-plan confirmation retries remain safe after a committed write.
 - Serialize durable collections so overlapping runs cannot reuse or regress Required markers. Unix locks the database inode; Windows locks a canonical-path sidecar without blocking SQLite. Interrupted collection is still not safe to retry automatically.
 - Verify earlier answers in multi-turn evaluation, not just the last turn.
@@ -14,6 +18,11 @@ Public release notes are mirrored in `docs/release-notes/`.
 - Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
 
 ## Releases
+
+- [v0.9.3](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.3)
+  rejects promotional livestream candidates and embedded query loaders, documents
+  major-only sports news selection, and includes the correctness fixes above.
+  See the [release notes](docs/release-notes/v0.9.3.md).
 
 - [v0.9.2](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.2)
   shares email presentation through the standalone `email-ui` crate while

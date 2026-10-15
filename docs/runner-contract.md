@@ -289,6 +289,21 @@ a result read or output failure; inspect configuration before retrying.
 Result JSON can contain local paths, source URLs, brief text, and delivery
 history. Do not treat raw requests or results as telemetry-safe.
 
+## Optional-news admission
+
+Before optional candidates are offered, the runner drops sports headlines with
+promotional free-stream or decorated livestream wording, routine sports watch
+guides, and optional news URLs
+whose decoded query values start with `data:` or `javascript:`. Compatibility
+Unicode folding catches common decorated stream headlines. These are narrow
+spam signals, not a general classifier or publisher verification. Normal match
+reporting and news about streaming remain eligible for editorial judgment.
+
+Exclusions appear in `suppressed` and durable archive dropped rows with reasons
+`promotional_livestream`, `sports_watch_guide`, or `embedded_loader_url`. Publication-window counts
+still describe date eligibility before admission. Required feeds, structured
+sports schedules, stored delivery plans, and their replay are unchanged.
+
 ## Storage selection
 
 Path precedence is explicit `--db`, `SIFTWIRE_DATABASE_PATH`, then the SiftWire

@@ -6,6 +6,7 @@ use crate::contract::{BriefItem, SuppressedItem};
 use crate::domain::{Reporting, Source};
 use crate::storage::normalize_title_key;
 
+use super::admission::rejection_reason;
 use super::selection::parse_item_time;
 
 #[derive(Clone, Debug)]
@@ -25,14 +26,22 @@ pub struct ClassifiedItems {
 pub fn classify_and_dedupe(items: Vec<CollectedItem>) -> ClassifiedItems {
     let mut must_include = Vec::new();
     let mut candidates = Vec::new();
+    let mut suppressed = Vec::new();
     for item in items {
         match item.source.reporting() {
             Reporting::Required => must_include.push(item.brief_item),
             Reporting::Sports => {}
-            Reporting::Major | Reporting::Highlights => candidates.push(item),
+            Reporting::Major | Reporting::Highlights => {
+                if let Some(reason) = rejection_reason(&item.source, &item.brief_item) {
+                    suppressed.push(suppressed_item(&item.brief_item, reason));
+                } else {
+                    candidates.push(item);
+                }
+            }
         }
     }
-    let (mut candidates, suppressed) = collapse_duplicates(candidates);
+    let (mut candidates, duplicates) = collapse_duplicates(candidates);
+    suppressed.extend(duplicates);
     sort_brief_items(&mut must_include);
     sort_collected_items(&mut candidates);
     ClassifiedItems {

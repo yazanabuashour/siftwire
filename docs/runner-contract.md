@@ -3,9 +3,7 @@
 The installed `siftwire` executable accepts one JSON request per process and
 returns one JSON result. Production consumers use this interface, not Rust
 implementation modules or direct SQLite access. See the
-[request examples](../README.md#configure-your-brief) to get started and the
-[console process client](../crates/siftwire-console/src/runner.rs) for a maintained
-consumer.
+[request examples](../README.md#configure-your-brief) to get started.
 
 ## Invocation
 
@@ -15,7 +13,7 @@ siftwire brief [--db path]
 ```
 
 The `runs list` and `runs show` operator commands provide
-[archive reads](run-history.md) for operators and the console. Source inspection
+[archive reads](run-history.md) for operators. Source inspection
 and writes use `config.inspect_config` and `config.upsert_source`. There is no
 separate `source` command.
 

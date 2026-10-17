@@ -1,8 +1,7 @@
 # Run and delivery history
 
 The `runs` operator commands read saved collection and delivery evidence. They
-are separate from the `config` and `brief` agent protocol. The console uses these
-commands through the installed runner, never through SQLite.
+are separate from the `config` and `brief` agent protocol.
 
 ## Commands
 
@@ -39,7 +38,7 @@ siftwire runs show '<run-id>' --json
 query has no older matches. An unknown cursor is an error. The default page size
 is 20. `--limit N` changes the page size, not the total archive available.
 
-Activity sorts by run start time descending, then run ID descending. `--delivered`
+The default list sorts by run start time descending, then run ID descending. `--delivered`
 filters confirmed deliveries before applying the limit and sorts by delivery
 time descending, then run ID descending. A run delivered late can therefore be
 the newest brief without being the newest activity.
@@ -48,10 +47,6 @@ the newest brief without being the newest activity.
 summary. It does not interpret wildcards or regular expressions and does not
 search email bodies. Stored date fragments such as `2026-09` match. Localized
 month names do not. Search applies to the full archive before pagination.
-
-Console HTTP queries use `/api/v1/runs?delivered=true&search=2026-09` with optional
-`before` and `limit`. `/api/v1/runs/<id>` fetches a record independently of list
-filters and pagination. Query values and IDs require percent-encoding.
 
 ## Collection and delivery evidence
 

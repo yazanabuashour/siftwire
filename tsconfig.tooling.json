@@ -3,9 +3,5 @@
   "compilerOptions": {
     "skipLibCheck": true
   },
-  "include": [
-    "oxlint.config.ts",
-    "vitest.config.ts",
-    "tools/agent-eval/**/*.ts"
-  ]
+  "include": ["oxlint.config.ts", "tools/agent-eval/**/*.ts"]
 }

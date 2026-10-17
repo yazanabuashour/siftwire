@@ -3,7 +3,7 @@
 ## Set up a checkout
 
 Install the tools pinned in `mise.toml` and `rust-toolchain.toml`, then install
-frontend and evaluator dependencies. Install ShellCheck separately; `mise` does
+evaluator dependencies. Install ShellCheck separately; `mise` does
 not manage it, but the repository gate requires it:
 
 ```bash
@@ -12,10 +12,15 @@ mise exec -- bun install --frozen-lockfile
 ```
 
 Run commands below from the repository root. The
-[repository map](AGENTS.md#code-and-architecture) identifies module owners. Follow
-[frontend ownership and shared policies](docs/architecture/frontend.md) when
-changing requests, schemas, cached data, or views. Update checked-in policy
-snapshots with their producer's export command, not by editing generated code.
+[repository map](AGENTS.md#code-and-architecture) identifies module owners.
+Evaluator TypeScript uses the checked-in compiler and lint policies under
+`tools/`. Update those snapshots with their producer's export command, not by
+editing generated code. Each snapshot's README describes the update procedure.
+
+`tsconfig.tooling.json` overrides `skipLibCheck` because the evaluator's Pi,
+Google GenAI, and gaxios dependency declarations are incompatible with the
+selected Node.js and Bun types. Remove the override once those declarations are
+compatible; project-owned tooling still receives strict typechecks and typed lint.
 
 ## Exercise the runner without personal state
 
@@ -33,29 +38,6 @@ A fresh database has runtime defaults and no sources. Use the
 [runner contract](docs/runner-contract.md) for requests, compatibility checks,
 rejections, and retry rules. Remove the disposable directory when finished.
 
-## Develop the console
-
-Use the same disposable database and source-built runner. In one terminal, start
-the backend:
-
-```bash
-SIFTWIRE_CONSOLE_DATABASE="$run_root/siftwire.sqlite" \
-SIFTWIRE_CONSOLE_RUNNER_BIN="$PWD/target/debug/siftwire" \
-	mise exec -- cargo run --locked -p siftwire-console
-```
-
-In another terminal, run `mise exec -- bun run dev:web` and open
-`http://127.0.0.1:5175`. Vite proxies `/api` to the backend at
-`http://127.0.0.1:8790`; set `API_PROXY_TARGET` if you use another backend address.
-If the backend port is occupied, choose another `SIFTWIRE_CONSOLE_BIND` and a
-matching `API_PROXY_TARGET`; do not stop an existing console. For another Vite
-port, use `mise exec -- bun run dev:web --port 5176`. See
-[console settings](docs/console.md#change-server-settings).
-
-Run `mise exec -- bun run build:console` to build the console and its web assets
-without installing them. For installation, follow the
-[console guide](docs/console.md#install-and-start-the-console).
-
 ## Run checks
 
 Run the full gate before handing off a change:
@@ -65,11 +47,10 @@ mise exec -- ./scripts/ci.sh
 ```
 
 The gate checks Rust toolchain selection, formatting, lint, workspace tests,
-TypeScript types, adapter and frontend tests, the web build, shell scripts, the
-agent skill, and release installation. Focused checks during development include
-`mise exec -- cargo test --locked -p siftwire`,
-`mise exec -- cargo test --locked -p siftwire-console`, and
-`mise exec -- bun run test:web`.
+TypeScript types, adapter tests, shell scripts, the agent skill, and release
+installation. Focused checks during development include
+`mise exec -- cargo test --locked -p siftwire` and
+`mise exec -- bun test tools/agent-eval`.
 
 ## Keep public artifacts safe
 

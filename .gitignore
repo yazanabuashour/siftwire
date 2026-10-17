@@ -1,5 +1,4 @@
 .DS_Store
-apps/web/dist/
 target/
 *.sqlite
 *.sqlite-*

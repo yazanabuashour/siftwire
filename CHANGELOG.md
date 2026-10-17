@@ -4,6 +4,10 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+## v0.10.0
+
+- Remove the optional web console, frontend, UI-only dependencies, installer, and build checks. Configuration inspection and edits remain available through the installed JSON runner; operator archive commands and prepared email rendering are unchanged.
+
 ## v0.9.3
 
 - Reject promotional sports livestream headlines and embedded query loaders before optional selection, recording exclusions in existing evidence. Keep legitimate match reporting and structured fixtures/results available.
@@ -18,6 +22,11 @@ Public release notes are mirrored in `docs/release-notes/`.
 - Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
 
 ## Releases
+
+- [v0.10.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.10.0)
+  removes the optional web console and keeps configuration inspection agent-first
+  through the installed runner. Existing v0.9.x databases remain compatible.
+  See the [release notes](docs/release-notes/v0.10.0.md).
 
 - [v0.9.3](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.3)
   rejects promotional livestream candidates and embedded query loaders, documents

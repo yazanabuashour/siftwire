@@ -1,10 +1,10 @@
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use rusqlite::{Transaction, params};
 
 use crate::domain::normalize_sources;
 
-use super::{Source, Store, bool_i64, format_timestamp, normalize_source};
+use super::{ConfigMutationError, Source, Store, bool_i64, format_timestamp, normalize_source};
 
 const SOURCE_COLUMNS: &str = "key, label, kind, url, repo, section, threshold, enabled, \
     url_canonicalization, outlet_extraction, dedup_group, priority_rank, \
@@ -43,8 +43,11 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when validation or the atomic `SQLite` replacement fails.
-    pub fn replace_sources(&self, sources: Vec<Source>) -> Result<Vec<Source>> {
-        let sources = normalize_sources(sources)?;
+    pub fn replace_sources(
+        &self,
+        sources: Vec<Source>,
+    ) -> Result<Vec<Source>, ConfigMutationError> {
+        let sources = normalize_sources(sources).map_err(ConfigMutationError::Validation)?;
         let transaction = self
             .connection
             .unchecked_transaction()
@@ -57,6 +60,7 @@ impl Store {
         }
         transaction.commit().context("commit source replacement")?;
         self.list_sources(false)
+            .map_err(ConfigMutationError::Storage)
     }
 
     /// Inserts or updates one source.
@@ -64,8 +68,8 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when validation or the atomic `SQLite` write fails.
-    pub fn upsert_source(&self, source: Source) -> Result<Source> {
-        let source = normalize_source(source)?;
+    pub fn upsert_source(&self, source: Source) -> Result<Source, ConfigMutationError> {
+        let source = normalize_source(source).map_err(ConfigMutationError::Validation)?;
         let transaction = self
             .connection
             .unchecked_transaction()
@@ -80,10 +84,12 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when the key is empty or `SQLite` cannot delete the source.
-    pub fn delete_source(&self, key: &str) -> Result<()> {
+    pub fn delete_source(&self, key: &str) -> Result<(), ConfigMutationError> {
         let key = key.trim();
         if key.is_empty() {
-            bail!("source key is required");
+            return Err(ConfigMutationError::Validation(anyhow::anyhow!(
+                "source key is required"
+            )));
         }
         self.connection
             .execute("DELETE FROM brief_source WHERE key = ?1", [key])

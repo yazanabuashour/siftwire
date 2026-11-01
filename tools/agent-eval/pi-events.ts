@@ -135,8 +135,7 @@ export class TurnCollector {
     }
   }
 
-  // Native starts also describe calls rejected before execution. Only tool
-  // execute hooks establish action receipts, including executions that fail.
+  // Native starts include rejected calls; execute hooks establish action receipts.
   recordExecution(id: string, action: Action): void {
     const call = this.calls.get(id)
 
@@ -153,8 +152,7 @@ export class TurnCollector {
       call.state !== "started" ||
       call.executed
     ) {
-      // The SDK catches tool exceptions. Retain this failure until finish()
-      // rather than allowing the agent to recover and hide a recording fault.
+      // Retain faults until finish(): the SDK catches tool exceptions.
       this.executionError ??= new LifecycleError(
         "Orphan or duplicate tool execution",
       )

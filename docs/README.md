@@ -6,7 +6,6 @@
   and first configuration
 - [Agent skill](../skills/siftwire/SKILL.md): approved configuration writes,
   story selection, and prepared delivery
-- [Console](console.md): local brief reader, source editor, and Activity view
 - [Run and delivery history](run-history.md): archive commands, search,
   pagination, and saved evidence
 
@@ -36,13 +35,10 @@ These guides describe older releases:
 
 - [Current-news selection](architecture/current-news.md): publication window,
   original links, and duplicate checks
-- [Frontend ownership and shared policies](architecture/frontend.md): module
-  responsibilities, failure handling, and policy snapshots
 - [Database-backed configuration](architecture/db-backed-configuration-adr.md):
   external configuration and state
 - [Configuration and history](architecture/configuration-and-history-adr.md):
   storage ownership and retained evidence
-- [Operator console](architecture/operator-console.md): the local web interface
 - [Sports schedules](architecture/schedule-source-adr.md): recurring fixtures
   and results
 - [AgentOps surface policy](architecture/agentops-surface-policy.md): supported

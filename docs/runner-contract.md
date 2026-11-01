@@ -2,7 +2,8 @@
 
 The installed `siftwire` executable accepts one JSON request per process and
 returns one JSON result. Production consumers use this interface, not Rust
-implementation modules or direct SQLite access.
+implementation modules or direct SQLite access. See the
+[request examples](../README.md#configure-your-brief) to get started.
 
 ## Invocation
 
@@ -12,7 +13,7 @@ siftwire brief [--db path]
 ```
 
 The `runs list` and `runs show` operator commands provide
-[archive reads](run-history.md) for operators and the console. Source inspection
+[archive reads](run-history.md) for operators. Source inspection
 and writes use `config.inspect_config` and `config.upsert_source`. There is no
 separate `source` command.
 
@@ -25,8 +26,8 @@ replace capability checks.
 ## Framing and exits
 
 - Send exactly one JSON object on stdin.
-- Unknown request fields, malformed JSON, and additional JSON values are
-  transport failures.
+- Non-object JSON, unknown request fields, malformed JSON, and additional JSON
+  values are transport failures.
 - An exit-0 task result is exactly one JSON object followed by a newline on
   stdout. Exit-1 and exit-2 failures do not produce result JSON.
 - Stderr contains diagnostics, never result JSON.
@@ -84,6 +85,7 @@ runtime configuration. A partial mutation result does not replace an entire
 cached configuration.
 
 `source_reporting` is a read-only map keyed by each returned source's key.
+
 ### Reporting policies
 
 `source_reporting` has these values:
@@ -124,8 +126,9 @@ recurring-update design.
 filter emits matches involving teams in the first two standings positions and
 includes ties at the second-position boundary. It falls back to schedule
 records only when Riot returns no populated standings section. Rankings request
-and decode failures fail the source. `espn_scoreboard` adds the configured
-sports window to an ESPN UFC scoreboard endpoint. Upcoming events produce one
+and decode failures fail the source. `espn_scoreboard` sets an ESPN UFC scoreboard
+endpoint's `dates` query parameter to the configured sports window, replacing
+existing `dates` values while preserving other parameters and the URL fragment. Upcoming events produce one
 card-level update. Completed events produce one update per usable bout with the
 winner, loser, records, weight class, and provider-supplied round and clock.
 Every update links to an ESPN FightCenter page, never the JSON endpoint.
@@ -255,6 +258,13 @@ with the current brief and recorded prior messages.
 
 Durable configuration writes require operator approval.
 
+Durable `run_brief` calls against the same database serialize collection and
+evidence publication with a file lock. Unix uses the database inode; Windows uses
+a lock sidecar beside the canonical database path so locking cannot block SQLite's
+own handle. A waiting call reads configuration and markers after the earlier call
+finishes. Process exit releases the lock;
+interruption does not roll back published state. Dry runs do not take this lock.
+
 `run_brief` can change run, Required latest-seen, fetch, and health state before
 a caller receives its result. Automatic retry after an interruption or uncertain
 outcome is unsafe. The caller saves the result, chooses candidate indexes, and
@@ -268,10 +278,29 @@ retry-safe with the same database and `delivery_plan_id`. An identical retry
 returns the existing delivery. The runner rejects an unknown plan or a supplied
 `run_id` that does not match. A delivered run cannot create a new plan.
 `record_delivery` is no longer an action. Database corruption or an incomplete
-idempotency record remains an exit-1 runtime error.
+idempotency record remains an exit-1 runtime error. If reading history fails after
+confirmation commits, the runner reports exit 1 rather than returning incomplete
+history. Repair the storage failure, then retry the same plan; do not resend its
+transport bodies. An exit-1 configuration write can also have committed before
+a result read or output failure; inspect configuration before retrying.
 
 Result JSON can contain local paths, source URLs, brief text, and delivery
 history. Do not treat raw requests or results as telemetry-safe.
+
+## Optional-news admission
+
+Before optional candidates are offered, the runner drops sports headlines with
+promotional free-stream or decorated livestream wording, routine sports watch
+guides, and optional news URLs
+whose decoded query values start with `data:` or `javascript:`. Compatibility
+Unicode folding catches common decorated stream headlines. These are narrow
+spam signals, not a general classifier or publisher verification. Normal match
+reporting and news about streaming remain eligible for editorial judgment.
+
+Exclusions appear in `suppressed` and durable archive dropped rows with reasons
+`promotional_livestream`, `sports_watch_guide`, or `embedded_loader_url`. Publication-window counts
+still describe date eligibility before admission. Required feeds, structured
+sports schedules, stored delivery plans, and their replay are unchanged.
 
 ## Storage selection
 
@@ -283,17 +312,3 @@ retain their permissions. All commands that open storage can initialize an empty
 database, including inspection and archive reads. Older database formats are
 rejected without migration; use a fresh database when upgrading to v0.9.0. Keep the old
 database and its matching released runner separately if you need historical reads.
-
-## Minimal consumer
-
-`crates/siftwire/examples/inspect_config.rs` is a minimal process consumer:
-
-```bash
-run_root="$(mktemp -d)"
-mise exec -- cargo build --locked --bin siftwire
-mise exec -- cargo run --locked --example inspect_config -- \
-	--binary target/debug/siftwire \
-	--db "$run_root/siftwire.sqlite"
-```
-
-It uses only this documented process interface and does not inspect storage.

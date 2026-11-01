@@ -91,3 +91,26 @@ model tokens and selection latency. A passing feed snapshot is not a measured
 speedup or evidence of equivalent publisher coverage. Promotion still requires
 repository gates and the approved checkpoint review. This document alone does
 not authorize deployment.
+
+## Optional-news admission follow-up
+
+The current-news window establishes recency, not legitimacy. A sports feed can
+contain fresh stream promotions that must not become editorial candidates.
+Narrow runner-owned admission now rejects promotional livestream headlines and
+embedded data/script query loaders, retaining dropped evidence through the
+existing suppression and archive surfaces. This protects selection even when a
+Google News link conceals its publisher URL; it does not fetch opaque links.
+
+A publisher/domain blacklist alone cannot address the observed class, while a
+new resolver, source kind, or reputation framework would add network and policy
+contracts. Keep source authority and major-news judgment with the operator and
+selector. Generic `high` reporting gates broad team feeds to major developments;
+structured schedules remain the source for recurring fixtures and scores.
+
+Safety: no new fetches, protocol fields, schema, or changes to immutable plans.
+Capability: synthetic polluted-feed tests require rejected candidates to remain
+unselectable while legitimate reports, major news, fixtures, and scores survive.
+User experience: skip routine team coverage rather than filling spare slots.
+Follow-up: admission is deliberately narrow; evaluate new evasion patterns and
+false positives before extending it. The operator's selector evaluation belongs
+to its owning automation, not a claim of universal spam detection.

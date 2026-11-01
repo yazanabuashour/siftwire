@@ -58,8 +58,7 @@ export const namespaceNodeImportsRule = defineRule({
                 const defaultAlias = defaultImport?.local.type === "Identifier"
                     ? defaultImport.local.name
                     : null;
-                // TypeScript does not model callable CommonJS exports as callable
-                // namespace objects under NodeNext module resolution.
+                // NodeNext types do not expose callable CommonJS namespace imports.
                 if (CALLABLE_DEFAULT_MODULES.has(source) &&
                     defaultAlias === expectedAlias) {
                     return;

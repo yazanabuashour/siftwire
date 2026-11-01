@@ -12,13 +12,13 @@ use std::process::ExitCode;
 use anyhow::{Result, bail};
 use chrono::{TimeDelta, Utc};
 use chrono_tz::Tz;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 
 use crate::contract::{BriefRequest, BriefResult, ConfigRequest, ConfigResult, Paths};
 use crate::paths;
 use crate::storage::{
-    RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
+    ConfigMutationError, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
     RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS, RUNTIME_CONFIG_SPORTS_TIMEZONE, Store,
 };
 
@@ -168,11 +168,14 @@ fn parse_database_argument(arguments: &[String]) -> Result<Option<String>> {
     Ok(database)
 }
 
-fn decode_request<T: Default + DeserializeOwned>() -> Result<T> {
+fn decode_request<T: DeserializeOwned>() -> Result<T> {
     let mut input = Vec::new();
     let _bytes_read = io::stdin().read_to_end(&mut input)?;
+    if !input.trim_ascii_start().starts_with(b"{") {
+        bail!("request must be a JSON object");
+    }
     let mut decoder = serde_json::Deserializer::from_slice(&input);
-    let request = Option::<T>::deserialize(&mut decoder)?.unwrap_or_default();
+    let request = T::deserialize(&mut decoder)?;
     decoder.end()?;
     Ok(request)
 }
@@ -205,7 +208,10 @@ fn config_action(paths: Paths, store: &Store, request: ConfigRequest) -> Result<
         "replace_sources" => {
             let sources = match store.replace_sources(request.sources) {
                 Ok(value) => value,
-                Err(error) => return Ok(rejected_config(paths, error.to_string())),
+                Err(ConfigMutationError::Validation(error)) => {
+                    return Ok(rejected_config(paths, error.to_string()));
+                }
+                Err(ConfigMutationError::Storage(error)) => return Err(error),
             };
             Ok(ConfigResult {
                 paths,
@@ -214,9 +220,9 @@ fn config_action(paths: Paths, store: &Store, request: ConfigRequest) -> Result<
                 ..ConfigResult::default()
             })
         }
-        "upsert_source" => Ok(upsert_source(paths, store, request)),
+        "upsert_source" => upsert_source(paths, store, request),
         "delete_source" => delete_source(paths, store, &request.key),
-        "replace_outlet_policies" => Ok(replace_outlets(paths, store, request)),
+        "replace_outlet_policies" => replace_outlets(paths, store, request),
         "set_brief_options" => set_brief_options(paths, store, &request),
         _ => Ok(rejected_config(
             paths,
@@ -243,22 +249,29 @@ fn inspect_config(paths: Paths, store: &Store) -> Result<ConfigResult> {
     })
 }
 
-fn upsert_source(paths: Paths, store: &Store, request: ConfigRequest) -> ConfigResult {
+fn upsert_source(paths: Paths, store: &Store, request: ConfigRequest) -> Result<ConfigResult> {
     let source = match store.upsert_source(request.source) {
         Ok(value) => value,
-        Err(error) => return rejected_config(paths, error.to_string()),
+        Err(ConfigMutationError::Validation(error)) => {
+            return Ok(rejected_config(paths, error.to_string()));
+        }
+        Err(ConfigMutationError::Storage(error)) => return Err(error),
     };
-    ConfigResult {
+    Ok(ConfigResult {
         paths,
         summary: format!("stored source {}", source.key),
         sources: vec![source],
         ..ConfigResult::default()
-    }
+    })
 }
 
 fn delete_source(paths: Paths, store: &Store, key: &str) -> Result<ConfigResult> {
-    if let Err(error) = store.delete_source(key) {
-        return Ok(rejected_config(paths, error.to_string()));
+    match store.delete_source(key) {
+        Ok(()) => {}
+        Err(ConfigMutationError::Validation(error)) => {
+            return Ok(rejected_config(paths, error.to_string()));
+        }
+        Err(ConfigMutationError::Storage(error)) => return Err(error),
     }
     let sources = store.list_sources(false)?;
     Ok(ConfigResult {
@@ -269,17 +282,20 @@ fn delete_source(paths: Paths, store: &Store, key: &str) -> Result<ConfigResult>
     })
 }
 
-fn replace_outlets(paths: Paths, store: &Store, request: ConfigRequest) -> ConfigResult {
+fn replace_outlets(paths: Paths, store: &Store, request: ConfigRequest) -> Result<ConfigResult> {
     let outlets = match store.replace_outlet_policies(request.outlets) {
         Ok(value) => value,
-        Err(error) => return rejected_config(paths, error.to_string()),
+        Err(ConfigMutationError::Validation(error)) => {
+            return Ok(rejected_config(paths, error.to_string()));
+        }
+        Err(ConfigMutationError::Storage(error)) => return Err(error),
     };
-    ConfigResult {
+    Ok(ConfigResult {
         paths,
         summary: format!("stored {} outlet policies", outlets.len()),
         outlets,
         ..ConfigResult::default()
-    }
+    })
 }
 
 fn set_brief_options(paths: Paths, store: &Store, request: &ConfigRequest) -> Result<ConfigResult> {

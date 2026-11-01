@@ -4,11 +4,9 @@
   "semi": false,
   "sortImports": true,
   "sortPackageJson": false,
-  "sortTailwindcss": true,
   "ignorePatterns": [
     "tools/typescript-lint-policy/**",
     "target/**",
-    "apps/web/dist/**",
     "node_modules/**",
     "receipts/**",
     "crates/siftwire/tests/fixtures/email/*.html",

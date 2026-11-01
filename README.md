@@ -4,18 +4,13 @@ SiftWire turns feeds, GitHub releases, and sports schedules into a brief for
 your agent to deliver. You choose the sources; your agent selects the optional
 stories and sends the prepared message.
 
-![Example SiftWire brief with linked stories, release updates, sports, and source health notes](docs/assets/example-brief.webp)
-
-*Synthetic example. Not a live brief or a record of delivery.*
-
 - **News:** Major and Highlights feeds supply stories from the last 24 hours,
   with original feed links. Required feeds track new entries instead. GitHub
   releases are always Required.
 - **Sports:** Upcoming fixtures and results have separate reporting windows.
 - **History:** Saved briefs preserve the selected Markdown, plain text, and
   HTML. Delivery is recorded only after your agent confirms transport acceptance.
-- **Local state:** The runner and SQLite database stay on your machine. The
-  optional [console](docs/console.md) reads saved briefs and edits configuration.
+- **Local state:** The runner and SQLite database stay on your machine.
 
 Your agent supplies story selection, scheduling, and delivery tools. SiftWire
 has no scheduler or email service. Duplicate checks and delivery history help
@@ -26,8 +21,8 @@ contents. Coverage depends on what your sources publish and retain.
 
 If you are upgrading from v0.8.0 or earlier, read the
 [compatibility reset](docs/runner-v5-reset.md) first: you need a fresh database
-and matching consumers. Upgrading from v0.9.0 or v0.9.1 preserves your database
-and configuration.
+and matching consumers. Upgrading from v0.9.x preserves your database and
+configuration.
 
 Install the latest published runner:
 
@@ -36,20 +31,19 @@ sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/d
 siftwire --version
 ```
 
-To pin the latest documented release, v0.9.2:
+To pin the latest documented release, v0.10.0:
 
 ```bash
-SIFTWIRE_VERSION=v0.9.2 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.9.2/install.sh)"
+SIFTWIRE_VERSION=v0.10.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.10.0/install.sh)"
 siftwire --version
 ```
 
 Register the matching `skills/siftwire/SKILL.md` with your agent's skill system.
-For v0.9.2, use the `v0.9.2` repository tag or the release asset
-`siftwire_0.9.2_skill.tar.gz`. You need both the runner and its matching skill;
+For v0.10.0, use the `v0.10.0` repository tag or the release asset
+`siftwire_0.10.0_skill.tar.gz`. You need both the runner and its matching skill;
 no particular agent or skill directory is required.
 
-When upgrading, update the runner, skill, and process consumers together. If you
-use the console, update it and its web assets too.
+When upgrading, update the runner, skill, and process consumers together.
 
 The installer accepts no arguments. `SIFTWIRE_VERSION` selects the release.
 `SIFTWIRE_INSTALL_DIR` selects the executable directory. Follow any printed
@@ -57,9 +51,12 @@ The installer accepts no arguments. `SIFTWIRE_VERSION` selects the release.
 
 ## Configure your brief
 
-Ask your agent to propose sources and reporting choices, then approve the
-configuration before it writes anything. A fresh database has no sources.
-The [agent skill](skills/siftwire/SKILL.md) covers configuration and delivery.
+Ask your agent to show your current configuration, grouped by releases, blogs,
+news, sports, publisher rules, and brief settings. It reads the installed runner;
+no web server is needed. For changes, ask it to propose sources and reporting
+choices, then approve the configuration before it writes anything. A fresh
+database has no sources. The [agent skill](skills/siftwire/SKILL.md) covers
+configuration and delivery.
 
 For direct process integration, each command reads one JSON request from stdin
 and returns one JSON result:
@@ -79,7 +76,6 @@ result fields, and retry rules.
 ## Find a task
 
 - [Read run and delivery history](docs/run-history.md)
-- [Use the optional console](docs/console.md)
 - [Integrate the JSON runner](docs/runner-contract.md)
 - [Understand current-news selection](docs/architecture/current-news.md)
 - [Develop and run checks](CONTRIBUTING.md)

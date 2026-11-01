@@ -1,3 +1,4 @@
+mod admission;
 mod canonical;
 mod dedup;
 mod feed;

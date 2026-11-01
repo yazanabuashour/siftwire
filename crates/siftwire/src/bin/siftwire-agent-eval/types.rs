@@ -134,6 +134,6 @@ pub struct Verification {
 
 pub struct ParsedOutput {
     pub metrics: Metrics,
-    pub final_message: String,
+    pub final_messages: Vec<String>,
     pub runtime: Runtime,
 }

@@ -26,4 +26,4 @@ List the steps to reproduce the issue.
 
 Add logs, screenshots, or links if they help.
 
-> Do not use this template for security reports. Follow [SECURITY.md](../../SECURITY.md) and use private vulnerability reporting.
+> Do not use this template for security reports. Follow [SECURITY.md](../../SECURITY.md).

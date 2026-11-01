@@ -12,6 +12,7 @@ import { namespaceNodeImportsRule } from "./rules/namespace-node-imports.js";
 import { noGlobalProcessRuntimeRule } from "./rules/no-global-process-runtime.js";
 import { noInlineSchemaCompileRule } from "./rules/no-inline-schema-compile.js";
 import { noManualEffectRuntimeInTestsRule } from "./rules/no-manual-effect-runtime-in-tests.js";
+import { noMultilineCommentsRule } from "./rules/no-multiline-comments.js";
 import { upstreamRules } from "./upstream.js";
 /** Keep consumer waiver names stable across upstream and local implementations. */
 const projectRulesPlugin = definePlugin({
@@ -31,6 +32,7 @@ const projectRulesPlugin = definePlugin({
         "no-global-process-runtime": noGlobalProcessRuntimeRule,
         "no-inline-schema-compile": noInlineSchemaCompileRule,
         "no-manual-effect-runtime-in-tests": noManualEffectRuntimeInTestsRule,
+        "no-multiline-comments": noMultilineCommentsRule,
     },
 });
 export default projectRulesPlugin;

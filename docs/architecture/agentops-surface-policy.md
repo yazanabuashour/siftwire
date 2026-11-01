@@ -189,6 +189,22 @@ boundary; the evaluation guide records the separate user-experience judgment.
 These receipts do not establish real delivery success or authorize a production
 interface change.
 
+### Configuration inspection stays agent-first
+
+The operator uses conversation for configuration changes and wants an on-demand
+overview rather than a deployed dashboard. Keep `config.inspect_config` as the
+source of truth; agents can format its result without another API or skill.
+
+- **Web console:** removed, including its server and frontend. Deployment and a
+  second editing interface do not match this operator workflow.
+- **Terminal UI:** not introduced; it would add another interaction model.
+- **On-demand report:** selected. It uses the existing read action, keeps writes
+  behind approval, and needs no persistent viewer or copied configuration.
+
+This changes presentation, not runner capabilities or storage. Archive commands
+and prepared email bodies remain available. No performance claim or broader
+agent-success claim follows from the operator accepting the rendered overview.
+
 ### No discovery API yet
 
 Current `config` and `brief` actions cover proven tasks. Compact skill guidance

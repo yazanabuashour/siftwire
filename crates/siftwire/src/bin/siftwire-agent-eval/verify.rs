@@ -6,9 +6,10 @@ use crate::verify_checks::Checker;
 pub fn scenario(
     database_path: &str,
     scenario_id: &str,
-    final_message: &str,
+    final_messages: &[String],
     metrics: &Metrics,
 ) -> Verification {
+    let final_message = final_messages.last().map_or("", String::as_str);
     let database = match Connection::open(database_path) {
         Ok(database) => database,
         Err(error) => return open_failure(final_message, metrics, &error),
@@ -16,10 +17,11 @@ pub fn scenario(
     let mut checker = Checker::new(&database);
     check_assistant(&mut checker, final_message, metrics);
     if !verify_first_group(&mut checker, scenario_id, final_message)
-        && !verify_second_group(&mut checker, scenario_id, final_message)
+        && !verify_second_group(&mut checker, scenario_id, final_messages)
     {
         verify_third_group(&mut checker, scenario_id, final_message);
     }
+    verify_prior_health_failure(&mut checker, scenario_id, final_messages);
     checker.prepared_deliveries();
     checker.selected_evidence();
     checker.finish()
@@ -75,14 +77,15 @@ fn verify_first_group(checker: &mut Checker<'_>, id: &str, message: &str) -> boo
     true
 }
 
-fn verify_second_group(checker: &mut Checker<'_>, id: &str, message: &str) -> bool {
+fn verify_second_group(checker: &mut Checker<'_>, id: &str, messages: &[String]) -> bool {
+    let message = messages.last().map_or("", String::as_str);
     match id {
         "brief-run-history" => {
             checker.minimum_count("brief_source", 1);
             checker.count("source_state", 0);
             checker.count("delivery", 3);
             checker.count("sent_item", 3);
-            checker.recorded_delivery(message);
+            checker.recorded_deliveries(messages);
             checker.query_count("distinct history evidence", "SELECT COUNT(DISTINCT url) FROM sent_item WHERE url IN ('https://fixture.example/history-1', 'https://fixture.example/history-2', 'https://fixture.example/history-3')", 3);
         }
         "github-release-source-config" => {
@@ -116,7 +119,7 @@ fn verify_second_group(checker: &mut Checker<'_>, id: &str, message: &str) -> bo
             checker.query_count("no repeat candidates", "SELECT COUNT(*) FROM brief_run_item WHERE category = 'candidate' AND run_id = (SELECT id FROM brief_run ORDER BY started_at DESC, id DESC LIMIT 1)", 0);
             checker.query_count("confirmed repeat evidence", "SELECT COUNT(*) FROM brief_run_item WHERE reason = 'recently_sent' AND run_id = (SELECT id FROM brief_run ORDER BY started_at DESC, id DESC LIMIT 1)", 1);
             checker.contains_all(message, &["NO_REPLY", "Previous brief"]);
-            checker.recorded_delivery(message);
+            checker.recorded_deliveries(messages);
         }
         _ => return false,
     }
@@ -158,6 +161,15 @@ fn verify_third_group(checker: &mut Checker<'_>, id: &str, message: &str) {
     }
 }
 
+fn verify_prior_health_failure(checker: &mut Checker<'_>, id: &str, messages: &[String]) {
+    if id != "feed-recovery-resolves-warning" {
+        return;
+    }
+    let first = messages.first().map_or("", String::as_str);
+    checker.contains_all(first, &["NEW: changing-feed"]);
+    checker.query_count("initial failed source check", "SELECT COUNT(*) FROM fetch_log WHERE source_key = 'changing-feed' AND status = 'error' AND id = (SELECT MIN(id) FROM fetch_log WHERE source_key = 'changing-feed')", 1);
+}
+
 fn open_failure(message: &str, metrics: &Metrics, error: &rusqlite::Error) -> Verification {
     let mut details = Vec::new();
     let mut assistant_pass = true;
@@ -183,6 +195,38 @@ mod tests {
     use anyhow::ensure;
 
     use super::*;
+
+    #[test]
+    fn recovery_checks_the_initial_failure_answer_and_evidence() -> anyhow::Result<()> {
+        let database = Connection::open_in_memory()?;
+        database.execute_batch("CREATE TABLE fetch_log (id INTEGER PRIMARY KEY,source_key TEXT,status TEXT); INSERT INTO fetch_log VALUES (1,'changing-feed','error'), (2,'changing-feed','ok')")?;
+        let answers = vec![
+            "Feed health changes - NEW: changing-feed.".to_owned(),
+            "RESOLVED changing-feed".to_owned(),
+        ];
+        let mut checker = Checker::new(&database);
+        verify_prior_health_failure(&mut checker, "feed-recovery-resolves-warning", &answers);
+        ensure!(checker.finish().passed, "initial failure report rejected");
+        let wrong = vec![
+            "changing-feed is healthy".to_owned(),
+            "RESOLVED changing-feed".to_owned(),
+        ];
+        let mut checker = Checker::new(&database);
+        verify_prior_health_failure(&mut checker, "feed-recovery-resolves-warning", &wrong);
+        let result = checker.finish();
+        ensure!(
+            result.database_pass && !result.assistant_pass,
+            "wrong initial report accepted"
+        );
+        database.execute("UPDATE fetch_log SET status = 'ok' WHERE id = 1", [])?;
+        let mut checker = Checker::new(&database);
+        verify_prior_health_failure(&mut checker, "feed-recovery-resolves-warning", &answers);
+        ensure!(
+            !checker.finish().database_pass,
+            "initial report lacked recorded failure"
+        );
+        Ok(())
+    }
 
     #[test]
     fn invalid_source_reports_the_rejection_constraint() -> anyhow::Result<()> {

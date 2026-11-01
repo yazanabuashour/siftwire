@@ -10,15 +10,15 @@ receive fixes or backports.
 
 Do not report vulnerabilities in public issues, pull requests, or discussions. Do not report private brief data, source inventories, outlet policy details, delivery history, local database contents, or workspace paths in public.
 
-Use GitHub private vulnerability reporting from the repository **Security** tab.
-Include the following details:
+GitHub private vulnerability reporting is disabled. Include the following details
+once private handoff is arranged:
 
 - a clear description of the issue
 - affected files or workflow surfaces
 - reproduction steps or proof-of-concept details
 - expected impact and known mitigations
 
-If GitHub private reporting is unavailable, contact the repository owner through an existing private channel and share only enough detail to arrange private handoff. Do not disclose the vulnerability publicly while that handoff is being arranged.
+Contact the repository owner through an existing private channel and share only enough detail to arrange private handoff. Do not disclose the vulnerability publicly while that handoff is being arranged.
 
 ## Response expectations
 
@@ -43,14 +43,13 @@ Maintainers assign severity by impact on users and maintainers:
 ## Ongoing security operations
 
 [Security operations](docs/security-operations.md) covers dependency reviews,
-advisory rehearsals, threat-model updates, and deeper testing. This policy defines
+threat-model updates, and deeper testing. This policy defines
 private reporting and response expectations.
 
 ## Patch and advisory process
 
 - Fixes land privately first when needed to avoid widening exposure.
 - Public release notes should avoid exploit-enabling detail until a fix or mitigation is available.
-- If the repository later adopts GitHub Security Advisories, maintainers should publish advisories for material fixes.
 
 ## Emergency releases and hotfixes
 

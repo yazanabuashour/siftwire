@@ -45,16 +45,22 @@ pub(super) fn prepare(paths: Paths, store: &Store, request: &BriefRequest) -> Re
     let Some(context) = store.run_delivery_context(&request.run_id)? else {
         return Ok(rejected(paths, "run_id has no recorded delivery context"));
     };
-    let plan = match build_plan(
-        &request.run_id,
+    let rows = store.run_delivery_items(&request.run_id)?;
+    let selected = match select_rows(
         &request.candidate_indexes,
-        &run.started_at,
-        &store.run_delivery_items(&request.run_id)?,
-        &context,
+        &rows,
+        context.max_delivery_items,
     ) {
         Ok(value) => value,
         Err(error) => return Ok(rejected(paths, &error.to_string())),
     };
+    let plan = build_plan(
+        &request.run_id,
+        &request.candidate_indexes,
+        &run.started_at,
+        &selected,
+        &context,
+    )?;
     let Some(plan) = store.insert_delivery_plan(&plan)? else {
         return Ok(rejected(
             paths,
@@ -97,13 +103,11 @@ pub(super) fn confirm(paths: Paths, store: &Store, request: &BriefRequest) -> Re
     record_message(paths, store, &plan)
 }
 
-fn build_plan(
-    run_id: &str,
+fn select_rows<'a>(
     candidate_indexes: &[usize],
-    started_at: &str,
-    rows: &[RunItemRow],
-    context: &RunDeliveryContext,
-) -> Result<DeliveryPlan> {
+    rows: &'a [RunItemRow],
+    max_items: i64,
+) -> Result<Vec<&'a RunItemRow>> {
     let required = rows
         .iter()
         .filter(|row| row.category == RUN_ITEM_MUST_INCLUDE)
@@ -112,7 +116,7 @@ fn build_plan(
         .iter()
         .filter(|row| row.category == RUN_ITEM_CANDIDATE)
         .collect::<Vec<_>>();
-    let max_items = usize::try_from(context.max_delivery_items).unwrap_or_default();
+    let max_items = usize::try_from(max_items).unwrap_or_default();
     let candidate_slots = max_items.saturating_sub(required.len());
     if candidate_indexes.len() > candidate_slots {
         anyhow::bail!(
@@ -133,10 +137,20 @@ fn build_plan(
                 .with_context(|| format!("candidate index {index} is out of range"))?,
         );
     }
+    Ok(selected)
+}
+
+fn build_plan(
+    run_id: &str,
+    candidate_indexes: &[usize],
+    started_at: &str,
+    selected: &[&RunItemRow],
+    context: &RunDeliveryContext,
+) -> Result<DeliveryPlan> {
     let selected = selected
-        .into_iter()
+        .iter()
         .map(|row| {
-            let mut row = row.clone();
+            let mut row = (*row).clone();
             row.url = normalize_delivery_url(&row.url).unwrap_or_default();
             row
         })
@@ -341,10 +355,9 @@ fn record_message(paths: Paths, store: &Store, plan: &DeliveryPlan) -> Result<Br
         prepared_items: plan.items.clone(),
         ..BriefResult::default()
     };
-    let Ok(deliveries) = store.recent_deliveries(3) else {
-        result.final_answer = final_answer(run_id, message, &[]);
-        return Ok(result);
-    };
+    let deliveries = store.recent_deliveries(3).context(
+        "delivery is recorded, but history could not be read; retry confirmation with the same delivery_plan_id after repairing the storage failure",
+    )?;
     result.deliveries = deliveries.into_iter().map(delivery_record).collect();
     result.final_answer = final_answer(run_id, message, &result.deliveries);
     Ok(result)
@@ -434,7 +447,7 @@ mod tests {
             "run-linkless",
             &[],
             "2026-08-27T12:00:00Z",
-            &[row],
+            &[&row],
             &context,
         )?;
         assert_eq!(plan.message, "- Linkless item");

@@ -3,10 +3,17 @@
     reason = "process tests return Result for setup while assertions report contract failures"
 )]
 
+#[path = "process_contract/admission.rs"]
+mod admission;
 #[path = "process_contract/architecture.rs"]
 mod architecture;
+#[cfg(unix)]
+#[path = "process_contract/concurrency.rs"]
+mod concurrency;
 #[path = "process_contract/current_news.rs"]
 mod current_news;
+#[path = "process_contract/errors.rs"]
+mod errors;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -106,13 +113,17 @@ fn process_framing_and_exits() -> Result<()> {
         assert!(output.status.success(), "database flag failed: {output:?}");
     }
 
+    let rejected_database = temp.path().join("rejected.sqlite");
+    let rejected_database_text = rejected_database.to_string_lossy().into_owned();
     for input in [
+        "null",
+        "[]",
         "{\"action\":",
         "{\"action\":\"inspect_config\",\"unknown\":true}",
         "{\"action\":\"inspect_config\"}\n{\"action\":\"inspect_config\"}",
     ] {
         let output = invoke(
-            &["config", "--db", &database_text],
+            &["config", "--db", &rejected_database_text],
             Some(input),
             &BTreeMap::new(),
         )?;
@@ -121,6 +132,10 @@ fn process_framing_and_exits() -> Result<()> {
         assert!(
             text(&output.stderr).contains("decode config request:"),
             "input {input:?}: {output:?}"
+        );
+        assert!(
+            !rejected_database.exists(),
+            "transport failure initialized storage for input {input:?}"
         );
     }
     Ok(())

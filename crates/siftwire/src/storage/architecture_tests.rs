@@ -131,7 +131,7 @@ fn archive_filters_before_paging_and_uses_delivery_chronology_and_literal_search
 }
 
 #[test]
-fn archive_cursors_order_fractional_seconds_chronologically() -> Result<()> {
+fn archive_and_recent_deliveries_order_fractional_seconds_chronologically() -> Result<()> {
     let (_temp, store) = archive_fixture()?;
     for (id, timestamp) in [
         ("old", "2026-01-01T00:00:00Z"),
@@ -148,6 +148,29 @@ fn archive_cursors_order_fractional_seconds_chronologically() -> Result<()> {
             params![timestamp, id],
         )?;
     }
+    store.connection.execute(
+        "INSERT INTO sent_item (delivery_id, run_id, title, url, kind, title_key, sent_at) \
+         SELECT id, run_id, run_id, 'https://example.test/item', 'rss', run_id, delivered_at \
+         FROM delivery",
+        [],
+    )?;
+    assert_eq!(
+        store
+            .recent_deliveries(3)?
+            .iter()
+            .map(|delivery| delivery.run_id.as_str())
+            .collect::<Vec<_>>(),
+        ["tie", "new", "old"]
+    );
+    assert_eq!(
+        store
+            .recent_sent_items(super::parse_timestamp("2026-01-01T00:00:00.1Z")?)?
+            .iter()
+            .map(|item| item.title.as_str())
+            .collect::<Vec<_>>(),
+        ["tie", "new"],
+        "recent suppression must include its exact cutoff and later fractions, not the earlier whole second"
+    );
     for delivered in [false, true] {
         let mut options = RunListOptions {
             delivered,

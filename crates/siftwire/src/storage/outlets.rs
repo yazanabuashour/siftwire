@@ -3,7 +3,7 @@ use rusqlite::params;
 
 use crate::domain::normalize_outlet_policies;
 
-use super::{OutletPolicy, Store, bool_i64, format_timestamp};
+use super::{ConfigMutationError, OutletPolicy, Store, bool_i64, format_timestamp};
 
 impl Store {
     /// Lists outlet policies ordered by name.
@@ -53,8 +53,9 @@ impl Store {
     pub fn replace_outlet_policies(
         &self,
         policies: Vec<OutletPolicy>,
-    ) -> Result<Vec<OutletPolicy>> {
-        let policies = normalize_outlet_policies(policies)?;
+    ) -> Result<Vec<OutletPolicy>, ConfigMutationError> {
+        let policies =
+            normalize_outlet_policies(policies).map_err(ConfigMutationError::Validation)?;
         let transaction = self
             .connection
             .unchecked_transaction()
@@ -87,5 +88,6 @@ impl Store {
             .commit()
             .context("commit outlet policy replacement")?;
         self.list_outlet_policies()
+            .map_err(ConfigMutationError::Storage)
     }
 }

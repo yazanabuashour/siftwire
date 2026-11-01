@@ -1,6 +1,8 @@
-# Maintainer Notes
+# Maintain and release SiftWire
 
-This public repository includes the production `siftwire` runner binary and a single-file SiftWire skill. Keep maintainer docs aligned with this supported interface.
+Use the [contributor guide](../CONTRIBUTING.md) for checkout setup, checks, and
+public-artifact rules. This guide covers repository administration and releases
+for the production `siftwire` runner and its single-file skill.
 
 Keep `skills/siftwire/SKILL.md` thin. Before expanding it substantially, check
 whether the detail belongs in an existing runner action, a new narrow
@@ -10,42 +12,19 @@ rejections, and caller judgment are insufficient, and document follow-up work
 to remove or replace that text. Do not repair routine brief or configuration UX
 by adding long-lived workflow recipes to the skill.
 
-Use [Security Operations](security-operations.md) for dependency review cadence, advisory rehearsal, threat-model refreshes, and deeper testing expectations.
+Use [Security Operations](security-operations.md) for dependency review cadence, threat-model refreshes, and deeper testing expectations.
 
-## Initial Setup
+## Administer the repository
 
-Install the repository-pinned developer tools:
+Keep policy and workflow files reviewable in Git alone.
 
-```bash
-mise install
-```
+The default branch is `main`. Branch and release-environment protections are not
+configured. Workflow policy remains separate from those GitHub-owned settings:
 
-Use GitHub issues and pull requests for tracked project work.
-
-## Public Repo Expectations
-
-- Contributors must be able to work from the public Git repository and GitHub project history.
-- Policy and workflow files are part of the public contract and should stay reviewable in Git alone.
-- Do not document machine-absolute filesystem paths in committed docs.
-- Do not assume private infrastructure, deploy secrets, or internal services exist unless they have been added explicitly.
-- Do not commit personal source inventories, outlet policy evidence, delivery logs, run history, `.openclaw` content, workspace backups, or local SQLite databases.
-
-## Repository Administration
-
-Current readiness assumptions:
-
-- `main` is the protected default branch.
 - Pull requests run only untrusted-safe validation with read-only token scope.
-- Pull requests enforce formatting, lint, unit tests, and skill validation.
+- Pull requests run formatting, lint, unit tests, and skill validation.
 - GitHub Releases are created from version tags in the `v0.y.z` form.
-- Release publication runs in a protected `release` environment with narrowly scoped write permissions.
-- Security reports are expected through GitHub private vulnerability reporting.
-
-Review enforcement has these constraints:
-
-- The repository has a single maintainer account.
-- `main` should require pull requests, status checks, conversation resolution, and one approving review, but code-owner review enforcement and admin enforcement may remain off until a second maintainer can satisfy the review requirement.
-- Tighten code-owner review enforcement, admin bypass, and maintainer isolation once a second maintainer can satisfy those controls without blocking routine maintenance.
+- Release publication keeps write permissions narrowly scoped.
 
 Untrusted pull request policy:
 
@@ -58,10 +37,10 @@ Maintainer and automation isolation:
 
 - Prefer `GITHUB_TOKEN` with explicit job-scoped permissions over personal access tokens or long-lived bot credentials.
 - Use a dedicated low-privilege bot identity only when new automation needs privileges that `GITHUB_TOKEN` cannot safely provide.
-- Keep release and deployment writes behind the protected `release` environment.
+- Keep release publication write permissions scoped to the `publish` job.
 - Do not use self-hosted runners for untrusted pull requests. Only consider self-hosted runners for trusted branches or tags after documenting isolation, secret exposure, cleanup, and network-access controls.
 
-When changing GitHub settings, keep the repo aligned with:
+Repository policy and workflows are defined in:
 
 - [SECURITY.md](../SECURITY.md) for disclosure handling and patch timing.
 - [docs/security-operations.md](security-operations.md) for recurring security operations and deeper testing expectations.
@@ -69,22 +48,22 @@ When changing GitHub settings, keep the repo aligned with:
 - [.github/workflows/pull-request.yml](../.github/workflows/pull-request.yml) for fork-safe checks.
 - [.github/workflows/release.yml](../.github/workflows/release.yml) for release publication, checksums, SBOMs, and attestations.
 
-## Release Publication
+## Publish a release
 
-Public releases use annotated semantic version tags in the `v0.y.z` range and include the `siftwire` binary and single-file SiftWire skill. Tag a version like `v0.2.0`, then push the tag. The release workflow runs these steps:
+Public releases use annotated semantic version tags in the `v0.y.z` range and
+include the `siftwire` binary and single-file skill. Pushing a version tag starts
+the [release workflow](../.github/workflows/release.yml):
 
 - validate release notes, formatting, lint, skill validation, and tests before publish
 - build binaries with `siftwire --version` set from the tag
 - require `docs/release-notes/<tag>.md` and a matching `CHANGELOG.md` entry before publishing
 - create or reuse only a draft GitHub Release before assets are attached
-- use `docs/release-notes/<tag>.md`, for example `docs/release-notes/v0.2.0.md`, as the GitHub Release body
+- use `docs/release-notes/<tag>.md` as the GitHub Release body
 - keep release-note paragraphs and list items on one source line so GitHub Releases and API clients do not show hard-wrapped prose
 - attach four platform binaries, the skill archive, canonical source archive, root installer, SHA256 checksums, and SPDX SBOM
 - verify the draft release has the expected asset set before publication
 - generate GitHub attestations for the published assets
 - publish the draft only after all assets and attestations are ready, then verify the release is latest
-
-The `release` environment should remain protected so only approved maintainers can publish release assets.
 
 Before tagging, add `docs/release-notes/<tag>.md`, update `CHANGELOG.md`, and run `mise exec -- ./scripts/validate-release-docs.sh <tag>` locally. The release workflow runs the same check before publishing and does not fall back to generated GitHub release notes.
 
@@ -95,4 +74,4 @@ or skill-only recipes, classify the gap as SiftWire workflow ceremony and
 compare runner-owned surface candidates before expanding
 `skills/siftwire/SKILL.md`.
 
-GitHub release immutability is enabled. Treat published tags and assets as immutable; fix bad artifacts with a new patch release instead of replacing an existing release.
+Require GitHub release immutability. Treat published tags and assets as immutable; fix bad artifacts with a new patch release instead of replacing an existing release.

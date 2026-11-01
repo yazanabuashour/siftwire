@@ -309,6 +309,8 @@ mod tests {
         NextTimeout {
             after: Duration::NotHappening,
             reason: Timeout::Resolve,
+            per_read: None,
+            per_write: None,
         }
     }
 

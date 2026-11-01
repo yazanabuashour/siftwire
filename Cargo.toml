@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/siftwire", "crates/siftwire-console"]
+members = ["crates/siftwire"]
 
 [workspace.package]
 edition = "2024"

@@ -27,10 +27,7 @@ pub struct SportsOptions {
     pub timezone: Tz,
 }
 
-// Receipt: ESPN's edge (Akamai) answers 403 for unrecognized user agents while
-// allowing recognized scripted-client agents; probed 2026-08-24, "siftwire/0.4"
-// -> 403, "curl/8.5.0" and "python-requests/2.31.0" -> 200. The runner is a
-// scripted client and identifies as one for these endpoints.
+// Use a recognized scripted-client user agent for ESPN's edge.
 const ESPN_USER_AGENT: &str = "curl/8";
 
 /// Fetches one schedule source and returns recurring fixture and result updates.
@@ -685,7 +682,7 @@ fn espn_scoreboard_updates(
     now: DateTime<Utc>,
     options: &SportsOptions,
 ) -> Result<Vec<SportsUpdate>> {
-    let endpoint = espn_range_endpoint(&source.url, now, options);
+    let endpoint = espn_range_endpoint(&source.url, now, options)?;
     let body = client.get_with_headers(&endpoint, &[("user-agent", ESPN_USER_AGENT)])?;
     espn_scoreboard_updates_from_body(source, &body, now, options)
 }
@@ -908,7 +905,11 @@ fn is_espn_fightcenter_url(value: &str) -> bool {
     })
 }
 
-fn espn_range_endpoint(endpoint: &str, now: DateTime<Utc>, options: &SportsOptions) -> String {
+fn espn_range_endpoint(
+    endpoint: &str,
+    now: DateTime<Utc>,
+    options: &SportsOptions,
+) -> Result<String> {
     let start = now
         .checked_sub_signed(options.post_game_window)
         .unwrap_or(now)
@@ -917,8 +918,18 @@ fn espn_range_endpoint(endpoint: &str, now: DateTime<Utc>, options: &SportsOptio
         .checked_add_signed(options.pre_game_window)
         .unwrap_or(now)
         .format("%Y%m%d");
-    let separator = if endpoint.contains('?') { '&' } else { '?' };
-    format!("{endpoint}{separator}dates={start}-{horizon}")
+    let mut endpoint = Url::parse(endpoint).context("parse ESPN scoreboard endpoint")?;
+    let query = endpoint
+        .query_pairs()
+        .filter(|(key, _value)| key != "dates")
+        .map(|(key, value)| (key.into_owned(), value.into_owned()))
+        .collect::<Vec<_>>();
+    endpoint
+        .query_pairs_mut()
+        .clear()
+        .extend_pairs(query)
+        .append_pair("dates", &format!("{start}-{horizon}"));
+    Ok(endpoint.into())
 }
 
 #[cfg(test)]
@@ -1530,15 +1541,23 @@ mod tests {
     }
 
     #[test]
-    fn espn_scoreboard_appends_the_configured_date_window() -> Result<()> {
-        assert_eq!(
-            espn_range_endpoint(
+    fn espn_scoreboard_sets_the_configured_date_window() -> Result<()> {
+        for (endpoint, expected) in [
+            (
                 "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard?limit=50",
-                now()?,
-                &options(),
+                "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard?limit=50&dates=20260821-20260831",
             ),
-            "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard?limit=50&dates=20260821-20260831"
-        );
+            (
+                "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard?limit=50#card",
+                "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard?limit=50&dates=20260821-20260831#card",
+            ),
+            (
+                "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard?dates=20260801-20260802&limit=50&dates=20260803-20260804#card",
+                "https://site.api.espn.com/apis/site/v2/sports/mma/ufc/scoreboard?limit=50&dates=20260821-20260831#card",
+            ),
+        ] {
+            assert_eq!(espn_range_endpoint(endpoint, now()?, &options())?, expected);
+        }
         Ok(())
     }
 

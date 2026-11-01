@@ -5,8 +5,8 @@ This runbook defines recurring security work for SiftWire maintainers and comple
 ## Cadence
 
 - Weekly: triage Dependabot pull requests, dependency-review failures, and new vulnerability alerts for Rust crates and GitHub Actions.
-- Monthly: review the GitHub Security tab, private vulnerability reporting state, Dependabot alert backlog, and deferred security work.
-- Quarterly: rehearse the advisory workflow, refresh the threat model, and confirm that release, automation, and maintainer-isolation assumptions still match the repository.
+- Monthly: review the GitHub Security tab, Dependabot alert backlog, and deferred security work.
+- Quarterly: refresh the threat model and confirm that release, automation, and maintainer-isolation assumptions still match the repository.
 - Release-bound: review security impact before tagging any release that changes `.github/workflows/release.yml`, `install.sh`, `skills/siftwire/SKILL.md`, SQLite schema behavior, runner JSON behavior, feed fetching, or release verification docs.
 
 ## High-Risk Surfaces
@@ -20,7 +20,7 @@ This runbook defines recurring security work for SiftWire maintainers and comple
 
 ## Review Workflow
 
-1. Open or update a GitHub issue for public follow-up work. Keep sensitive findings in a private advisory until disclosure is safe.
+1. Open or update a GitHub issue for public follow-up work. Keep sensitive findings private until disclosure is safe.
 2. Classify findings using the severity expectations in `SECURITY.md`.
 3. Keep exploit details private until a fix or mitigation is available.
 4. For dependency updates, prefer the smallest reviewable update that clears the alert and keeps `mise exec -- cargo test --locked` passing.
@@ -35,12 +35,3 @@ This runbook defines recurring security work for SiftWire maintainers and comple
 - Release-pipeline changes should run `mise exec -- ./scripts/validate-release-docs.sh <tag>` for the target tag and verify the expected release asset, checksum, SBOM, and attestation behavior.
 - Add fuzzing or property-style tests when parsing, normalization, target resolution, or import logic becomes complex enough that table tests no longer cover realistic malformed input.
 - Abuse-case tests should be added before introducing remote APIs, hosted services, secrets-backed integrations, self-hosted runners, or broad automation write privileges.
-
-## Advisory Rehearsal
-
-At least quarterly, maintainers should rehearse the private advisory flow without publishing a real advisory:
-
-- Confirm GitHub private vulnerability reporting is enabled and reachable from the repository Security tab.
-- Confirm the private fix path, release notes redaction approach, patch-tag process, and release verification steps are still documented.
-- Confirm emergency release expectations still match the current artifact set: platform binaries, skill archive, installer, checksums, SBOM, and attestations.
-- Record each public gap in a GitHub issue and each sensitive gap in the private advisory.

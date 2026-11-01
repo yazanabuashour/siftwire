@@ -2,8 +2,7 @@
 
 v0.9.0 is a breaking compatibility reset, not an automatic migration from
 v0.8.0 or earlier. The runner reports `siftwire-runner/v5`. Use the v0.9.0
-runner and agent skill; build the optional console and web assets from the
-matching tag or source archive.
+runner and matching agent skill.
 
 ## Keep earlier data separate
 
@@ -17,7 +16,7 @@ Before switching an installation:
 2. Preserve the old database and its matching released runner for historical
    reads. Do not delete the database or edit its schema version to bypass checks.
 3. Select a new external database path with `SIFTWIRE_DATABASE_PATH` or `--db`.
-4. Install matching runner, console, web assets, and skill versions together.
+4. Install matching runner and skill versions, and update process consumers.
 5. Inspect and approve current source and publisher configuration before writing
    it through `config`. There is no operational-state import path.
 
@@ -40,9 +39,7 @@ remain available.
 - Read `delivery_status`, not the removed `selected` compatibility boolean.
 - Prepared items reference recorded evidence directly; old title/URL matching
   does not substitute for references.
-- Console source priorities use decimal strings, not JSON numbers. Confirmed
-  briefs display saved HTML without legacy Markdown or story-link fallbacks.
 
-See the [runner contract](runner-contract.md), [run history](run-history.md), and
-[console guide](console.md) for current behavior. Earlier migration guides and
+See the [runner contract](runner-contract.md) and [run history](run-history.md)
+for current behavior. Earlier migration guides and
 release reports describe their published releases, not v0.9.0.

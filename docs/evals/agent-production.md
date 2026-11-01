@@ -165,8 +165,9 @@ plan. No real email or external delivery occurs.
 
 The verifier requires every recorded message to equal its immutable plan. It
 checks prepared and sent items against required and selected run evidence, then
-compares final brief answers with stored current and prior bodies. It does not
-reconstruct item Markdown or score bullet counts. These checks cover normal
+compares every history and repeat-delivery turn's answer with its recorded
+current/history prefix. Recovery checks both the initial failure report and later
+resolution. It does not reconstruct item Markdown or score bullet counts. These checks cover normal
 feed items, not sports updates.
 
 The generic-processing and Watch scenarios use the synthetic title-suffix

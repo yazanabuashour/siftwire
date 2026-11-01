@@ -53,7 +53,10 @@ fn executable_boundary_passes_scenario_and_reports_opaque_runtime() -> Result<()
         "adapter host TMPDIR not private"
     );
     let parsed = output::parse(&bytes, &request)?;
-    ensure!(parsed.final_message == "last", "final turn not retained");
+    ensure!(
+        parsed.final_messages == ["first", "last"],
+        "turn bodies not retained"
+    );
     let receipt = RunResult {
         run_root: "<run-root>".to_owned(),
         scenario_count: 1,
@@ -215,6 +218,28 @@ fn delivery_verification_matches_current_brief() -> Result<()> {
         ensure!(
             !checker.finish().assistant_pass,
             "rewritten body/history accepted"
+        );
+    }
+    database.execute("INSERT INTO delivery (run_id,message,delivered_at) VALUES ('new-run','Newest','2026-04-23T01:00:00.000000001Z')", [])?;
+    let answers = vec![
+        "Current brief\n\nNO_REPLY".to_owned(),
+        answer.to_owned(),
+        "Current brief\n\nNewest\n\nPrevious brief (2026-04-23T01:00:00Z)\n\n- [One](<https://example.com/1>)\n\nPrevious brief (2026-04-22T01:00:00.123400Z)\n\nNO_REPLY".to_owned(),
+    ];
+    let mut checker = Checker::new(&database);
+    checker.recorded_deliveries(&answers);
+    ensure!(checker.finish().passed, "correct history prefixes rejected");
+    for index in [0, 1] {
+        let mut wrong = answers.clone();
+        *wrong
+            .get_mut(index)
+            .ok_or_else(|| anyhow::anyhow!("early turn"))? = "Wrong nonblank answer".to_owned();
+        let mut checker = Checker::new(&database);
+        checker.recorded_deliveries(&wrong);
+        let result = checker.finish();
+        ensure!(
+            result.database_pass && !result.assistant_pass,
+            "wrong early answer {index} accepted with correct final answer"
         );
     }
     Ok(())

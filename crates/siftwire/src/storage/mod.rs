@@ -124,8 +124,38 @@ impl From<anyhow::Error> for DeliveryInsertError {
     }
 }
 
+#[derive(Debug)]
+pub enum ConfigMutationError {
+    Validation(anyhow::Error),
+    Storage(anyhow::Error),
+}
+
+impl fmt::Display for ConfigMutationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Validation(error) | Self::Storage(error) => error.fmt(formatter),
+        }
+    }
+}
+
+impl Error for ConfigMutationError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::Validation(error) | Self::Storage(error) => Some(error.as_ref()),
+        }
+    }
+}
+
+impl From<anyhow::Error> for ConfigMutationError {
+    fn from(error: anyhow::Error) -> Self {
+        Self::Storage(error)
+    }
+}
+
 pub struct Store {
     connection: Connection,
+    // SQLite's POSIX locks require this descriptor to close after the connection.
+    collection_lock: File,
     now: fn() -> DateTime<Utc>,
 }
 
@@ -145,7 +175,8 @@ impl Store {
         create_database_directory(&parent)?;
         let sidecars = sidecar_states(path)?;
         let _created = create_database_file(path)?;
-        let initialization_lock = open_initialization_lock(path)?;
+        let collection_lock = open_collection_lock(path)?;
+        let initialization_lock = open_database_lock_file(path, ".siftwire-initialization.lock")?;
         initialization_lock
             .lock_exclusive()
             .context("lock sqlite initialization")?;
@@ -160,6 +191,7 @@ impl Store {
                 .with_context(|| format!("open sqlite database {}", path.display()))?;
             let store = Self {
                 connection,
+                collection_lock,
                 now: Utc::now,
             };
             store.init_schema()?;
@@ -168,6 +200,20 @@ impl Store {
         protect_new_sidecars(&sidecars)?;
         drop(initialization_lock);
         opened
+    }
+
+    /// Serializes durable collections for this database, including path aliases.
+    ///
+    /// The store holds the advisory lock until its `SQLite` connection closes or the
+    /// process exits.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the database file cannot be locked.
+    pub fn lock_collection(&self) -> Result<()> {
+        self.collection_lock
+            .lock_exclusive()
+            .context("lock durable collection")
     }
 
     fn timestamp(&self) -> DateTime<Utc> {
@@ -192,15 +238,27 @@ fn create_database_directory(path: &Path) -> Result<()> {
         .with_context(|| format!("create database directory {}", path.display()))
 }
 
-fn open_initialization_lock(path: &Path) -> Result<File> {
-    let path = sidecar_path(path, ".siftwire-initialization.lock");
+#[cfg(not(windows))]
+fn open_collection_lock(path: &Path) -> Result<File> {
+    File::open(path).context("open collection lock on database")
+}
+
+#[cfg(windows)]
+fn open_collection_lock(path: &Path) -> Result<File> {
+    // Windows byte-range locks must not overlap SQLite's data or native locks.
+    let path = fs::canonicalize(path).context("resolve collection lock database")?;
+    open_database_lock_file(&path, ".siftwire-collection.lock")
+}
+
+fn open_database_lock_file(path: &Path, suffix: &str) -> Result<File> {
+    let path = sidecar_path(path, suffix);
     let mut options = OpenOptions::new();
     options.read(true).write(true).create(true);
     #[cfg(unix)]
     options.mode(0o600);
     options
         .open(&path)
-        .with_context(|| format!("open sqlite initialization lock {}", path.display()))
+        .with_context(|| format!("open database lock {}", path.display()))
 }
 
 fn create_database_file(path: &Path) -> Result<bool> {

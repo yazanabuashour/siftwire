@@ -128,6 +128,11 @@ filter.
 
 News links remain the original feed links. Exact duplicate suppression does not
 establish story identity or prove that a headline changed because facts changed.
+Sports fixtures and scores come from `sports_updates`; skip routine team news,
+previews, recaps, lineups, odds, watch guides, and transfer rumors. Select sports
+news only for a confirmed major development, such as a championship, major
+sanction, season-changing injury or transaction, or head-coach departure. Reject
+livestream promotions; source labels and headline claims do not verify authority.
 Compare recent brief context and select meaningful developments rather than
 cosmetic rewrites or repeated coverage. Do not claim article-body verification
 from feed metadata alone.

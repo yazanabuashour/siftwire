@@ -28,12 +28,6 @@ external SQLite database, never in this repository.
   `docs/evals/agent-adapter.md` defines that boundary; `docs/agent-eval-results/`
   holds evaluation receipts. Pi is one development-only adapter implementation;
   release, security, and architecture guidance lives under `docs/`.
-- `crates/siftwire-console/` is an optional local web console that spawns the
-  runner per request over the process protocol; it must never open SQLite or
-  import runner internals. Its TypeScript app lives in `apps/web`.
-- Frontend work follows `apps/web`: React 19, Vite, Tailwind v4, TanStack
-  Query, zod-decoded API contracts, oxlint/oxfmt through the shared policies in
-  `tools/`, and Bun as the package manager.
 
 ## Working contracts
 

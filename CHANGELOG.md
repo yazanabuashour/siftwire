@@ -2,7 +2,36 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
+## Unreleased
+
+## v0.10.0
+
+- Remove the optional web console, frontend, UI-only dependencies, installer, and build checks. Configuration inspection and edits remain available through the installed JSON runner; operator archive commands and prepared email rendering are unchanged.
+
+## v0.9.3
+
+- Reject promotional sports livestream headlines and embedded query loaders before optional selection, recording exclusions in existing evidence. Keep legitimate match reporting and structured fixtures/results available.
+
+- Distinguish config and preparation runtime failures from validation refusals. Report unreadable confirmation history instead of silently omitting it; same-plan confirmation retries remain safe after a committed write.
+- Serialize durable collections so overlapping runs cannot reuse or regress Required markers. Unix locks the database inode; Windows locks a canonical-path sidecar without blocking SQLite. Interrupted collection is still not safe to retry automatically.
+- Verify earlier answers in multi-turn evaluation, not just the last turn.
+- Put ESPN scoreboard dates in the URL query rather than its fragment, replacing conflicting endpoint dates with the configured sports window.
+- Correct fractional-second ordering for recent delivery history and repeat suppression.
+- Reject non-object JSON requests before opening storage. Nullable request fields, runner protocol v5, and the database schema remain unchanged.
+- Require literal `printf` payloads in evaluator pipelines and flag file redirections, outer-shell expansions, and quote breakouts in wrapped commands as hygiene failures. Evaluation remains an after-the-fact receipt check, not a sandbox.
+- Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
+
 ## Releases
+
+- [v0.10.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.10.0)
+  removes the optional web console and keeps configuration inspection agent-first
+  through the installed runner. Existing v0.9.x databases remain compatible.
+  See the [release notes](docs/release-notes/v0.10.0.md).
+
+- [v0.9.3](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.3)
+  rejects promotional livestream candidates and embedded query loaders, documents
+  major-only sports news selection, and includes the correctness fixes above.
+  See the [release notes](docs/release-notes/v0.9.3.md).
 
 - [v0.9.2](https://github.com/yazanabuashour/siftwire/releases/tag/v0.9.2)
   shares email presentation through the standalone `email-ui` crate while

@@ -16,13 +16,14 @@ supersede this decision's writable Atom/always-report/Observe choices. Current
 configuration reads adapt the equivalent legacy Atom and required-feed fields;
 raw stored rows and historical evidence remain untouched until an approved
 source write. New writes use the narrower contract. The archive, publisher, exact
-email, priority, and partial-cache ownership decisions below remain in force.
+email, and priority ownership decisions below remain in force.
 
 ## Original decision
 
 Extend the existing runner results and operator history commands. Keep raw source
 configuration, the collection-based publisher write, and immutable delivery plans.
-The console uses those contracts for reading and configuration tasks.
+Agents inspect configuration through `config.inspect_config`; operators read
+evidence through the `runs` commands.
 
 ## Why reopen this decision
 
@@ -47,20 +48,17 @@ These are contract and ownership problems, not a reason to add a rule engine.
 | --- | --- | --- | --- | --- |
 | Keep raw controls and add guidance | Preserves storage, but leaves contradictory evidence | Cannot repair archive ordering or identify delivered sports | Requires users to interpret internal precedence | Reject |
 | Replace source fields with provider-specific schemas and a rules language | Requires configuration migration and new compatibility rules | More expressive than the current task needs | Adds configuration concepts before removing existing ones | Reject |
-| Compute effective policy in the runner, record delivery references, and extend existing history queries | Preserves raw fields and old plans; can expose historical uncertainty | Supports accurate configuration summaries, evidence, and archive retrieval | One reporting choice, one reader, one picker, explicit saves | Adopt |
+| Compute effective policy in the runner, record delivery references, and extend existing history queries | Preserves raw fields and old plans; can expose historical uncertainty | Supports accurate configuration summaries, evidence, and archive retrieval | Consistent reporting and explicit writes through the existing process interface | Adopt |
 
-The adopted design combines runner-owned decisions with a smaller console.
-It does not promote a new agent action or expand the installed skill.
+The adopted design keeps decisions in the runner without adding an agent action.
 
 ## Ownership and preservation
 
 - The domain computes effective reporting. Collection and configuration results
-  use the same decision. The console translates an explicit reporting edit into
-  existing fields, but does not normalize those fields during unrelated edits.
-- Priority remains a signed 64-bit integer in the runner and decimal text in the
-  browser. It ranks ordinary duplicate representatives, not editorial importance.
-- Feed handling remains generic. Feed-only controls do not appear for releases
-  or schedules. Existing RSS versus Atom spelling survives unrelated edits.
+  use the same decision. Unrelated edits do not normalize source fields.
+- Priority remains a signed 64-bit integer in the runner. It ranks ordinary
+  duplicate representatives, not editorial importance.
+- Feed handling remains generic rather than introducing provider-specific schemas.
 - Publisher notes remain optional metadata, not runtime instructions. Watch and
   Allow retain items and annotate matches. New writes reject ambiguous enabled
   name/alias matches; existing ambiguous configuration remains readable and keeps
@@ -70,24 +68,22 @@ It does not promote a new agent action or expand the installed skill.
   No historical HTML or plan is regenerated.
 - Warnings and publisher annotations are separate from exclusions. New fetch
   records retain source labels. Old records never borrow today's renamed label.
-- The runner filters, orders, searches, and paginates the archive. The console
-  owns the selected run in the URL and fetches explicit IDs independently of the
-  current page. A missing explicit record is an error, not permission to switch.
-- Publisher edits remain a local collection draft until Save. Normalized partial
-  mutation results update only the corresponding configuration collection.
+- The runner filters, orders, searches, and paginates the archive. A missing
+  explicit record is an error, not permission to switch.
+- Publisher replacements require approval for the complete collection. Partial
+  mutation results describe only the corresponding configuration collection.
 
 Seen versus sent, ordinary required items versus recurring sports, and prepared
 versus confirmed delivery remain separate. The change does not renumber sources,
 replace sources during migration, change deduplication scope, or turn observation
-into a review backlog. The console still invokes the runner and never opens SQLite.
+into a review backlog.
 
 ## Validation and limits
 
 Repository tests cover reporting precedence, preservation, archive retrieval,
-delivery evidence, publisher conflicts, and picker/configuration interactions.
-Browser checks use a disposable fictional database. They establish the console
-workflow, not agent success rates or performance claims.
+delivery evidence, and publisher conflicts. They do not establish agent success
+rates or performance claims.
 
-The adopted runner and console changes address the underlying need; rejecting
-the alternatives does not defer it. Existing source-intake and agent workflow
+The runner changes address the underlying need; rejecting the alternatives does
+not defer it. Existing source-intake and agent workflow
 decisions remain governed by [agentops-surface-policy.md](agentops-surface-policy.md).

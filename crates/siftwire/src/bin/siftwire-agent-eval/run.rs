@@ -305,11 +305,11 @@ fn run_scenario(
     };
     result.runtime = Some(parsed.runtime);
     result.metrics = parsed.metrics;
-    result.final_message = parsed.final_message;
+    result.final_message = parsed.final_messages.last().cloned().unwrap_or_default();
     result.verification = verify::scenario(
         &result.database,
         scenario.id,
-        &result.final_message,
+        &parsed.final_messages,
         &result.metrics,
     );
     result.passed = result.verification.passed;

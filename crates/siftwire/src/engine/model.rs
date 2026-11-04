@@ -1,6 +1,7 @@
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct FetchedItem {
     pub title: String,
+    pub summary: String,
     pub url: String,
     pub published_at: String,
     pub identity: String,

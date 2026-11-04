@@ -135,7 +135,7 @@ fn verify_third_group(checker: &mut Checker<'_>, id: &str, message: &str) {
                 "SELECT COUNT(*) FROM health_warning WHERE active = 1",
                 1,
             );
-            checker.contains_all(message, &["health", "broken-feed"]);
+            checker.contains_all(message, &["UNAVAILABLE: broken-feed"]);
         }
         "feed-recovery-resolves-warning" => {
             checker.count("source_state", 0);
@@ -166,7 +166,7 @@ fn verify_prior_health_failure(checker: &mut Checker<'_>, id: &str, messages: &[
         return;
     }
     let first = messages.first().map_or("", String::as_str);
-    checker.contains_all(first, &["NEW: changing-feed"]);
+    checker.contains_all(first, &["UNAVAILABLE: changing-feed"]);
     checker.query_count("initial failed source check", "SELECT COUNT(*) FROM fetch_log WHERE source_key = 'changing-feed' AND status = 'error' AND id = (SELECT MIN(id) FROM fetch_log WHERE source_key = 'changing-feed')", 1);
 }
 
@@ -197,11 +197,19 @@ mod tests {
     use super::*;
 
     #[test]
-    fn recovery_checks_the_initial_failure_answer_and_evidence() -> anyhow::Result<()> {
+    fn health_checks_accept_current_notices_and_require_recorded_failures() -> anyhow::Result<()> {
         let database = Connection::open_in_memory()?;
         database.execute_batch("CREATE TABLE fetch_log (id INTEGER PRIMARY KEY,source_key TEXT,status TEXT); INSERT INTO fetch_log VALUES (1,'changing-feed','error'), (2,'changing-feed','ok')")?;
+        database.execute_batch("CREATE TABLE source_state (id INTEGER); CREATE TABLE health_warning (active INTEGER); INSERT INTO health_warning VALUES (1)")?;
+        let mut checker = Checker::new(&database);
+        verify_third_group(
+            &mut checker,
+            "feed-failure-health-footnote",
+            "Source coverage - UNAVAILABLE: broken-feed.",
+        );
+        ensure!(checker.finish().passed, "current failure notice rejected");
         let answers = vec![
-            "Feed health changes - NEW: changing-feed.".to_owned(),
+            "Source coverage - UNAVAILABLE: changing-feed.".to_owned(),
             "RESOLVED changing-feed".to_owned(),
         ];
         let mut checker = Checker::new(&database);

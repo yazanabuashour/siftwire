@@ -1,6 +1,6 @@
 [package]
 name = "siftwire"
-version = "0.10.0"
+version = "0.10.1"
 edition.workspace = true
 rust-version.workspace = true
 description = "Local-first brief runtime for agents"
@@ -15,7 +15,7 @@ autolib = false
 anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
-email-ui = { git = "https://github.com/yazanabuashour/email-ui.git", rev = "153b5d029551bf5f20566bf5f51a74bdffb2440f" }
+email-ui = { git = "https://github.com/yazanabuashour/email-ui.git", rev = "78f04a4ac98f7289936778673ae55b26a477ce5e" }
 feed-rs = "3.0"
 fs2 = "0.4"
 getrandom = "0.4"

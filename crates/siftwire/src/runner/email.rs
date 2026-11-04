@@ -120,8 +120,13 @@ fn news_row(item: &RunItemRow) -> Row {
     } else {
         item.outlet.as_str()
     };
+    let suffix = format!(" - {outlet}");
     Row {
-        title: item.title.clone(),
+        title: item
+            .title
+            .strip_suffix(&suffix)
+            .unwrap_or(&item.title)
+            .to_owned(),
         url: item.url.clone(),
         eyebrow: format!("{section} · {outlet}"),
     }
@@ -156,6 +161,36 @@ mod tests {
     use super::render;
     use crate::contract::{SportsImage, SportsUpdate};
     use crate::storage::{RunDeliveryContext, RunItemRow};
+
+    fn expected_html(frozen: &str) -> String {
+        frozen
+            .replace(
+                "  .date-cell { width:45px !important; }",
+                "  .date-cell { width:45px !important; }\n  .header-cell { display:block !important; width:100% !important; }\n  .header-meta { padding-top:8px !important; text-align:left !important; }",
+            )
+            .replace("<td valign=\"top\"><div style=\"font-family:Georgia", "<td class=\"header-cell\" valign=\"top\"><div style=\"font-family:Georgia")
+            .replace(
+                "<td align=\"right\" valign=\"top\" style=\"font-size:11px;line-height:15px;color:#a14200;\">",
+                "<td class=\"header-cell header-meta\" align=\"right\" valign=\"top\" style=\"font-size:11px;line-height:15px;color:#a14200;\">",
+            )
+            .replace(
+                "</div>\n</td><td valign=\"middle\" style=\"padding:9px 10px;",
+                "</div>\n</td><td colspan=\"2\" valign=\"middle\" style=\"padding:9px 10px;",
+            )
+    }
+
+    #[test]
+    fn news_eyebrow_does_not_repeat_the_publisher_in_the_title() {
+        let item = RunItemRow {
+            title: "A development - Example Publisher".to_owned(),
+            outlet: "Example Publisher".to_owned(),
+            section: "world".to_owned(),
+            ..RunItemRow::default()
+        };
+        let row = super::news_row(&item);
+        assert_eq!(row.title, "A development");
+        assert_eq!(row.eyebrow, "world · Example Publisher");
+    }
 
     #[test]
     fn folio_brief_preserves_content_and_readable_metadata() -> anyhow::Result<()> {
@@ -207,7 +242,7 @@ mod tests {
         )?;
         assert_eq!(
             evening,
-            include_str!("../../tests/fixtures/email/rich-evening.html")
+            expected_html(include_str!("../../tests/fixtures/email/rich-evening.html"))
         );
         Ok(())
     }
@@ -273,7 +308,9 @@ mod tests {
         )?;
         assert_eq!(
             morning,
-            include_str!("../../tests/fixtures/email/morning-escaped-images.html")
+            expected_html(include_str!(
+                "../../tests/fixtures/email/morning-escaped-images.html"
+            ))
         );
         let empty_context = RunDeliveryContext {
             sports_updates: vec![],
@@ -283,7 +320,7 @@ mod tests {
         let empty = render(&[], &empty_context, "2026-01-01T12:00:00Z", chrono_tz::UTC)?;
         assert_eq!(
             empty,
-            include_str!("../../tests/fixtures/email/empty-noon.html")
+            expected_html(include_str!("../../tests/fixtures/email/empty-noon.html"))
         );
         let mut unknown_context = empty_context;
         unknown_context.sports_updates.push(SportsUpdate {
@@ -298,7 +335,9 @@ mod tests {
         )?;
         assert_eq!(
             unknown,
-            include_str!("../../tests/fixtures/email/unknown-sports-morning.html")
+            expected_html(include_str!(
+                "../../tests/fixtures/email/unknown-sports-morning.html"
+            ))
         );
         Ok(())
     }

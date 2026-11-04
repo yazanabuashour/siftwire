@@ -80,6 +80,10 @@ fn fetched_item(entry: &Entry, raw_date: Option<&str>, current_news: bool) -> Op
     };
     Some(FetchedItem {
         title,
+        summary: entry
+            .summary
+            .as_ref()
+            .map_or_else(String::new, |summary| clean_text(&summary.content)),
         url,
         published_at,
         identity: identity.clone(),

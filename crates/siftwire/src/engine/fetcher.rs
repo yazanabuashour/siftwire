@@ -125,6 +125,7 @@ fn release_item(source: &Source, release: GitHubRelease) -> Option<FetchedItem> 
         identity: tag.to_owned(),
         feed_identity: String::new(),
         outlet: String::new(),
+        summary: String::new(),
     })
 }
 

@@ -160,6 +160,8 @@ pub struct BriefItem {
     #[serde(skip_serializing_if = "is_default")]
     pub priority_rank: i64,
     pub title: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub summary: String,
     pub url: String,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub published_at: String,

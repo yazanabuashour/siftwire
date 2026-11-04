@@ -213,11 +213,27 @@ inclusive. A failed new check has no selection count or current-news statistics.
 Archived `fetch` rows use this same shape. The runner never infers historical
 freshness from current configuration.
 
+Optional candidate `summary` values are publisher-provided feed summaries for
+editorial research, not verified article contents or prepared delivery prose.
+They may contain publisher markup. The runner omits absent summaries.
+
+`health_footnote` lists current failed checks and empty optional news feeds as
+well as health transitions. A successful empty feed does not establish an
+absence of news. Continuing failures remain visible even without a new warning.
+
 ### Sports results
 
 `sports_section` is runner-rendered Markdown for inspection. Prepared bodies
 already place it after normal items and before the health footnote. Consumers
 must not append it again. It does not count against `max_delivery_items`.
+
+ESPN soccer team schedules without an explicit `fixture` query fetch both the
+configured results endpoint and its `fixture=true` endpoint. Explicit fixture
+queries retain their configured scope. A failure in either required read fails
+the source check instead of reporting incomplete coverage as successful.
+Known ESPN team schedules use public game pages rather than odds or API links.
+Upcoming MMA times are labeled as event starts, not headliner walkout times.
+
 Each structured sports update contains
 `source_key`, `source_label`, `status`, `title`, `competition`, `url`, and the
 UTC RFC 3339 `starts_at` value. `status` is `upcoming` or `final`. The optional

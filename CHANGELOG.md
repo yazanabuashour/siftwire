@@ -4,6 +4,13 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+## v0.10.1
+
+- Collect upcoming ESPN soccer fixtures alongside results and link supported ESPN schedules to public game pages.
+- Keep current source failures and empty optional-news feeds visible in coverage notices; label upcoming MMA times as event starts.
+- Fix image-free sports rows, adopt the responsive email header, and remove duplicate publisher suffixes from HTML headlines.
+- Expose publisher feed summaries for selection research without changing prepared-delivery prose, runner protocol v5, or the database schema.
+
 ## v0.10.0
 
 - Remove the optional web console, frontend, UI-only dependencies, installer, and build checks. Configuration inspection and edits remain available through the installed JSON runner; operator archive commands and prepared email rendering are unchanged.
@@ -22,6 +29,11 @@ Public release notes are mirrored in `docs/release-notes/`.
 - Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
 
 ## Releases
+
+- [v0.10.1](https://github.com/yazanabuashour/siftwire/releases/tag/v0.10.1)
+  improves fixture collection, email layout, research context, and source-coverage
+  visibility without rewriting saved plans. See the
+  [release notes](docs/release-notes/v0.10.1.md).
 
 - [v0.10.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.10.0)
   removes the optional web console and keeps configuration inspection agent-first

@@ -38,12 +38,23 @@ pub(super) fn fetch_schedule(
     options: &SportsOptions,
 ) -> Result<FetchOutput> {
     let sports_updates = match source.schedule_format.as_str() {
-        SCHEDULE_FORMAT_ESPN => espn_updates(
-            source,
-            &client.get_with_headers(&source.url, &[("user-agent", ESPN_USER_AGENT)])?,
-            now,
-            options,
-        )?,
+        SCHEDULE_FORMAT_ESPN => {
+            let mut updates = espn_updates(
+                source,
+                &client.get_with_headers(&source.url, &[("user-agent", ESPN_USER_AGENT)])?,
+                now,
+                options,
+            )?;
+            if let Some(endpoint) = espn_fixture_endpoint(&source.url)? {
+                updates.extend(espn_updates(
+                    source,
+                    &client.get_with_headers(&endpoint, &[("user-agent", ESPN_USER_AGENT)])?,
+                    now,
+                    options,
+                )?);
+            }
+            prepare_sports_updates(updates)
+        }
         SCHEDULE_FORMAT_ESPN_SCOREBOARD => espn_scoreboard_updates(client, source, now, options)?,
         SCHEDULE_FORMAT_RIOT => riot_fetch_updates(client, source, now, options)?,
         other => bail!("unsupported schedule format {other:?}"),
@@ -52,6 +63,18 @@ pub(super) fn fetch_schedule(
         sports_updates,
         ..FetchOutput::default()
     })
+}
+
+fn espn_fixture_endpoint(configured: &str) -> Result<Option<String>> {
+    let mut url = Url::parse(configured).context("parse ESPN schedule URL")?;
+    if !url.path().contains("/sports/soccer/")
+        || !url.path().ends_with("/schedule")
+        || url.query_pairs().any(|(key, _value)| key == "fixture")
+    {
+        return Ok(None);
+    }
+    url.query_pairs_mut().append_pair("fixture", "true");
+    Ok(Some(url.into()))
 }
 
 fn update_status(
@@ -643,7 +666,10 @@ fn provider_image_url(value: &str) -> Option<String> {
 }
 
 fn event_url(source: &Source, event: &EspnEvent) -> Option<String> {
-    for wanted in ["web", "canonical", "mobile"] {
+    if let Some(url) = espn_game_url(source, &event.id) {
+        return Some(url);
+    }
+    for wanted in ["summary", "canonical", "web", "mobile"] {
         if let Some(url) = event.links.iter().find_map(|link| {
             link.rel
                 .iter()
@@ -659,6 +685,29 @@ fn event_url(source: &Source, event: &EspnEvent) -> Option<String> {
         .as_deref()
         .and_then(provider_http_url)
         .or_else(|| provider_http_url(&source.url))
+}
+
+fn espn_game_url(source: &Source, id: &str) -> Option<String> {
+    if id.is_empty() || !id.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    let url = Url::parse(&source.url).ok()?;
+    if url.host_str() != Some("site.api.espn.com") {
+        return None;
+    }
+    let path = url.path();
+    let sport = if path.contains("/sports/soccer/") {
+        "soccer/match"
+    } else if path.contains("/sports/basketball/nba/") {
+        "nba/game"
+    } else if path.contains("/sports/football/nfl/") {
+        "nfl/game"
+    } else if path.contains("/sports/football/college-football/") {
+        "college-football/game"
+    } else {
+        return None;
+    };
+    Some(format!("https://www.espn.com/{sport}/_/gameId/{id}"))
 }
 
 fn fixture_identity(provider: &str, id: &str, url: &str) -> String {
@@ -802,7 +851,7 @@ fn espn_scoreboard_event_update(
         source_label: source.label.clone(),
         status: status.to_owned(),
         title,
-        competition: source.label.clone(),
+        competition: format!("{} · Event start", source.label),
         url: url.to_owned(),
         starts_at: kickoff,
         images: images.to_vec(),
@@ -1339,10 +1388,11 @@ mod tests {
 
     use super::{
         RiotStandingsResponse, SPORTS_STATUS_FINAL, SPORTS_STATUS_UPCOMING, SportsOptions,
-        espn_range_endpoint, espn_scoreboard_updates_from_body, espn_updates,
-        prepare_sports_updates, provider_http_url, provider_image_url, render_sports_section,
-        riot_event_matches_selection, riot_first_rankings, riot_schedule_events,
-        riot_team_selection, riot_top_two_rankings, riot_updates, update_status,
+        espn_fixture_endpoint, espn_game_url, espn_range_endpoint,
+        espn_scoreboard_updates_from_body, espn_updates, prepare_sports_updates, provider_http_url,
+        provider_image_url, render_sports_section, riot_event_matches_selection,
+        riot_first_rankings, riot_schedule_events, riot_team_selection, riot_top_two_rankings,
+        riot_updates, update_status,
     };
     use crate::contract::SportsUpdate;
     use crate::domain::{
@@ -1381,6 +1431,35 @@ mod tests {
             post_game_window: TimeDelta::days(3),
             timezone: chrono_tz::America::New_York,
         }
+    }
+
+    #[test]
+    fn soccer_schedules_fetch_fixtures_and_link_to_games() -> Result<()> {
+        let endpoint = "https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1/teams/382/schedule?season=2026";
+        assert_eq!(
+            espn_fixture_endpoint(endpoint)?,
+            Some(format!("{endpoint}&fixture=true"))
+        );
+        assert_eq!(
+            espn_fixture_endpoint(&format!("{endpoint}&fixture=true"))?,
+            None
+        );
+        assert_eq!(
+            espn_fixture_endpoint(
+                "https://fixture.example/sports/basketball/nba/teams/1/schedule"
+            )?,
+            None
+        );
+        let source = Source {
+            url: endpoint.to_owned(),
+            ..schedule_source(SCHEDULE_FORMAT_ESPN)
+        };
+        assert_eq!(
+            espn_game_url(&source, "123"),
+            Some("https://www.espn.com/soccer/match/_/gameId/123".to_owned())
+        );
+        assert_eq!(espn_game_url(&source, "not-a-provider-id"), None);
+        Ok(())
     }
 
     #[test]
@@ -1529,6 +1608,10 @@ mod tests {
         assert_eq!(
             updates.first().map(|update| update.title.as_str()),
             Some("UFC Example")
+        );
+        assert_eq!(
+            updates.first().map(|update| update.competition.as_str()),
+            Some("Team Alpha · Event start")
         );
         assert_eq!(
             updates

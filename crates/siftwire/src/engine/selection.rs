@@ -81,6 +81,7 @@ pub fn item_to_brief_item(source: &Source, item: &FetchedItem) -> BriefItem {
         threshold: source.threshold.clone(),
         priority_rank: source.priority_rank,
         title: item.title.clone(),
+        summary: item.summary.clone(),
         url: item.url.clone(),
         published_at: item.published_at.clone(),
         outlet: item.outlet.clone(),

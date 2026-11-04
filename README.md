@@ -31,16 +31,16 @@ sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/d
 siftwire --version
 ```
 
-To pin the latest documented release, v0.10.0:
+To pin the latest documented release, v0.10.1:
 
 ```bash
-SIFTWIRE_VERSION=v0.10.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.10.0/install.sh)"
+SIFTWIRE_VERSION=v0.10.1 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.10.1/install.sh)"
 siftwire --version
 ```
 
 Register the matching `skills/siftwire/SKILL.md` with your agent's skill system.
-For v0.10.0, use the `v0.10.0` repository tag or the release asset
-`siftwire_0.10.0_skill.tar.gz`. You need both the runner and its matching skill;
+For v0.10.1, use the `v0.10.1` repository tag or the release asset
+`siftwire_0.10.1_skill.tar.gz`. You need both the runner and its matching skill;
 no particular agent or skill directory is required.
 
 When upgrading, update the runner, skill, and process consumers together.

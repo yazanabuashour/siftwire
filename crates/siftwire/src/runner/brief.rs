@@ -99,7 +99,7 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
         now,
         dry_run,
     )?;
-    let health_footnote = build_health_footnote(&health_delta);
+    let health_footnote = build_health_footnote(&health_delta, &accumulator.statuses);
     let sports_updates = prepare_sports_updates(std::mem::take(&mut accumulator.sports_updates));
     let sports_section = render_sports_section(&sports_updates, options.sports.timezone);
     sort_brief_items(&mut classified.must_include);

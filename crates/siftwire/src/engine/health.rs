@@ -2,16 +2,29 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 
-use crate::contract::{BriefItem, CurrentNewsStatus, HealthDelta};
+use crate::contract::{BriefItem, CurrentNewsStatus, FetchStatus, HealthDelta};
 use crate::domain::Source;
 use crate::storage::FetchLog;
 
 #[must_use]
-pub fn build_health_footnote(delta: &HealthDelta) -> String {
+pub fn build_health_footnote(delta: &HealthDelta, statuses: &[FetchStatus]) -> String {
+    let unavailable = statuses
+        .iter()
+        .filter(|status| status.status == "error")
+        .map(|status| status.source_key.clone())
+        .collect::<BTreeSet<_>>();
+    let empty = statuses
+        .iter()
+        .filter(|status| {
+            status.status == "ok" && status.items == 0 && status.current_news.is_some()
+        })
+        .map(|status| status.source_key.clone())
+        .collect::<BTreeSet<_>>();
     let new_sources = warning_sources(&delta.new_warnings);
     let resolved_sources = warning_sources(&delta.resolved_warnings);
     let new_only = new_sources
         .difference(&resolved_sources)
+        .filter(|source| !unavailable.contains(*source))
         .cloned()
         .collect::<Vec<_>>();
     let resolved_only = resolved_sources
@@ -23,6 +36,18 @@ pub fn build_health_footnote(delta: &HealthDelta) -> String {
         .cloned()
         .collect::<Vec<_>>();
     let mut parts = Vec::new();
+    if !unavailable.is_empty() {
+        parts.push(format!(
+            "UNAVAILABLE: {}",
+            join_warning_sources(&unavailable.into_iter().collect::<Vec<_>>())
+        ));
+    }
+    if !empty.is_empty() {
+        parts.push(format!(
+            "EMPTY NEWS FEEDS: {}",
+            join_warning_sources(&empty.into_iter().collect::<Vec<_>>())
+        ));
+    }
     if !new_only.is_empty() {
         parts.push(format!("NEW: {}", join_warning_sources(&new_only)));
     }
@@ -41,7 +66,7 @@ pub fn build_health_footnote(delta: &HealthDelta) -> String {
     if parts.is_empty() {
         String::new()
     } else {
-        format!("Feed health changes - {}.", parts.join(" | "))
+        format!("Source coverage - {}.", parts.join(" | "))
     }
 }
 

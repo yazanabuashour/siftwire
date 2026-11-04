@@ -76,11 +76,14 @@ fn rss_and_atom_parsing_preserve_identity_and_raw_dates() -> Result<()> {
         br#"<?xml version="1.0"?><rss version="2.0"><channel>
         <item><title><![CDATA[ RSS  Story ]]></title><link>https://example.test/rss</link>
         <guid>rss-guid</guid><pubDate>Thu, 23 Apr 2026 01:00:00 G&#77;&#x54;</pubDate>
+        <description>Publisher summary with   context.</description>
         <source>Outlet &#38; Co &#x1F680; &amp; Partners</source></item></channel></rss>"#,
     )?;
     let rss_item = rss.first().context("RSS item")?;
     assert_eq!(rss_item.title, "RSS Story", "RSS title cleaning changed");
     assert_eq!(rss_item.identity, "rss-guid", "RSS identity changed");
+    let collected = super::selection::item_to_brief_item(&required, rss_item);
+    assert_eq!(collected.summary, "Publisher summary with context.");
     assert_eq!(
         rss_item.published_at, "Thu, 23 Apr 2026 01:00:00 GMT",
         "RSS raw publication date changed"
@@ -406,8 +409,8 @@ fn same_run_preference_flows_into_recent_exact_headline_suppression() -> Result<
 }
 
 #[test]
-fn health_footnotes_and_recurring_failures_report_only_durable_changes() {
-    let footnote = build_health_footnote(&HealthDelta {
+fn health_footnotes_report_current_gaps_and_durable_changes() {
+    let delta = HealthDelta {
         new_warnings: vec![
             "Feed `new` failed this run (new error)".to_owned(),
             "Feed `flap` failed this run (again)".to_owned(),
@@ -416,11 +419,31 @@ fn health_footnotes_and_recurring_failures_report_only_durable_changes() {
             "Feed `old` failed this run (old error)".to_owned(),
             "Feed `flap` failed this run (before)".to_owned(),
         ],
-    });
+    };
+    let footnote = build_health_footnote(&delta, &[]);
     assert_eq!(
         footnote,
-        "Feed health changes - NEW: new | RESOLVED: old | FLAPPED (new+resolved this run): flap.",
+        "Source coverage - NEW: new | RESOLVED: old | FLAPPED (new+resolved this run): flap.",
         "health footnote categories changed"
+    );
+
+    let gaps = [
+        crate::contract::FetchStatus {
+            source_key: "broken".to_owned(),
+            status: "error".to_owned(),
+            ..crate::contract::FetchStatus::default()
+        },
+        crate::contract::FetchStatus {
+            source_key: "empty".to_owned(),
+            status: "ok".to_owned(),
+            current_news: Some(crate::contract::CurrentNewsStatus::default()),
+            ..crate::contract::FetchStatus::default()
+        },
+    ];
+    assert_eq!(
+        build_health_footnote(&HealthDelta::default(), &gaps),
+        "Source coverage - UNAVAILABLE: broken | EMPTY NEWS FEEDS: empty.",
+        "continuing failures and empty news feeds disappeared without a health transition"
     );
 
     let logs = vec![

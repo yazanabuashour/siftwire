@@ -183,6 +183,7 @@ cat >"$temp/bin/pi" <<'EOF'
 #!/usr/bin/env bash
 set -Eeuo pipefail
 [[ ${MISE_QUIET:-} == 1 ]] || { printf 'Pi launcher must keep status output out of JSON stdout\n' >&2; exit 1; }
+[[ -z ${SIFTWIRE_NOTES_TOKEN_FILE+x} && -z ${SIFTWIRE_NOTES_API_URL+x} ]] || exit 1
 [[ $PWD == "$HOME/.local/share/siftwire/automation/"* ]]
 for argument in "$@"; do
   case "$argument" in
@@ -389,6 +390,18 @@ cat >"$temp/bin/siftwire" <<'EOF'
 #!/usr/bin/env bash
 if [[ ${1:-} == --version ]]; then
   printf '%s\n' "${TEST_BRIEF_VERSION:-siftwire v0.9.1}"
+  exit 0
+fi
+if [[ ${1:-} == notes ]]; then
+  [[ $* == 'notes publish' && -n ${TEST_NOTES_LOG:-} ]] || exit 98
+  [[ -z ${SIFTWIRE_NOTES_TOKEN_FILE+x} && -z ${SIFTWIRE_NOTES_API_URL+x} ]] || exit 97
+  cat >>"$TEST_NOTES_LOG"
+  if [[ -n ${TEST_NOTES_FAIL_ONCE_FILE:-} && ! -e $TEST_NOTES_FAIL_ONCE_FILE ]]; then
+    touch "$TEST_NOTES_FAIL_ONCE_FILE"
+    printf '%s\n' '{"pending":["brief-run-1"],"error":"fixture outage"}'
+    exit 1
+  fi
+  printf '%s\n' '{"pending":[],"error":""}'
   exit 0
 fi
 [[ -z ${TEST_EXPECTED_DATABASE_PATH:-} || ${SIFTWIRE_DATABASE_PATH:-} == "$TEST_EXPECTED_DATABASE_PATH" ]]
@@ -1113,5 +1126,51 @@ jq -e '.delivery_attempt_count == 0 and .last_delivery_attempt_at == null' "$cla
 env "${base_env[@]}" "${prooflane_env[@]}" "${claimed_env[@]}" \
   "$runner" >/dev/null
 test "$(wc -l <"$temp/delivery-claimed-count")" = 1
+
+# Off by default: every run above would exit 69 if it had called Notes.
+test -z "$(find "$temp" -name publication.json -print -quit)"
+
+unset TEST_DELIVERY_ALREADY_CLAIMED_ONCE_FILE TEST_DELIVERY_COUNT
+state="$temp/state-notes"
+mkdir -p "$state"
+printf '%s\n' 'notes-test-token' >"$temp/notes-token"
+chmod 0600 "$temp/notes-token"
+notes_env=(
+  SIFTWIRE_NOTES_API_URL=http://127.0.0.1:1 SIFTWIRE_NOTES_PUBLIC_URL=https://notes.test
+  SIFTWIRE_NOTES_TOKEN_FILE="$temp/notes-token" SIFTWIRE_NOTES_START_DATE=2026-11-08
+  TEST_NOTES_LOG="$state/notes.log" TEST_NOTES_FAIL_ONCE_FILE="$state/notes-failed-once"
+  TEST_PROOF_RUN_ID=proof-run-notes TEST_DELIVERY_REQUEST="$state/delivery.json"
+  TEST_SEALED_FILE="$state/sealed" TEST_MAILGATE_REQUEST="$state/mailgate.json"
+  SIFTWIRE_STATE_DIR="$state" SIFTWIRE_RUN_ROOT="$state/runs"
+)
+set +e
+env "${base_env[@]}" "${prooflane_env[@]}" "${notes_env[@]}" "$runner" >/dev/null 2>"$temp/notes.stderr"
+notes_status=$?
+set -e
+test "$notes_status" = 69
+grep -F 'Notes publication is incomplete; delivery was not gated' "$temp/notes.stderr" >/dev/null
+test -f "$state/outbox/sent/$brief_run_one_digest.json"
+jq -e '.delivery_recorded_at != null and .email_id == "email-1"' \
+  "$state/outbox/sent/$brief_run_one_digest.json" >/dev/null
+jq -e --arg token_file "$temp/notes-token" '.token_file == $token_file and .start_date == "2026-11-08"' \
+  "$state/notes.log" >/dev/null
+notes_run="$(find "$state/runs" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+jq -e '.error == "fixture outage"' "$notes_run/publication.json" >/dev/null
+cp "$state/mailgate.json" "$temp/notes-mail.json"
+env "${base_env[@]}" "${prooflane_env[@]}" "${notes_env[@]}" "$runner" >/dev/null 2>&1
+test "$(wc -l <"$state/notes.log")" = 2
+cmp "$temp/notes-mail.json" "$state/mailgate.json"
+if grep -rFq 'notes-test-token' "$state"; then
+  printf 'Notes token reached durable state\n' >&2
+  exit 1
+fi
+
+state="$temp/state-notes-email-failed"
+mkdir -p "$state"
+expect_status 1 env "${base_env[@]}" "${prooflane_env[@]}" "${notes_env[@]}" \
+  TEST_NOTES_LOG="$state/notes.log" TEST_NOTES_FAIL_ONCE_FILE="$state/notes-failed-once" \
+  TEST_MAILGATE_REJECT_RECEIPT=1 SIFTWIRE_STATE_DIR="$state" SIFTWIRE_RUN_ROOT="$state/runs" "$runner"
+test -f "$state/outbox/pending/$brief_run_one_digest.json"
+test "$(wc -l <"$state/notes.log")" = 1
 
 printf 'siftwire automation test: pass (%s)\n' "$TEST_RUNNER_PROTOCOL"

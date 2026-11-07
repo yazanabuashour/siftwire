@@ -24,6 +24,14 @@ pub struct DeliveryPlan {
     pub items: Vec<DeliveryItem>,
 }
 
+/// A finished brief's saved HTML body and the times that identify its edition.
+pub struct PublishablePlan {
+    pub run_id: String,
+    pub started_at: String,
+    pub finished_at: String,
+    pub html: String,
+}
+
 pub struct DeliveryPreparation {
     pub started_at: String,
     pub status: String,
@@ -134,6 +142,35 @@ impl Store {
             return Ok(None);
         }
         Ok(Some(stored))
+    }
+
+    /// Reads plans with an HTML body from runs started on or after a UTC date.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `SQLite` cannot read the plans.
+    pub fn publishable_plans(&self, first_date: &str) -> Result<Vec<PublishablePlan>> {
+        let mut statement = self
+            .connection
+            .prepare(
+                "SELECT r.id, r.started_at, COALESCE(r.finished_at, r.started_at), p.html_body \
+                 FROM delivery_plan p JOIN brief_run r ON r.id = p.run_id \
+                 WHERE r.status = 'ok' AND r.dry_run = 0 AND p.html_body <> '' \
+                 AND substr(r.started_at, 1, 10) >= ?1",
+            )
+            .context("prepare publishable plans")?;
+        statement
+            .query_map([first_date], |row| {
+                Ok(PublishablePlan {
+                    run_id: row.get(0)?,
+                    started_at: row.get(1)?,
+                    finished_at: row.get(2)?,
+                    html: row.get(3)?,
+                })
+            })
+            .context("query publishable plans")?
+            .collect::<rusqlite::Result<_>>()
+            .context("read publishable plans")
     }
 
     /// Reads one delivery plan by identifier.

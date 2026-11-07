@@ -17,6 +17,9 @@ mod concurrency;
 mod current_news;
 #[path = "process_contract/errors.rs"]
 mod errors;
+#[cfg(unix)]
+#[path = "process_contract/notes.rs"]
+mod notes;
 
 use std::collections::BTreeMap;
 use std::fs;

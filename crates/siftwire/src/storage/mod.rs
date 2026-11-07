@@ -29,7 +29,7 @@ use rusqlite::{Connection, OpenFlags};
 
 pub use crate::domain::{OutletPolicy, Source, normalize_source};
 pub use delivery::normalize_title_key;
-pub use delivery_plans::{DeliveryPlan, RunDeliveryContext};
+pub use delivery_plans::{DeliveryPlan, PublishablePlan, RunDeliveryContext};
 pub use run_items::{
     RUN_ITEM_ANNOTATION, RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RunDetail,
     RunItemRow, RunSummary,

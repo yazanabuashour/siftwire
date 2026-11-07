@@ -14,7 +14,9 @@ siftwire brief [--db path]
 
 The `runs list` and `runs show` operator commands provide
 [archive reads](run-history.md) for operators. `siftwire automation` starts the
-[embedded launcher](automation.md); it is not part of this JSON protocol. Source inspection
+[embedded launcher](automation.md), and `siftwire notes publish` handles
+[Notes publication](automation.md#publish-to-notes). Neither is part of this JSON
+protocol. Source inspection
 and writes use `config.inspect_config` and `config.upsert_source`. There is no
 separate `source` command.
 

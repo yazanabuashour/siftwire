@@ -4,6 +4,7 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+- Add optional publication of each finished brief to a Notes vault with `siftwire notes publish`. It is off until configured and does not change email, confirmation, runner protocol v5, or the database schema. See `docs/automation.md`.
 - Ship the scheduled automation launcher and selector prompt inside the binary, started with `siftwire automation`. Runner protocol v5 and the database schema are unchanged. See `docs/automation.md`.
 
 ## v0.10.1

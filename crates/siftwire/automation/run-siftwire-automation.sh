@@ -13,6 +13,10 @@ prooflane_contract="${PROOFLANE_SIFTWIRE_CONTRACT:-$prooflane_runtime/examples/s
 prooflane_home="${PROOFLANE_HOME:-$state_root/prooflane-siftwire}"
 prooflane_axiom_dataset="${PROOFLANE_AXIOM_DATASET:-}"
 prooflane_axiom_token_file="${PROOFLANE_AXIOM_TOKEN_FILE:-}"
+notes_api_url="${SIFTWIRE_NOTES_API_URL:-}"
+notes_public_url="${SIFTWIRE_NOTES_PUBLIC_URL:-}"
+notes_token_file="${SIFTWIRE_NOTES_TOKEN_FILE:-}"
+notes_start_date="${SIFTWIRE_NOTES_START_DATE:-}"
 render_prompt="${SIFTWIRE_RENDER_PROMPT:?start this launcher through siftwire automation, or set SIFTWIRE_RENDER_PROMPT}"
 curl_bin="${CURL_BIN:-curl}"
 mailgate_bin="${MAILGATE_BIN:-mailgate}"
@@ -27,9 +31,13 @@ attempt_stderr="$state_root/run-brief.stderr"
 # tripwire for a stalled telemetry request.
 http_timeout_seconds=30
 
+# Delivery can be complete here, so this status names only an unfinished Notes copy.
+notes_incomplete_status=69
+
 # Do not expose notification or telemetry credentials to SiftWire, Prooflane,
 # or Pi. Mailgate loads the Resend key in its own process.
-unset RESEND_API_KEY RESENT_API_KEY AXIOM_PAT AXIOM_TOKEN PROOFLANE_AXIOM_DATASET PROOFLANE_AXIOM_TOKEN_FILE
+unset RESEND_API_KEY RESENT_API_KEY AXIOM_PAT AXIOM_TOKEN PROOFLANE_AXIOM_DATASET PROOFLANE_AXIOM_TOKEN_FILE \
+  SIFTWIRE_NOTES_API_URL SIFTWIRE_NOTES_PUBLIC_URL SIFTWIRE_NOTES_TOKEN_FILE SIFTWIRE_NOTES_START_DATE
 
 require_command() {
   command -v "$1" >/dev/null 2>&1 || {
@@ -159,6 +167,16 @@ export_prooflane_receipt() {
   event="$(jq -cn --argjson receipt "$receipt" \
     '{"service.name":"prooflane","automation.name":"siftwire","event.name":"prooflane.receipt",prooflane:$receipt}')" || return
   export_axiom_event "$event"
+}
+
+publish_to_notes() {
+  local request
+  [[ -n $notes_api_url$notes_public_url$notes_token_file$notes_start_date ]] || return 0
+  request="$(jq -cn --arg api_url "$notes_api_url" --arg public_url "$notes_public_url" \
+    --arg token_file "$notes_token_file" --arg start_date "$notes_start_date" \
+    '{api_url:$api_url,public_url:$public_url,token_file:$token_file,start_date:$start_date}')" || return
+  printf '%s\n' "$request" | SIFTWIRE_DATABASE_PATH="$database_path" "$siftwire_bin" notes publish \
+    >"$run_dir/publication.json" 2>"$run_dir/publication.stderr"
 }
 
 send_email() {
@@ -592,6 +610,10 @@ else
           printf 'siftwire automation: latest Pi telemetry could not be published; logs: %s\n' "$run_dir" >&2
         fi
       fi
+    fi
+    if ! publish_to_notes; then
+      printf 'siftwire automation: Notes publication is incomplete; delivery was not gated and the next run retries it\n' >&2
+      ((status != 0)) || status=$notes_incomplete_status
     fi
     printf 'siftwire automation: retained evidence: %s\n' "$run_dir" >&2
     exit "$status"

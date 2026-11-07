@@ -4,8 +4,11 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+## v0.11.0
+
 - Add optional publication of each finished brief to a Notes vault with `siftwire notes publish`. It is off until configured and does not change email, confirmation, runner protocol v5, or the database schema. See `docs/automation.md`.
 - Ship the scheduled automation launcher and selector prompt inside the binary, started with `siftwire automation`. Runner protocol v5 and the database schema are unchanged. See `docs/automation.md`.
+- Embed a neutral selector prompt. Hosts keep their own priorities in a private prompt set through `SIFTWIRE_RENDER_PROMPT`.
 
 ## v0.10.1
 
@@ -32,6 +35,11 @@ Public release notes are mirrored in `docs/release-notes/`.
 - Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
 
 ## Releases
+
+- [v0.11.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.11.0)
+  ships the scheduled automation launcher inside the binary, embeds a neutral
+  selector prompt, and adds optional Notes publication. See the
+  [release notes](docs/release-notes/v0.11.0.md).
 
 - [v0.10.1](https://github.com/yazanabuashour/siftwire/releases/tag/v0.10.1)
   improves fixture collection, email layout, research context, and source-coverage

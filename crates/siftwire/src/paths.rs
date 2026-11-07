@@ -26,6 +26,17 @@ pub fn resolve(explicit: Option<&str>) -> Result<Paths> {
     resolution_path(&default_data_root()?.join("siftwire/siftwire.sqlite"))
 }
 
+/// Returns this release's prompt directory, so an upgrade cannot change a running prompt.
+///
+/// # Errors
+///
+/// Returns an error when the user home cannot be determined.
+pub fn automation_directory() -> Result<PathBuf> {
+    Ok(default_data_root()?
+        .join("siftwire/automation")
+        .join(env!("CARGO_PKG_VERSION")))
+}
+
 fn default_data_root() -> Result<PathBuf> {
     if let Some(value) = env::var_os("XDG_DATA_HOME") {
         let path = PathBuf::from(value);

@@ -1,3 +1,4 @@
+mod automation;
 mod brief;
 mod delivery;
 mod email;
@@ -45,6 +46,7 @@ pub fn run_process() -> ExitCode {
         "config" => run_config_process(&rest),
         "brief" => run_brief_process(&rest),
         "runs" => runs_cli::run(&rest),
+        "automation" => automation::run(&rest),
         _ => {
             eprintln!("unknown siftwire command {command:?}");
             usage(false);
@@ -371,7 +373,7 @@ fn write_result<T: Serialize>(result: &T, label: &str) -> ExitCode {
 }
 
 fn usage(stdout: bool) {
-    let text = "usage: siftwire <version|config|brief|runs>\n       siftwire config [--db path] < request.json\n       siftwire brief [--db path] < request.json\n       siftwire runs list [--delivered] [--before run_id] [--search text] [--limit N] [--json] [--db path]\n       siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]";
+    let text = "usage: siftwire <version|config|brief|runs|automation>\n       siftwire config [--db path] < request.json\n       siftwire brief [--db path] < request.json\n       siftwire runs list [--delivered] [--before run_id] [--search text] [--limit N] [--json] [--db path]\n       siftwire runs show <run_id> [--candidates --dropped --selected] [--json] [--db path]\n       siftwire automation [--replay brief.json new_output_directory]";
     if stdout {
         println!("{text}");
     } else {

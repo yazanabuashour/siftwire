@@ -8,6 +8,9 @@ mod admission;
 #[path = "process_contract/architecture.rs"]
 mod architecture;
 #[cfg(unix)]
+#[path = "process_contract/automation.rs"]
+mod automation;
+#[cfg(unix)]
 #[path = "process_contract/concurrency.rs"]
 mod concurrency;
 #[path = "process_contract/current_news.rs"]
@@ -693,8 +696,10 @@ fn invoke(
     let mut command = Command::new(BINARY);
     command
         .args(arguments)
+        .env_remove("SIFTWIRE_BIN")
         .env_remove("SIFTWIRE_DATABASE_PATH")
         .env_remove("SIFTWIRE_EVAL_ALLOW_FILE_URLS")
+        .env_remove("SIFTWIRE_RENDER_PROMPT")
         .env_remove("XDG_DATA_HOME")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

@@ -50,4 +50,11 @@ HOME="$home" SIFTWIRE_VERSION="$tag" SIFTWIRE_INSTALL_DIR="$install_dir" sh "$te
 installed="$(env -i HOME="$home" PATH="$install_dir:/usr/bin:/bin" siftwire --version)"
 [ "$installed" = "siftwire $tag" ] || fail 'clean environment could not execute the installed release'
 
+# Exit 64 proves the embedded launcher executed.
+status=0
+env -i HOME="$home" PATH="$install_dir:/usr/bin:/bin" siftwire automation --unknown 2>/dev/null || status=$?
+[ "$status" -eq 64 ] || fail 'installed release did not start its embedded launcher'
+cmp crates/siftwire/automation/siftwire-render.md "$home/.local/share/siftwire/automation/$version/siftwire-render.md" ||
+  fail 'installed release did not install its selector prompt'
+
 printf 'real release binary clean-install test passed\n'

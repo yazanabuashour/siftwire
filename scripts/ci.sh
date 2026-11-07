@@ -14,8 +14,9 @@ bun run lint
 bun run typecheck
 bun test tools/agent-eval
 # SC1007 misreads CDPATH assignment prefixes; SC2016 flags the printed literal $PATH guidance.
-shellcheck --exclude=SC1007,SC2016 install.sh scripts/*.sh tools/agent-eval/pi tools/agent-eval/stub
+shellcheck --exclude=SC1007,SC2016 install.sh scripts/*.sh crates/siftwire/automation/*.sh tools/agent-eval/pi tools/agent-eval/stub
 scripts/validate-agent-skill.sh skills/siftwire
 scripts/test-install.sh
 cargo build --locked --release
 scripts/test-release-install.sh target/release/siftwire
+scripts/test-automation.sh target/release/siftwire

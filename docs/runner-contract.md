@@ -13,7 +13,8 @@ siftwire brief [--db path]
 ```
 
 The `runs list` and `runs show` operator commands provide
-[archive reads](run-history.md) for operators. Source inspection
+[archive reads](run-history.md) for operators. `siftwire automation` starts the
+[embedded launcher](automation.md); it is not part of this JSON protocol. Source inspection
 and writes use `config.inspect_config` and `config.upsert_source`. There is no
 separate `source` command.
 

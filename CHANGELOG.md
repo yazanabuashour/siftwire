@@ -4,6 +4,8 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+- Ship the scheduled automation launcher and selector prompt inside the binary, started with `siftwire automation`. Runner protocol v5 and the database schema are unchanged. See `docs/automation.md`.
+
 ## v0.10.1
 
 - Collect upcoming ESPN soccer fixtures alongside results and link supported ESPN schedules to public game pages.

@@ -76,6 +76,7 @@ result fields, and retry rules.
 ## Find a task
 
 - [Read run and delivery history](docs/run-history.md)
+- [Operate the scheduled automation](docs/automation.md)
 - [Integrate the JSON runner](docs/runner-contract.md)
 - [Understand current-news selection](docs/architecture/current-news.md)
 - [Develop and run checks](CONTRIBUTING.md)

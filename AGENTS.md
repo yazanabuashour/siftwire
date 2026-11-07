@@ -21,6 +21,9 @@ external SQLite database, never in this repository.
   source, health, and delivery state.
 - `skills/siftwire/` defines the production agent policy; `docs/runner-contract.md`
   defines the public process contract.
+- `crates/siftwire/automation/` holds the launcher and selector prompt embedded in
+  the binary; `docs/automation.md` covers their operation. `scripts/test-automation.sh`
+  tests them through a built binary.
 - `crates/siftwire/tests/` and colocated unit tests cover the process and implementation
   behavior. `scripts/ci.sh` is the main gate.
 - `crates/siftwire/src/bin/siftwire-agent-eval/` owns the vendor-neutral evaluator;

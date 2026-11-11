@@ -1,6 +1,6 @@
 use crate::types::{Scenario, Turn};
 
-pub const RUNNER_ONLY_INSTRUCTION: &str = "Use the siftwire project skill. Read only .agents/skills/siftwire/SKILL.md directly, then use only the siftwire runner JSON interface. Do not inspect other repo files, source files, binaries, SQLite, environment variables, or run siftwire --help. Do not search for instructions. This host eval uses synthetic local fixtures and simulates successful transport of each prepared message/text/html unchanged; no real email or external delivery occurs. After prepare_delivery succeeds, treat that simulated transport as successful and call confirm_delivery. Never send email or call an external transport. Require siftwire-runner/v5, prepared-delivery/v1, and current-news/v1; there is no manual delivery fallback.";
+pub const RUNNER_ONLY_INSTRUCTION: &str = "Read .agents/skills/siftwire/SKILL.md, then use only the siftwire runner JSON interface. Do not inspect other files, binaries, SQLite, or environment variables, search for instructions, or run siftwire --help. This eval uses synthetic local fixtures: successful prepare_delivery simulates transport of message/text/html unchanged. Call confirm_delivery afterward; never invoke real transport. Require siftwire-runner/v5, prepared-delivery/v1, and current-news/v1.";
 
 pub fn all() -> Vec<Scenario> {
     let mut values = first_group();

@@ -65,10 +65,8 @@ Test each supported protocol. Do not accept arbitrary future protocol strings.
 - Keep recent context for editorial selection. Prepared delivery does not make
   `previous_briefs`, suppression evidence, or archive reads obsolete.
 
-The SiftWire-owned Prooflane shell wrapper and mock forwarding test are retired.
-Prooflane owns adapter invocation, compatibility, and recovery guidance. Before
-upgrading, verify that the deployed adapter and launcher support the target
-protocol. A source checkout update does not update a separately pinned runtime.
+Before upgrading, verify that the deployed launcher supports the target protocol.
+A source checkout update does not update the installed binary.
 
 ## Preserve deliveries and recovery
 

@@ -11,20 +11,16 @@ profile, and failure notifications. SiftWire does not install any of them.
 
 ## Requirements
 
-The launcher needs Linux with GNU coreutils, `bash`, `jq`, `flock`, `curl`, `pi`,
-`model-role`, and `mailgate` on `PATH`, and a Mailgate profile named `siftwire`.
+The launcher needs Linux with GNU coreutils, `bash`, `jq`, `flock`, `pi`, and
+`mailgate` on `PATH`, and a Mailgate profile named `siftwire`.
 It admits a stable SiftWire release that reports `siftwire-runner/v5` with
 `prepared-delivery/v1` and `current-news/v1`. The declared contract decides, not
 a version floor. These checks run before any durable attempt starts.
 
-Selection uses the `fast` model role at `medium` thinking. The launcher parses
-Pi's JSON event stream and accepts a result only after `agent_settled`. After a Pi
-upgrade, check that lifecycle with a [replay](#replay-selection); a version number
-does not prove compatibility.
-
-Prooflane is observational. When its runtime is missing or cannot report a
-version, the run continues directly through SiftWire without a receipt. Prooflane
-verifies local recording; Mailgate's stored receipt owns provider acceptance.
+Selection uses Pi's configured default model and thinking level. The launcher
+parses Pi's JSON event stream and accepts a result only after `agent_settled`.
+After a Pi upgrade, check that lifecycle with a [replay](#replay-selection); a
+version number does not prove compatibility.
 
 ## Find durable state
 
@@ -33,12 +29,10 @@ verifies local recording; Mailgate's stored receipt owns provider acceptance.
 | Database                     | `SIFTWIRE_DATABASE_PATH`, or the [default](runner-contract.md#storage-selection) |
 | State root                   | `${XDG_STATE_HOME:-$HOME/.local/state}/pi-automations/siftwire`          |
 | Runs, outbox, and journals   | `runs/`, `outbox/`, `active-job.json`, and `run-brief-*` in the state root |
-| Prooflane ledger             | `prooflane-siftwire/` in the state root                                  |
-| Prooflane runtime            | `${XDG_DATA_HOME:-$HOME/.local/share}/pi-automations/siftwire/prooflane/current` |
 | Installed prompt, per release | `${XDG_DATA_HOME:-$HOME/.local/share}/siftwire/automation/VERSION/`      |
 
 Keep the database and state root across upgrades. They hold delivery history,
-the outbox, recovery records, and both ledgers.
+the outbox, and recovery records.
 
 ## Override the launcher
 
@@ -49,9 +43,7 @@ Each variable below is optional.
 | `SIFTWIRE_STATE_DIR`, `SIFTWIRE_RUN_ROOT`                 | Move the state root or the run directories.            |
 | `SIFTWIRE_BIN`                                            | Run another binary. The default is the binary started. |
 | `SIFTWIRE_RENDER_PROMPT`                                  | Use another selector prompt.                           |
-| `SIFTWIRE_PROOFLANE_RUNTIME`, `PROOFLANE_BIN`, `PROOFLANE_SIFTWIRE_CONTRACT`, `PROOFLANE_HOME` | Change Prooflane resolution. |
-| `MAILGATE_BIN`, `CURL_BIN`                                | Change the transport commands.                         |
-| `PROOFLANE_AXIOM_DATASET`, `PROOFLANE_AXIOM_TOKEN_FILE`   | Export receipts to Axiom. The token file needs mode 600. |
+| `MAILGATE_BIN`                                            | Change the email transport command.                    |
 | `SIFTWIRE_NOTES_*`                                        | [Publish to Notes](#publish-to-notes).                 |
 
 Pi runs from the prompt's directory with `--approve` for that directory only, so
@@ -63,9 +55,8 @@ no reader priorities. To add yours, copy
 `crates/siftwire/automation/siftwire-render.md`, keep its output contract and
 authority rules, and store your copy outside this repository.
 
-The launcher removes Resend and Axiom credentials and the Axiom settings from its
-environment before starting SiftWire, Prooflane, or Pi. Mailgate loads the Resend
-key in its own process.
+The launcher removes Resend credentials before starting SiftWire or Pi.
+Mailgate loads the Resend key in its own process.
 
 ## Understand what can retry
 
@@ -83,22 +74,6 @@ key in its own process.
 
 Unsupported or malformed records stop the run and stay unchanged. The launcher
 never resets counters, rewrites keys, or imports old state.
-
-## Recover a stuck delivery
-
-Delivery claims never expire. If a pending delivery reports
-`adapter context is already claimed`, confirm that no run is active and reconcile
-its delivery result. Then release the claim:
-
-```bash
-state_root="${XDG_STATE_HOME:-$HOME/.local/state}/pi-automations/siftwire"
-PROOFLANE_HOME="$state_root/prooflane-siftwire" \
-  "${XDG_DATA_HOME:-$HOME/.local/share}/pi-automations/siftwire/prooflane/current/bin/prooflane" \
-  dogfood siftwire recover-delivery --run PROOFLANE_RUN_ID
-```
-
-The next run retries with the same `delivery_plan_id`. If you confirm by hand, use
-the same database and plan.
 
 ## Publish to Notes
 
@@ -207,7 +182,6 @@ with no automatic cleanup. The launcher prints the path as `retained evidence`.
 | `selector-input.json`                               | Editorial projection given to Pi             |
 | `selection.json`, `selection-receipt.json`          | Chosen indexes and the sanitized receipt     |
 | `pi-events.N.jsonl`, `pi.N.stderr`, `pi-sessions/N` | Raw evidence for each selection attempt      |
-| `pi-telemetry.N.jsonl`                              | Optional Pi telemetry                        |
 | `prepared.json`, `delivery-KEY.json`, `delivery-KEY.stderr` | Delivery plan and confirmation       |
 | `publication.json`, `publication.stderr`            | Notes report, when publication is on         |
 
@@ -217,14 +191,9 @@ The projection keeps candidate order and membership, and it adds each candidate'
 `candidate_index`. It drops identifier aliases, fetch statistics, paths, and
 transport bodies. The host binds selected indexes to URLs in the full brief.
 
-Pi diagnostics and missing telemetry warn without blocking delivery. Telemetry
-uses the optional probe that the launcher loads from the Pi package, and
-`last-pi-telemetry.jsonl` is diagnostic, not a success receipt.
-
-`selection-receipt.json` also goes to Axiom as `siftwire.selection` on scheduled
-runs. It holds counts and identifiers: no titles, URLs, bodies, indexes, or
-paths. Recording or export errors warn without blocking delivery.
-`empty_selection_with_candidates` warns too; there is no minimum story floor.
+Pi diagnostics warn without blocking delivery. `selection-receipt.json` stays
+local and holds counts and identifiers, not story content. Recording errors and
+`empty_selection_with_candidates` warn too; there is no minimum story floor.
 
 ## Replay selection
 
@@ -238,7 +207,7 @@ Use a run's `brief.json`, not its projection. The output directory must not
 exist. Only the selection JSON goes to stdout. To replay unreleased launcher or
 prompt changes, use a checkout build such as `target/release/siftwire`.
 
-Replay never invokes the SiftWire runner, Prooflane, Mailgate, or Axiom, and it
+Replay never invokes the SiftWire runner or Mailgate, and it
 creates no state. It uses the current prompt, model, and Pi tools, so it cannot
 recreate a past judgment. Pi tools stay available: replay avoids delivery, but it
 is not a sandbox.
@@ -328,25 +297,6 @@ if needed. The reverse order fails with exit 2 on `unknown siftwire command`
 until the unit changes. After step 3, restore the old files before restoring the
 unit; the old launcher refuses to run without its prompt.
 
-## Deploy Prooflane
-
-`scripts/deploy-prooflane.sh` builds a standalone Prooflane release and atomically
-activates it for this automation. It builds `HEAD` of a clean checkout at
-`PROOFLANE_SOURCE_REPO`, by default `$HOME/repo/prooflane`, and it needs Docker.
-Set `DOCKER_HOST` when the daemon is rootless.
-
-```bash
-SIFTWIRE_PROOFLANE_RUNTIME_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/pi-automations/siftwire/prooflane" \
-  scripts/deploy-prooflane.sh
-```
-
-The script does not read `XDG_DATA_HOME` itself, so this root keeps it aligned with
-the launcher. With a custom `SIFTWIRE_PROOFLANE_RUNTIME`, deploy to its parent.
-
-The script takes the automation's run lock, so it waits for a running brief. An
-unchanged commit produces the same release identifier. To roll back, point
-`current` at an earlier directory in `releases/`.
-
 ## Stop the automation
 
 Stop future runs, then remove the host's unit. Keep the database and state root.
@@ -356,9 +306,6 @@ Do not roll back with unresolved active, attempt, or pending state.
 systemctl --user disable --now siftwire.timer
 systemctl --user stop siftwire.service
 ```
-
-For emergency reconciliation by SiftWire run ID, set `PROOFLANE_HOME` to the
-preserved `prooflane-siftwire` ledger.
 
 ## Evaluate sports selection
 

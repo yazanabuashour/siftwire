@@ -16,7 +16,7 @@ real callers.
 ### The process protocol is the reusable boundary
 
 The supported building block is the one-shot `siftwire config|brief` JSON
-process protocol. The skill, Prooflane adapter, and production eval harness all
+process protocol. The skill, automation launcher, and production eval harness all
 use this boundary. No production caller imports Rust modules.
 
 Keep `crates/siftwire/src/runner/`, `crates/siftwire/src/engine/`, and
@@ -112,8 +112,6 @@ can authorize focused inspection. It does not authorize a durable write.
 request shapes, source-intake guidance, and final-answer choreography. Runner
 JSON carries task data and safe rejection reasons. Eval docs own scenario and
 promotion evidence. Maintainer docs own repository, release, and security work.
-Prooflane owns its adapter invocation and recovery guidance, not the installed
-SiftWire skill or a SiftWire shell wrapper.
 
 ### The evaluator owns a vendor-neutral executable boundary
 

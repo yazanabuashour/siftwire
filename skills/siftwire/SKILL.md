@@ -31,11 +31,9 @@ Reject a production request before using tools when it asks you to:
 - import delivery history, latest-seen state, run state, or inferred private
   configuration without a runner-backed workflow
 
-For an unsupported workflow, say the production SiftWire runner does not
-support it. Do not use `siftwire --help`, command discovery, broad file search,
-or source inspection for routine tasks. Repository development, tests, docs,
-release verification, security review, and migration design may inspect
-repository files.
+Report unsupported workflows without substituting tool discovery or repository
+inspection. Repository development, testing, and migration design are outside
+this production boundary.
 
 ## Source Intake
 
@@ -52,17 +50,14 @@ legacy configuration:
    `siftwire config`.
 
 Never infer source authority, credentials, private configuration, destructive
-changes, or operational state. For legacy migration, draft sources and outlet
-policies only from an input the user explicitly names. Do not import operational
-state.
+changes, or operational state. Draft legacy sources and outlet policies only
+from the named input.
 
 ## Config Tasks
 
-Before a configuration write, call `inspect_config` with the same installed
-binary and dataset. Verify protocol v5 and `current-news/v1`. Do not send a new
-source shape to an older runner: omitting a retired field can change that
-runner's behavior.
-Inspection does not authorize a write; user approval remains required.
+Before a configuration write, call `inspect_config` with the same binary and
+dataset. The compatibility check above prevents retired fields from silently
+changing an older runner's behavior.
 
 Use `siftwire config` with one of these request shapes:
 
@@ -95,9 +90,8 @@ These feed-processing fields are optional:
 - `priority_rank`: lower values win duplicate selection after publication recency
 
 Use `threshold: "always"` for required items. Replacement actions replace the
-entire corresponding set; an empty array clears it. Feed URLs, thresholds,
-priorities, outlet policies, and brief options are durable operator configuration
-and require approval before a write. `max_delivery_items` defaults to 7. Sports
+entire corresponding set; an empty array clears it. `max_delivery_items`
+defaults to 7. Sports
 fixtures repeat for 7 days before kickoff and final results repeat for 3 days
 after kickoff by default.
 `sports_timezone` is an IANA time zone and defaults to `America/Chicago`.
@@ -112,10 +106,8 @@ Validate, then run the brief only with compatible runner metadata:
 ```
 
 If either result has `rejected: true`, answer with `rejection_reason`. Runtime
-failures exit nonzero and write diagnostics to stderr. After `validate`, also
-require `prepared-delivery/v1` in `capabilities` before `run_brief`. Check that
-capability in every brief response. If absent, stop and report incompatibility.
-Do not compose a manual delivery body or fall back to an older delivery action.
+failures exit nonzero with diagnostics on stderr. Require `prepared-delivery/v1`
+in every brief response, starting with `validate`; stop if absent.
 
 Choose optional candidates by zero-based index from `run_brief.candidates`.
 Select at most `candidate_slots`, using each candidate's section, threshold,
@@ -151,15 +143,11 @@ not use candidate slots. The result includes complete `message`, `text`, and
 If confirmation returns `final_answer`, answer with exactly that string;
 otherwise answer with exactly the prepared `message`.
 
-Preserve the run result and prepared plan for recovery. Do not automatically
-retry `run_brief` after an interruption or uncertain result; it can already have
-changed latest-seen state. An identical `prepare_delivery` retry returns the
-same immutable plan before confirmation; different candidate indexes are
-rejected. After transport acceptance, retry `confirm_delivery` with the same
-plan ID if confirmation is interrupted. Do not resend the bodies just to retry
-confirmation.
+Preserve the run result and prepared plan. Do not automatically retry an
+uncertain `run_brief`; it may have changed latest-seen state. Before confirmation,
+retry `prepare_delivery` with the same indexes to recover its immutable plan.
+After transport acceptance, retry interrupted confirmation with the same plan
+ID without resending. Never confirm failed or uncertain transport.
 
-Do not confirm a failed or uncertain transport attempt. Confirmation records the
-prepared current body, not history. The runner's `final_answer` includes recent
-briefs when available. Preserve it exactly, including prior messages, links,
-`NO_REPLY`, and health text; do not reconstruct history.
+`final_answer` includes recent briefs when available. Do not reconstruct history
+or alter prior messages, links, `NO_REPLY`, or health text.

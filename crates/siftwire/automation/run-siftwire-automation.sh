@@ -7,18 +7,11 @@ state_root="${SIFTWIRE_STATE_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/pi-autom
 run_root="${SIFTWIRE_RUN_ROOT:-$state_root/runs}"
 database_path="${SIFTWIRE_DATABASE_PATH:-${XDG_DATA_HOME:-$HOME/.local/share}/siftwire/siftwire.sqlite}"
 siftwire_bin="${SIFTWIRE_BIN:-siftwire}"
-prooflane_runtime="${SIFTWIRE_PROOFLANE_RUNTIME:-${XDG_DATA_HOME:-$HOME/.local/share}/pi-automations/siftwire/prooflane/current}"
-prooflane_bin="${PROOFLANE_BIN:-$prooflane_runtime/bin/prooflane}"
-prooflane_contract="${PROOFLANE_SIFTWIRE_CONTRACT:-$prooflane_runtime/examples/siftwire/prooflane.json}"
-prooflane_home="${PROOFLANE_HOME:-$state_root/prooflane-siftwire}"
-prooflane_axiom_dataset="${PROOFLANE_AXIOM_DATASET:-}"
-prooflane_axiom_token_file="${PROOFLANE_AXIOM_TOKEN_FILE:-}"
 notes_api_url="${SIFTWIRE_NOTES_API_URL:-}"
 notes_public_url="${SIFTWIRE_NOTES_PUBLIC_URL:-}"
 notes_token_file="${SIFTWIRE_NOTES_TOKEN_FILE:-}"
 notes_start_date="${SIFTWIRE_NOTES_START_DATE:-}"
 render_prompt="${SIFTWIRE_RENDER_PROMPT:?start this launcher through siftwire automation, or set SIFTWIRE_RENDER_PROMPT}"
-curl_bin="${CURL_BIN:-curl}"
 mailgate_bin="${MAILGATE_BIN:-mailgate}"
 pending_dir="$state_root/outbox/pending"
 sent_dir="$state_root/outbox/sent"
@@ -27,16 +20,11 @@ attempt_marker="$state_root/run-brief-attempt.json"
 attempt_result="$state_root/run-brief-result.json"
 attempt_stderr="$state_root/run-brief.stderr"
 
-# Receipt: a live Axiom request completed in under one second; 30 seconds is a
-# tripwire for a stalled telemetry request.
-http_timeout_seconds=30
-
 # Delivery can be complete here, so this status names only an unfinished Notes copy.
 notes_incomplete_status=69
 
-# Do not expose notification or telemetry credentials to SiftWire, Prooflane,
-# or Pi. Mailgate loads the Resend key in its own process.
-unset RESEND_API_KEY RESENT_API_KEY AXIOM_PAT AXIOM_TOKEN PROOFLANE_AXIOM_DATASET PROOFLANE_AXIOM_TOKEN_FILE \
+# Mailgate loads the Resend key in its own process.
+unset RESEND_API_KEY RESENT_API_KEY \
   SIFTWIRE_NOTES_API_URL SIFTWIRE_NOTES_PUBLIC_URL SIFTWIRE_NOTES_TOKEN_FILE SIFTWIRE_NOTES_START_DATE
 
 require_command() {
@@ -83,7 +71,6 @@ require_current_durable_state() {
     if ! [[ -f $active_job && ! -L $active_job ]] ||
       ! jq -e '
         .schema_version == "siftwire-active-job/v2"
-        and (.prooflane_run_id | type == "string")
         and (.brief | type == "object")
         and ((.candidate_indexes == null) or (.candidate_indexes | type == "array"))
       ' "$active_job" >/dev/null; then
@@ -116,57 +103,6 @@ require_current_durable_state() {
       return 70
     fi
   done
-}
-
-read_axiom_token() {
-  local device extra="" inode metadata mode owner path_identity value
-  [[ -f $prooflane_axiom_token_file && ! -L $prooflane_axiom_token_file && -r $prooflane_axiom_token_file ]] || return 1
-  exec {axiom_token_fd}<"$prooflane_axiom_token_file" || return
-  metadata="$(stat -Lc '%u:%a:%d:%i' -- "/proc/$$/fd/$axiom_token_fd")" || {
-    exec {axiom_token_fd}<&-
-    return 1
-  }
-  path_identity="$(stat -Lc '%d:%i' -- "$prooflane_axiom_token_file")" || {
-    exec {axiom_token_fd}<&-
-    return 1
-  }
-  IFS=: read -r owner mode device inode <<<"$metadata"
-  if [[ -L $prooflane_axiom_token_file || ! -f /proc/$$/fd/$axiom_token_fd ||
-    $owner != "$UID" || $mode != 600 || $path_identity != "$device:$inode" ]]; then
-    exec {axiom_token_fd}<&-
-    return 1
-  fi
-  IFS= read -r -u "$axiom_token_fd" value || true
-  if IFS= read -r -u "$axiom_token_fd" extra || [[ -n $extra ]] || [[ ! $value =~ ^xaat-[A-Za-z0-9_-]+$ ]]; then
-    exec {axiom_token_fd}<&-
-    return 1
-  fi
-  exec {axiom_token_fd}<&-
-  axiom_api_token="$value"
-}
-
-export_axiom_event() {
-  local axiom_api_token event="$1" response
-  [[ -n $prooflane_axiom_dataset || -n $prooflane_axiom_token_file ]] || return 0
-  [[ $prooflane_axiom_dataset =~ ^[a-z0-9][a-z0-9-]*$ && -n $prooflane_axiom_token_file ]] || return 1
-  read_axiom_token || return
-  response="$(printf '%s' "[$event]" |
-    "$curl_bin" --disable --config <(printf 'header = "Authorization: Bearer %s"\n' "$axiom_api_token") \
-      --silent --show-error --fail-with-body --max-time "$http_timeout_seconds" \
-      -X POST "https://api.axiom.co/v1/datasets/$prooflane_axiom_dataset/ingest" \
-      -H 'Content-Type: application/json' --data-binary @-)" || return
-  unset axiom_api_token
-  [[ -z $response ]] || jq -e . >/dev/null <<<"$response"
-}
-
-export_prooflane_receipt() {
-  local event prooflane_run_id="$1" receipt
-  [[ -n $prooflane_run_id ]] || return 0
-  [[ -n $prooflane_axiom_dataset || -n $prooflane_axiom_token_file ]] || return 0
-  receipt="$(PROOFLANE_HOME="$prooflane_home" "$prooflane_bin" show --run "$prooflane_run_id" --format json)" || return
-  event="$(jq -cn --argjson receipt "$receipt" \
-    '{"service.name":"prooflane","automation.name":"siftwire","event.name":"prooflane.receipt",prooflane:$receipt}')" || return
-  export_axiom_event "$event"
 }
 
 publish_to_notes() {
@@ -216,39 +152,17 @@ send_email() {
 }
 
 mark_delivery_recorded() {
-  local outbox="$1" source="$2" updated
-  updated="$(jq --arg recorded_at "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" --arg source "$source" \
-    '. + {delivery_recorded_at:$recorded_at,delivery_record_source:$source}' "$outbox")" || return
+  local outbox="$1" updated
+  updated="$(jq --arg recorded_at "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
+    '. + {delivery_recorded_at:$recorded_at,delivery_record_source:"runner-result"}' "$outbox")" || return
   write_atomic "$outbox" "$updated"
 }
 
-recover_sealed_delivery() {
-  local outbox="$1" prooflane_run_id receipt
-  prooflane_run_id="$(jq -r '.prooflane_run_id' "$outbox")" || return
-  [[ -n $prooflane_run_id && $prooflane_ready == 1 ]] || return 1
-  receipt="$(PROOFLANE_HOME="$prooflane_home" "$prooflane_bin" show --run "$prooflane_run_id" --format json 2>/dev/null)" || return
-  jq -e --arg run_id "$prooflane_run_id" \
-    '.run_id == $run_id
-    and (.state == "verified" or .state == "unverified" or .state == "failed")
-    and any(.actions[]; .id == "siftwire-record-delivery" and .status == "succeeded")
-    and any(.assertions[]; .id == "runner-protocol-valid" and .outcome == "pass")
-    and any(.assertions[]; .id == "local-delivery-recorded" and .outcome == "pass")' \
-    <<<"$receipt" >/dev/null || return
-  mark_delivery_recorded "$outbox" sealed-receipt || return
-  printf 'siftwire automation: recovered sealed Prooflane delivery %s\n' "$prooflane_run_id" >&2
-  export_prooflane_receipt "$prooflane_run_id" ||
-    printf 'siftwire automation: Prooflane receipt export failed without gating delivery\n' >&2
-}
-
 confirm_delivery() {
-  local attempt_count delivery_err delivery_key delivery_out metadata siftwire_run_id outbox="$1" previous_attempt_at prooflane_run_id request updated
-  local -a delivery_command
+  local delivery_err delivery_key delivery_out siftwire_run_id outbox="$1" request updated
   siftwire_run_id="$(jq -er '.siftwire_run_id' "$outbox")" || return
-  prooflane_run_id="$(jq -r '.prooflane_run_id' "$outbox")" || return
   request="$(jq -cn --arg run_id "$siftwire_run_id" --arg plan_id "$(jq -r '.delivery_plan_id' "$outbox")" \
     '{action:"confirm_delivery",run_id:$run_id,delivery_plan_id:$plan_id}')" || return
-  attempt_count="$(jq -er '.delivery_attempt_count | select(type == "number" and floor == . and . >= 0)' "$outbox")" || return
-  previous_attempt_at="$(jq -c '.last_delivery_attempt_at // null' "$outbox")" || return
   updated="$(jq --arg attempted_at "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
     '.delivery_attempt_count += 1 | .last_delivery_attempt_at = $attempted_at' \
     "$outbox")" || return
@@ -256,18 +170,8 @@ confirm_delivery() {
   delivery_key="$(basename -- "$outbox" .json)"
   delivery_out="$run_dir/delivery-$delivery_key.json"
   delivery_err="$run_dir/delivery-$delivery_key.stderr"
-  if [[ -n $prooflane_run_id && $prooflane_ready == 1 ]]; then
-    delivery_command=("$prooflane_bin" dogfood siftwire delivery --run "$prooflane_run_id" --brief-binary "$siftwire_bin")
-  else
-    delivery_command=("$siftwire_bin" brief)
-  fi
-  if ! printf '%s\n' "$request" | SIFTWIRE_DATABASE_PATH="$database_path" PROOFLANE_HOME="$prooflane_home" \
-    "${delivery_command[@]}" >"$delivery_out" 2>"$delivery_err"; then
-    if grep -Fxq 'adapter context is already claimed' "$delivery_err"; then
-      updated="$(jq --argjson attempt_count "$attempt_count" --argjson attempted_at "$previous_attempt_at" \
-        '.delivery_attempt_count = $attempt_count | .last_delivery_attempt_at = $attempted_at' "$outbox")" || return
-      write_atomic "$outbox" "$updated" || return
-    fi
+  if ! printf '%s\n' "$request" | SIFTWIRE_DATABASE_PATH="$database_path" \
+    "$siftwire_bin" brief >"$delivery_out" 2>"$delivery_err"; then
     printf 'siftwire automation: confirm_delivery failed; retained %s\n' "$outbox" >&2
     return 1
   fi
@@ -277,18 +181,7 @@ confirm_delivery() {
     printf 'siftwire automation: confirm_delivery returned invalid JSON; retained %s\n' "$outbox" >&2
     return 1
   }
-  mark_delivery_recorded "$outbox" runner-result || return
-  metadata="$(sed -n 's/^PROOFLANE_METADATA[[:space:]]//p' "$delivery_err" | tail -n 1)"
-  if [[ -n $prooflane_run_id ]] && jq -e --arg run_id "$prooflane_run_id" \
-    '.prooflane.run_id == $run_id and .prooflane.status == "sealed"' \
-    <<<"$metadata" >/dev/null 2>&1; then
-    printf 'siftwire automation: Prooflane %s verdict %s\n' "$prooflane_run_id" \
-      "$(jq -r '.prooflane.verdict' <<<"$metadata")" >&2
-    export_prooflane_receipt "$prooflane_run_id" ||
-      printf 'siftwire automation: Prooflane receipt export failed without gating delivery\n' >&2
-  else
-    printf 'siftwire automation: Prooflane delivery metadata was unavailable; local delivery was not gated\n' >&2
-  fi
+  mark_delivery_recorded "$outbox" || return
 }
 
 finish_outbox() {
@@ -306,7 +199,7 @@ finish_outbox() {
     send_email "$outbox" || return
   fi
   if ! jq -e '.delivery_recorded_at | type == "string" and length > 0' "$outbox" >/dev/null; then
-    recover_sealed_delivery "$outbox" || confirm_delivery "$outbox" || return
+    confirm_delivery "$outbox" || return
   fi
   sent_path="$sent_dir/$(basename -- "$outbox")"
   [[ ! -e $sent_path && ! -L $sent_path ]] || return
@@ -405,7 +298,7 @@ clear_attempt() {
 }
 
 recover_attempt() {
-  local brief_validation_error job_json metadata prooflane_run_id rejection_reason
+  local brief_validation_error job_json rejection_reason
   [[ -e $attempt_marker || -L $attempt_marker ]] || return 0
   validate_attempt_marker "$attempt_marker" || {
     printf 'siftwire automation: incompatible durable run attempt: %s\n' "$attempt_marker" >&2
@@ -435,10 +328,8 @@ recover_attempt() {
       "$brief_validation_error" >&2
     return 70
   fi
-  metadata="$(sed -n 's/^PROOFLANE_METADATA[[:space:]]//p' "$attempt_stderr" | tail -n 1)"
-  prooflane_run_id="$(jq -r '.prooflane.run_id // empty' <<<"$metadata" 2>/dev/null || true)"
-  job_json="$(jq -cn --slurpfile brief "$attempt_result" --arg prooflane_run_id "$prooflane_run_id" \
-    '{schema_version:"siftwire-active-job/v2",prooflane_run_id:$prooflane_run_id,brief:$brief[0],candidate_indexes:null}')" || return
+  job_json="$(jq -cn --slurpfile brief "$attempt_result" \
+    '{schema_version:"siftwire-active-job/v2",brief:$brief[0],candidate_indexes:null}')" || return
   write_atomic "$active_job" "$job_json" || return
   clear_attempt
 }
@@ -495,17 +386,17 @@ validate_selection() {
 }
 
 record_selection() {
-  local event receipt
+  local receipt
   receipt="$(jq -cn --slurpfile brief "$brief_result" --slurpfile selection "$selection" \
     --arg observed_at "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
-    --arg automation_run_id "$(basename -- "$run_dir")" --arg prooflane_run_id "$prooflane_run_id" \
-    --arg mode "$mode" --arg origin "$selection_origin" --arg model "$model" '
+    --arg automation_run_id "$(basename -- "$run_dir")" \
+    --arg mode "$mode" --arg origin "$selection_origin" '
     $brief[0] as $brief | ($selection[0].candidate_indexes | length) as $selected
     | ($brief.candidates | length) as $count
     | {
         schema_version:"siftwire-selection-receipt/v1",observed_at:$observed_at,
-        automation_run_id:$automation_run_id,siftwire_run_id:$brief.run_id,prooflane_run_id:$prooflane_run_id,
-        mode:$mode,selection_origin:$origin,configured_model:(if $origin == "pi" then $model else null end),
+        automation_run_id:$automation_run_id,siftwire_run_id:$brief.run_id,
+        mode:$mode,selection_origin:$origin,
         candidate_count:$count,candidate_slots:$brief.candidate_slots,selected_candidate_count:$selected,
         required_count:($brief.must_include | length),sports_update_count:(($brief.sports_updates // []) | length),
         empty_selection_with_candidates:($count > 0 and $brief.candidate_slots > 0 and $selected == 0)
@@ -516,10 +407,6 @@ record_selection() {
     printf 'siftwire automation: no news selected from %s candidates with %s slots; evidence: %s\n' \
       "$(jq -r '.candidate_count' <<<"$receipt")" "$(jq -r '.candidate_slots' <<<"$receipt")" "$run_dir" >&2
   fi
-  [[ $mode == scheduled ]] || return 0
-  event="$(jq -cn --argjson receipt "$receipt" \
-    '{"service.name":"siftwire","automation.name":"siftwire","event.name":"siftwire.selection",siftwire:$receipt}')" || return
-  export_axiom_event "$event"
 }
 
 mode=scheduled
@@ -540,10 +427,9 @@ case "${1:-}" in
     ;;
 esac
 
-for command in jq model-role pi realpath; do
+for command in jq pi realpath; do
   require_command "$command"
 done
-model="$(model-role fast)"
 [[ -r $render_prompt ]] || {
   printf 'siftwire automation: render prompt is not readable: %s\n' "$render_prompt" >&2
   exit 1
@@ -560,23 +446,10 @@ if [[ $mode == replay ]]; then
   run_dir="$(realpath -- "$replay_directory")"
   brief_result="$run_dir/brief.json"
   jq '.must_include //= [] | .candidates //= [] | .health_footnote //= ""' "$replay_brief" >"$brief_result"
-  prooflane_run_id=""
 else
-  for command in flock grep sha256sum stat sync "$siftwire_bin" "$curl_bin" "$mailgate_bin"; do
+  for command in flock sha256sum stat sync "$siftwire_bin" "$mailgate_bin"; do
     require_command "$command"
   done
-  prooflane_ready=1
-  if ! command -v "$prooflane_bin" >/dev/null 2>&1 || [[ ! -r $prooflane_contract ]]; then
-    prooflane_ready=0
-    printf 'siftwire automation: Prooflane shadow is unavailable; SiftWire execution will continue without a receipt\n' >&2
-  elif ! "$prooflane_bin" version --format json | jq -e '
-  .schema_version == "prooflane/version-report/v1"
-  and (.product_version | type == "string" and length > 0)
-' >/dev/null; then
-    prooflane_ready=0
-    printf 'siftwire automation: Prooflane shadow cannot execute; SiftWire execution will continue without a receipt: %s\n' \
-      "$prooflane_bin" >&2
-  fi
   [[ -r $database_path ]] || {
     printf 'siftwire automation: database is not readable: %s\n' "$database_path" >&2
     exit 1
@@ -585,7 +458,7 @@ else
     printf 'siftwire automation: Mailgate validation failed or profile siftwire is unavailable\n' >&2
     exit 1
   }
-  mkdir -p -- "$state_root" "$run_root" "$pending_dir" "$sent_dir" "$prooflane_home"
+  mkdir -p -- "$state_root" "$run_root" "$pending_dir" "$sent_dir"
   exec 9>"$state_root/run.lock"
   if ! flock --nonblock 9; then
     printf 'siftwire automation: another run holds %s\n' "$state_root/run.lock" >&2
@@ -595,22 +468,9 @@ else
 
   run_dir="$(mktemp -d "$run_root/run.XXXXXX")"
   run_dir="$(realpath -- "$run_dir")"
-  publish_latest_telemetry() {
-    local status=$? telemetry_temp
+  finish_run() {
+    local status=$?
     trap - EXIT
-    if ((status == 0)); then
-      if [[ -f $run_dir/pi-telemetry.jsonl ]]; then
-        if ! telemetry_temp="$(mktemp "$state_root/.last-pi-telemetry.XXXXXX")" ||
-          ! cp -- "$run_dir/pi-telemetry.jsonl" "$telemetry_temp" ||
-          ! chmod 0600 "$telemetry_temp" || ! sync -d -- "$telemetry_temp" ||
-          ! mv -fT -- "$telemetry_temp" "$state_root/last-pi-telemetry.jsonl" ||
-          ! sync -f -- "$state_root"; then
-          rm -f -- "$telemetry_temp" ||
-            printf 'siftwire automation: Pi telemetry temporary file cleanup failed\n' >&2
-          printf 'siftwire automation: latest Pi telemetry could not be published; logs: %s\n' "$run_dir" >&2
-        fi
-      fi
-    fi
     if ! publish_to_notes; then
       printf 'siftwire automation: Notes publication is incomplete; delivery was not gated and the next run retries it\n' >&2
       ((status != 0)) || status=$notes_incomplete_status
@@ -618,7 +478,7 @@ else
     printf 'siftwire automation: retained evidence: %s\n' "$run_dir" >&2
     exit "$status"
   }
-  trap publish_latest_telemetry EXIT
+  trap finish_run EXIT
   require_released_siftwire || {
     printf 'siftwire automation: runner must be a stable SiftWire release\n' >&2
     exit 1
@@ -641,15 +501,8 @@ else
       "$(jq -cn --arg attempted_at "$(date --utc +%Y-%m-%dT%H:%M:%SZ)" \
         '{schema_version:"siftwire-run-attempt/v1",state:"invoking",attempted_at:$attempted_at}')"
     set +e
-    if [[ $prooflane_ready == 1 ]]; then
-      run_brief_command=("$prooflane_bin" dogfood siftwire run --contract "$prooflane_contract"
-        --config-binary "$siftwire_bin" --brief-binary "$siftwire_bin")
-    else
-      run_brief_command=("$siftwire_bin" brief)
-    fi
     printf '%s\n' '{"action":"run_brief","dry_run":false}' |
-      SIFTWIRE_DATABASE_PATH="$database_path" PROOFLANE_HOME="$prooflane_home" \
-        "${run_brief_command[@]}" >"$attempt_result" 2>"$attempt_stderr"
+      SIFTWIRE_DATABASE_PATH="$database_path" "$siftwire_bin" brief >"$attempt_result" 2>"$attempt_stderr"
     run_brief_status=$?
     set -e
     if ((run_brief_status != 0)); then
@@ -661,7 +514,6 @@ else
   fi
   jq -e '
   .schema_version == "siftwire-active-job/v2"
-  and (.prooflane_run_id | type == "string")
   and (.brief | type == "object")
   and ((.candidate_indexes == null) or (.candidate_indexes | type == "array"))
 ' "$active_job" >/dev/null || {
@@ -675,7 +527,6 @@ else
       "$brief_validation_error" "$active_job" >&2
     exit 1
   fi
-  prooflane_run_id="$(jq -er '.prooflane_run_id' "$active_job")"
 fi
 
 cp -- "$render_prompt" "$run_dir/siftwire-render.md"
@@ -705,18 +556,10 @@ else
         with_entries(select(.key | IN("title", "url", "sent_at"))))
       else . end
   ' "$brief_result" >"$selector_input"
-  telemetry_probe="$HOME/.local/share/dotfiles-pi-package/current/node_modules/yazan-pi-setup/runtime-probes/automation-telemetry.ts"
-  telemetry_args=()
-  if [[ -f $telemetry_probe && -r $telemetry_probe ]]; then
-    telemetry_args=(--extension "$telemetry_probe")
-  else
-    printf 'siftwire automation: optional Pi telemetry probe is unavailable: %s; continuing without it\n' "$telemetry_probe" >&2
-  fi
   # Model output shape is not deterministic, so retry invalid selections and
   # keep every raw attempt for diagnostics.
   for try in 1 2 3; do
     attempt_file="$run_dir/selection.$try.json"
-    telemetry_file="$run_dir/pi-telemetry.$try.jsonl"
     events_file="$run_dir/pi-events.$try.jsonl"
     # Trust only the prompt's own directory, not an inherited cwd.
     # The foreground child must exit before its event stream can authorize work.
@@ -724,11 +567,7 @@ else
       cd -- "$(dirname -- "$render_prompt")" || exit
       exec env \
         MISE_QUIET=1 \
-        PI_AUTOMATION_TELEMETRY_PATH="$telemetry_file" \
-        PI_AUTOMATION_NAME=siftwire \
-        PI_AUTOMATION_RUN_ID="$(basename -- "$run_dir")" \
-        pi -p --mode json --approve "${telemetry_args[@]}" \
-        --model "$model" --thinking medium \
+        pi -p --mode json --approve \
         --name siftwire-automation --session-dir "$run_dir/pi-sessions/$try" \
         "@$run_dir/siftwire-render.md" "@$selector_input" \
         'Return the candidate selection object for this SiftWire run.'
@@ -738,11 +577,6 @@ else
     }
     if [[ -s $run_dir/pi.$try.stderr ]]; then
       printf 'siftwire automation: Pi emitted diagnostics; logs: %s\n' "$run_dir" >&2
-    fi
-    if [[ ! -s $telemetry_file ]]; then
-      printf 'siftwire automation: optional Pi telemetry is absent; logs: %s\n' "$run_dir" >&2
-    elif ! jq -se 'length>0 and all(.[]; type=="object")' "$telemetry_file" >/dev/null 2>&1; then
-      printf 'siftwire automation: optional Pi telemetry is unreadable or invalid; logs: %s\n' "$run_dir" >&2
     fi
     if ! jq -ers '
       def successful_message:
@@ -839,9 +673,6 @@ else
       exit 1
     fi
     if validate_selection "$attempt_file"; then
-      if [[ -f $telemetry_file ]] && ! cp -- "$telemetry_file" "$run_dir/pi-telemetry.jsonl"; then
-        printf 'siftwire automation: Pi telemetry could not be retained; logs: %s\n' "$run_dir" >&2
-      fi
       mv -- "$attempt_file" "$selection"
       break
     fi
@@ -856,7 +687,7 @@ validate_selection "$selection" || {
   printf 'siftwire automation: invalid persisted candidate selection; evidence: %s\n' "$run_dir" >&2
   exit 1
 }
-record_selection || printf 'siftwire automation: selection receipt recording/export failed; evidence: %s\n' "$run_dir" >&2
+record_selection || printf 'siftwire automation: selection receipt recording failed; evidence: %s\n' "$run_dir" >&2
 if [[ $mode == replay ]]; then
   jq -c . "$selection"
   printf 'siftwire automation: replay complete; evidence: %s\n' "$run_dir" >&2
@@ -894,14 +725,13 @@ fi
   exit 1
 }
 outbox_json="$(jq -cn --slurpfile prepared "$prepared" --arg siftwire_run_id "$siftwire_run_id" \
-  --arg prooflane_run_id "$prooflane_run_id" --arg idempotency_key "siftwire-v2-$outbox_digest" \
+  --arg idempotency_key "siftwire-v2-$outbox_digest" \
   --arg subject "SiftWire — $(date '+%Y-%m-%d %H:%M %Z')" '
   $prepared[0] as $plan
   | ($plan.message != "NO_REPLY") as $needs_email
   | {
       schema_version:"siftwire-email-outbox/v2",
       siftwire_run_id:$siftwire_run_id,
-      prooflane_run_id:$prooflane_run_id,
       delivery_plan_id:$plan.delivery_plan_id,
       needs_email:$needs_email,
       idempotency_key:$idempotency_key,

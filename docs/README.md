@@ -9,7 +9,7 @@
 - [Run and delivery history](run-history.md): archive commands, search,
   pagination, and saved evidence
 - [Operate the automation](automation.md): scheduled runs, recovery, replay,
-  upgrades, and Prooflane deployment
+  and upgrades
 
 ## Upgrade an installation
 

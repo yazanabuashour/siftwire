@@ -1,9 +1,7 @@
 mod admission;
-mod canonical;
 mod dedup;
 mod feed;
 mod fetcher;
-mod google;
 mod health;
 mod http;
 mod model;
@@ -13,7 +11,7 @@ mod recent;
 mod schedule;
 mod selection;
 
-pub use dedup::{CollectedItem, classify_and_dedupe, sort_brief_items};
+pub use dedup::{CollectedItem, classify_and_dedupe};
 pub use fetcher::Fetcher;
 pub use health::{
     add_recurring_failure_warnings, add_stale_heartbeat_warning, brief_summary,

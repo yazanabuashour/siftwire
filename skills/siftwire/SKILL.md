@@ -2,7 +2,7 @@
 name: siftwire
 description: Use SiftWire through the installed JSON runner for local brief and configuration tasks. Reject direct SQLite, HTTP, MCP, source-built runner, and unreviewed private-state import substitutes. Inspect only user-named legacy inputs, draft configuration for review, and write it only after approval.
 license: MIT
-compatibility: Requires local filesystem access and an installed SiftWire binary on PATH with siftwire-runner/v5, prepared-delivery/v1, and current-news/v1.
+compatibility: Requires local filesystem access and an installed SiftWire binary on PATH with siftwire-runner/v6, prepared-delivery/v1, and current-news/v1.
 ---
 
 # SiftWire
@@ -17,7 +17,7 @@ siftwire brief
 Pipe exactly one JSON request to one command and answer only from its JSON
 result. The runner honors `SIFTWIRE_DATABASE_PATH`; do not pass `--db` unless
 the user names a specific dataset. Do not maintain repo-local state files.
-Require `runner_protocol: "siftwire-runner/v5"` and `current-news/v1` in
+Require `runner_protocol: "siftwire-runner/v6"` and `current-news/v1` in
 `capabilities` in every config and brief result. Stop and report incompatibility
 when either is absent or different.
 
@@ -84,7 +84,6 @@ GitHub API endpoint.
 
 These feed-processing fields are optional:
 
-- `url_canonicalization`: `none` or `google_news_article_url`, applied only to Required feeds
 - `outlet_extraction`: `none` or `title_suffix`
 - `dedup_group`: same-topic grouping across sources
 - `priority_rank`: lower values win duplicate selection after publication recency

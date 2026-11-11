@@ -13,12 +13,10 @@ use crate::contract::{CurrentNewsStatus, HealthDelta};
 use crate::domain::{OutletPolicy, Source};
 use crate::storage::{FetchLog, SourceState, StoredSentItem};
 
-use super::canonical::process_feed_items;
 use super::dedup::classify_and_dedupe;
 use super::feed::parse_feed;
-use super::google::GoogleResolver;
+use super::fetcher::process_feed_items;
 use super::health::{add_recurring_failure_warnings, build_health_footnote};
-use super::http::HttpClient;
 use super::model::FetchedItem;
 use super::policy::apply_outlet_policies;
 use super::process::collect_items;
@@ -30,7 +28,6 @@ fn fetched(title: &str, url: &str, identity: &str) -> FetchedItem {
         title: title.to_owned(),
         url: url.to_owned(),
         identity: identity.to_owned(),
-        feed_identity: identity.to_owned(),
         ..FetchedItem::default()
     }
 }
@@ -55,14 +52,10 @@ fn collected(source: &Source, title: &str, url: &str) -> Result<CollectedItem> {
 }
 
 fn process_local(source: &Source, item: FetchedItem) -> Result<FetchedItem> {
-    let google = GoogleResolver::new(HttpClient::new());
-    let (items, unresolved, truncated) = process_feed_items(&google, source, vec![item])?;
-    assert!(
-        unresolved.is_empty(),
-        "local processing produced unresolved items"
-    );
-    assert!(!truncated, "one local item was marked truncated");
-    items.into_iter().next().context("processed local item")
+    process_feed_items(source, vec![item])
+        .into_iter()
+        .next()
+        .context("processed local item")
 }
 
 #[test]
@@ -152,9 +145,8 @@ fn rss_and_atom_parsing_preserve_identity_and_raw_dates() -> Result<()> {
 }
 
 #[test]
-fn latest_seen_selection_matches_canonical_and_feed_identities() {
-    let mut prior = fetched("Prior", "https://publisher.test/prior", "canonical-prior");
-    prior.feed_identity = "feed-prior".to_owned();
+fn latest_seen_selection_matches_saved_identities() {
+    let prior = fetched("Prior", "https://publisher.test/prior", "canonical-prior");
     let items = vec![
         fetched("Newest", "https://publisher.test/new", "canonical-new"),
         prior,
@@ -162,10 +154,10 @@ fn latest_seen_selection_matches_canonical_and_feed_identities() {
     ];
 
     let feed_state = SourceState {
-        latest_identity: "feed-prior".to_owned(),
+        latest_identity: "canonical-prior".to_owned(),
         ..SourceState::default()
     };
-    let selected = select_new_items(&items, Some(&feed_state), false);
+    let selected = select_new_items(&items, Some(&feed_state));
     assert_eq!(selected.len(), 1, "feed identity did not stop selection");
     assert_eq!(
         selected.first().map(|item| item.title.as_str()),
@@ -179,7 +171,7 @@ fn latest_seen_selection_matches_canonical_and_feed_identities() {
         ..SourceState::default()
     };
     assert_eq!(
-        select_new_items(&items, Some(&canonical_state), false).len(),
+        select_new_items(&items, Some(&canonical_state)).len(),
         1,
         "canonical identity did not match latest feed state"
     );
@@ -189,14 +181,9 @@ fn latest_seen_selection_matches_canonical_and_feed_identities() {
         ..SourceState::default()
     };
     assert_eq!(
-        select_new_items(&items, Some(&missing_state), false).len(),
+        select_new_items(&items, Some(&missing_state)).len(),
         1,
         "unbounded missing state should keep only the latest item"
-    );
-    assert_eq!(
-        select_new_items(&items, Some(&missing_state), true).len(),
-        items.len(),
-        "bounded canonicalization should keep every processed item before unseen state"
     );
 }
 
@@ -529,7 +516,6 @@ fn exact_dedup_keeps_distinct_developments_and_required_items() -> Result<()> {
 
 fn current_news_feed() -> Result<(Source, FetchOutput)> {
     let feed = Source {
-        url_canonicalization: "google_news_article_url".to_owned(),
         outlet_extraction: "title_suffix".to_owned(),
         threshold: "high".to_owned(),
         ..source("news")
@@ -573,15 +559,8 @@ fn current_news_feed() -> Result<(Source, FetchOutput)> {
         </channel></rss>"#
     );
     let parsed = parse_feed(&feed, xml.as_bytes())?;
-    let google = GoogleResolver::new(HttpClient::new());
-    let (items, unresolved, truncated) = process_feed_items(&google, &feed, parsed.clone())?;
-    assert_eq!(
-        items.len(),
-        18,
-        "optional feed hit the resolver's five-item limit"
-    );
-    assert!(unresolved.is_empty(), "optional feed attempted resolution");
-    assert!(!truncated, "optional feed was truncated");
+    let items = process_feed_items(&feed, parsed.clone());
+    assert_eq!(items.len(), 18, "feed entries were lost");
     for (actual, original) in items.iter().zip(&parsed) {
         assert_eq!(actual.url, original.url, "optional URL changed");
         assert_eq!(

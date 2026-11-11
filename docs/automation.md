@@ -13,7 +13,7 @@ profile, and failure notifications. SiftWire does not install any of them.
 
 The launcher needs Linux with GNU coreutils, `bash`, `jq`, `flock`, `pi`, and
 `mailgate` on `PATH`, and a Mailgate profile named `siftwire`.
-It admits a stable SiftWire release that reports `siftwire-runner/v5` with
+It admits a stable SiftWire release that reports `siftwire-runner/v6` with
 `prepared-delivery/v1` and `current-news/v1`. The declared contract decides, not
 a version floor. These checks run before any durable attempt starts.
 
@@ -54,7 +54,7 @@ SiftWire skill into selection; ordinary research skills stay available.
 The embedded prompt holds the selection contract and general evidence rules, and
 no reader priorities. To add yours, copy
 `crates/siftwire/automation/siftwire-render.md`, keep its output contract and
-authority rules, and store your copy outside this repository.
+authority rules, and set `SIFTWIRE_RENDER_PROMPT` to your copy.
 
 The launcher removes Resend credentials before starting SiftWire or Pi.
 Mailgate loads the Resend key in its own process.
@@ -64,7 +64,8 @@ Mailgate loads the Resend key in its own process.
 - **Collection:** `run_brief` is not retry-safe. `run-brief-attempt.json` marks
   an invocation in progress. If a run ends without a usable result, the next run
   refuses to collect until you reconcile that marker.
-- **Selection:** `active-job.json` saves the brief and later the chosen indexes,
+- **Selection:** No candidates or zero optional capacity skips Pi and records an
+  empty selection with its reason. `active-job.json` saves the brief and later the chosen indexes,
   so the next run resumes without collecting. An invalid selection retries up to
   three times in one run, retaining every raw attempt file. A nonzero child exit
   blocks delivery without a retry, even if it wrote a valid selection.
@@ -185,8 +186,6 @@ with no automatic cleanup. The launcher prints the path as `retained evidence`.
 | `selection.N.json`, `selector.N.log`, `selector.N.stderr` | Raw evidence for each selection attempt      |
 | `prepared.json`, `delivery-KEY.json`, `delivery-KEY.stderr` | Delivery plan and confirmation       |
 | `publication.json`, `publication.stderr`            | Notes report, when publication is on         |
-
-Raw evidence can hold sensitive content. Keep it local and do not commit it.
 
 The projection keeps candidate order and membership, and it adds each candidate's
 `candidate_index`. It drops identifier aliases, fetch statistics, paths, and

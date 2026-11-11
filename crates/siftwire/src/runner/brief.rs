@@ -9,14 +9,14 @@ use chrono_tz::Tz;
 use crate::contract::ItemDisposition;
 use crate::contract::{
     BriefItem, BriefRequest, BriefResult, FetchStatus, HealthDelta, Paths, PreviousBrief,
-    SportsUpdate, SuppressedItem, SuppressedPolicyItem, SuppressedUnresolvedItem,
+    SportsUpdate, SuppressedItem, SuppressedPolicyItem,
 };
 use crate::domain::{OUTLET_POLICY_BLOCK, Source};
 use crate::engine::{
     CURRENT_NEWS_HOURS, FetchOutput, Fetcher, RecentSuppression, SportsOptions,
     add_recurring_failure_warnings, add_stale_heartbeat_warning, brief_summary,
     build_health_footnote, classify_and_dedupe, enabled_source_keys, prepare_sports_updates,
-    process_source, render_sports_section, sort_brief_items, suppress_recent_candidates,
+    process_source, render_sports_section, suppress_recent_candidates,
 };
 use crate::storage::RUN_ITEM_ANNOTATION;
 use crate::storage::{
@@ -71,7 +71,7 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
     let options = brief_options(&runtime_config);
     let recent = recent_sent_items(store, now)?;
     let mut accumulator = collect_sources(store, &sources, &run_id, dry_run, now, &options.sports)?;
-    let mut classified = classify_and_dedupe(std::mem::take(&mut accumulator.collected));
+    let classified = classify_and_dedupe(std::mem::take(&mut accumulator.collected));
     let recent_result = suppress_recent_candidates(classified.candidates, &recent);
     let mut run_rows = if dry_run {
         Vec::new()
@@ -82,7 +82,6 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
             &recent_result,
             &classified.suppressed,
             &accumulator.suppressed_policy,
-            &accumulator.suppressed_unresolved,
         )
     };
     for row in &mut run_rows {
@@ -102,9 +101,7 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
     let health_footnote = build_health_footnote(&health_delta, &accumulator.statuses);
     let sports_updates = prepare_sports_updates(std::mem::take(&mut accumulator.sports_updates));
     let sports_section = render_sports_section(&sports_updates, options.sports.timezone);
-    sort_brief_items(&mut classified.must_include);
-    let mut candidates = recent_result.candidates;
-    sort_brief_items(&mut candidates);
+    let candidates = recent_result.candidates;
     accumulator
         .statuses
         .sort_by(|left, right| left.source_key.cmp(&right.source_key));
@@ -131,7 +128,6 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
         suppressed: classified.suppressed,
         suppressed_recent: recent_result.suppressed_recent,
         suppressed_policy: accumulator.suppressed_policy,
-        suppressed_unresolved: accumulator.suppressed_unresolved,
         fetch_status: accumulator.statuses,
         sports_section,
         sports_updates,
@@ -159,7 +155,6 @@ struct Accumulator {
     collected: Vec<crate::engine::CollectedItem>,
     sports_updates: Vec<SportsUpdate>,
     suppressed_policy: Vec<crate::contract::SuppressedPolicyItem>,
-    suppressed_unresolved: Vec<crate::contract::SuppressedUnresolvedItem>,
     statuses: Vec<FetchStatus>,
     warnings: BTreeMap<String, String>,
 }
@@ -261,9 +256,6 @@ fn record_source(
     accumulator
         .suppressed_policy
         .extend(outcome.suppressed_policy);
-    accumulator
-        .suppressed_unresolved
-        .extend(outcome.suppressed_unresolved);
     accumulator.warnings.extend(outcome.warnings);
     accumulator.statuses.push(outcome.status);
     Ok(())
@@ -349,7 +341,6 @@ fn run_item_rows(
     recent_result: &RecentSuppression,
     same_run_suppressed: &[SuppressedItem],
     suppressed_policy: &[SuppressedPolicyItem],
-    suppressed_unresolved: &[SuppressedUnresolvedItem],
 ) -> Vec<RunItemRow> {
     let mut rows: Vec<RunItemRow> = must_include
         .iter()
@@ -399,23 +390,6 @@ fn run_item_rows(
                 ..RunItemRow::default()
             }),
     );
-    rows.extend(suppressed_unresolved.iter().map(|item| {
-        RunItemRow {
-            category: if item.disposition == ItemDisposition::Dropped {
-                RUN_ITEM_DROPPED
-            } else {
-                RUN_ITEM_ANNOTATION
-            }
-            .to_owned(),
-            source_key: item.source_key.clone(),
-            title: item.title.clone(),
-            url: item.url.clone(),
-            reason: "unresolved".to_owned(),
-            detail: serde_json::json!({ "reason": item.reason, "disposition": item.disposition })
-                .to_string(),
-            ..RunItemRow::default()
-        }
-    }));
     rows
 }
 

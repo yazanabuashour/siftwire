@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 
-use crate::contract::{FetchStatus, SportsUpdate, SuppressedPolicyItem, SuppressedUnresolvedItem};
+use crate::contract::{FetchStatus, SportsUpdate, SuppressedPolicyItem};
 use crate::domain::{OutletPolicy, SOURCE_KIND_SCHEDULE, Source};
 use crate::storage::SourceState;
 
@@ -21,7 +21,6 @@ pub struct SourceOutcome {
     pub status: FetchStatus,
     pub sports_updates: Vec<SportsUpdate>,
     pub suppressed_policy: Vec<SuppressedPolicyItem>,
-    pub suppressed_unresolved: Vec<SuppressedUnresolvedItem>,
     pub warnings: BTreeMap<String, String>,
 }
 
@@ -67,17 +66,6 @@ fn process_items(
         output.items.len()
     };
     let sports_updates = output.sports_updates;
-    let suppressed_unresolved = output
-        .unresolved
-        .into_iter()
-        .map(|item| SuppressedUnresolvedItem {
-            disposition: item.disposition,
-            source_key: source.key.clone(),
-            title: item.title,
-            url: item.url,
-            reason: item.reason,
-        })
-        .collect::<Vec<_>>();
     let (items, current_news) = if source.is_current_news() {
         let (eligible, status) = select_current_news(output.items, now);
         (eligible, Some(status))
@@ -91,7 +79,7 @@ fn process_items(
         policy_result.items.first().map(|top| SourceState {
             source_key: source.key.clone(),
             latest_identity: top.identity.clone(),
-            latest_feed_identity: top.feed_identity().to_owned(),
+            latest_feed_identity: top.identity.clone(),
             latest_title: top.title.clone(),
             latest_url: top.url.clone(),
             latest_published_at: top.published_at.clone(),
@@ -101,7 +89,7 @@ fn process_items(
     let eligible_items = if current_news.is_some() {
         policy_result.items
     } else {
-        select_new_items(&policy_result.items, state, output.truncated)
+        select_new_items(&policy_result.items, state)
     };
     let new_count = if source.kind == SOURCE_KIND_SCHEDULE {
         sports_updates.len()
@@ -121,12 +109,10 @@ fn process_items(
             new_items: current_news.is_none().then_some(new_count),
             current_news,
             suppressed_policy: policy_result.audit.len(),
-            suppressed_unresolved: suppressed_unresolved.len(),
             ..FetchStatus::default()
         },
         sports_updates,
         suppressed_policy: policy_result.audit,
-        suppressed_unresolved,
         warnings,
     }
 }

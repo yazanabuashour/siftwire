@@ -15,7 +15,7 @@ fn config_preserves_raw_sources_cursors_and_historical_reporting() -> Result<()>
         &json!({"action":"upsert_source", "source": {
             "key":"feed", "label":"Recorded label", "kind":"rss", "url":"https://example.test/feed",
             "section":"technology", "threshold":"always", "enabled":true,
-            "priority_rank":i64::MIN, "dedup_group":"preserve", "url_canonicalization":"none",
+            "priority_rank":i64::MIN, "dedup_group":"preserve",
             "outlet_extraction":"title_suffix"
         }}),
         &environment,
@@ -114,7 +114,7 @@ fn configure_annotation_sources(
         &json!({"action":"upsert_source", "source": {
             "key":"retained", "label":"Recorded retained", "kind":"rss", "url":feed_url,
             "section":"technology", "threshold":"medium", "enabled":true,
-            "url_canonicalization":"none", "outlet_extraction":"title_suffix"
+            "outlet_extraction":"title_suffix"
         }}),
         environment,
     )?;

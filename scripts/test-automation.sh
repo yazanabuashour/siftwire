@@ -13,7 +13,7 @@ binary="$(realpath -- "${1:-$root/target/release/siftwire}")"
   exit 2
 }
 prompt_source="$root/crates/siftwire/automation/siftwire-render.md"
-export TEST_RUNNER_PROTOCOL=siftwire-runner/v5
+export TEST_RUNNER_PROTOCOL=siftwire-runner/v6
 temp="$(mktemp -d)"
 waiting_runner=""
 cleanup() {
@@ -46,7 +46,7 @@ missing_capability=""
 if [[ ${TEST_INVALID_STAGE:-} == "$1" ]]; then
   case "$TEST_INVALID_CONTRACT" in
     legacy) protocol=siftwire-runner/v4 ;;
-    unknown) protocol=siftwire-runner/v6 ;;
+    unknown) protocol=siftwire-runner/v7 ;;
     missing_capability) missing_capability=prepared-delivery/v1 ;;
     missing_current_news) missing_capability=current-news/v1 ;;
   esac
@@ -183,7 +183,7 @@ fi
 request="$(cat)"
 case "$(jq -r .action <<<"$request")" in
   validate)
-    printf '%s\n' '{"runner_protocol":"siftwire-runner/v5","capabilities":["prepared-delivery/v1"],"rejected":false,"candidate_slots":0,"summary":"valid"}' | runner-result validate
+    printf '%s\n' '{"runner_protocol":"siftwire-runner/v6","capabilities":["prepared-delivery/v1"],"rejected":false,"candidate_slots":0,"summary":"valid"}' | runner-result validate
     ;;
   run_brief)
     [[ -z ${TEST_BRIEF_COUNT:-} ]] || printf 'run\n' >>"$TEST_BRIEF_COUNT"
@@ -191,19 +191,19 @@ case "$(jq -r .action <<<"$request")" in
       exit 127
     elif [[ ${TEST_BRIEF_MODE:-brief} == multiple ]]; then
       printf '%s\n' \
-        '{"runner_protocol":"siftwire-runner/v5","capabilities":["prepared-delivery/v1"],"rejected":false,"run_id":"brief-run-multiple","max_delivery_items":2,"candidate_slots":2}' \
-        '{"runner_protocol":"siftwire-runner/v5","capabilities":["prepared-delivery/v1"],"rejected":false,"run_id":"brief-run-multiple","max_delivery_items":2,"candidate_slots":2}'
+        '{"runner_protocol":"siftwire-runner/v6","capabilities":["prepared-delivery/v1"],"rejected":false,"run_id":"brief-run-multiple","max_delivery_items":2,"candidate_slots":2}' \
+        '{"runner_protocol":"siftwire-runner/v6","capabilities":["prepared-delivery/v1"],"rejected":false,"run_id":"brief-run-multiple","max_delivery_items":2,"candidate_slots":2}'
     elif [[ ${TEST_BRIEF_MODE:-brief} == rejected ]]; then
       printf '%s\n' '{"rejected":true,"rejection_reason":"no enabled sources configured"}'
     elif [[ ${TEST_BRIEF_MODE:-brief} == no_reply ]]; then
-      printf '%s\n' '{"runner_protocol":"siftwire-runner/v5","capabilities":["prepared-delivery/v1"],"rejected":false,"run_id":"brief-run-2","max_delivery_items":2,"candidate_slots":2}'
+      printf '%s\n' '{"runner_protocol":"siftwire-runner/v6","capabilities":["prepared-delivery/v1"],"rejected":false,"run_id":"brief-run-2","max_delivery_items":2,"candidate_slots":2}'
     elif [[ ${TEST_BRIEF_MODE:-brief} == duplicate ]]; then
-      printf '%s\n' '{"runner_protocol":"siftwire-runner/v5","capabilities":["prepared-delivery/v1"],"rejected":false,"run_id":"brief-run-duplicate","candidates":[{"title":"a","url":"https://example.com/same"},{"title":"b","url":"https://example.com/same"}],"max_delivery_items":2,"candidate_slots":2}'
+      printf '%s\n' '{"runner_protocol":"siftwire-runner/v6","capabilities":["prepared-delivery/v1"],"rejected":false,"run_id":"brief-run-duplicate","candidates":[{"title":"a","url":"https://example.com/same"},{"title":"b","url":"https://example.com/same"}],"max_delivery_items":2,"candidate_slots":2}'
     elif [[ ${TEST_BRIEF_MODE:-brief} == invalid_candidates ]]; then
-      printf '%s\n' '{"runner_protocol":"siftwire-runner/v5","capabilities":["prepared-delivery/v1"],"rejected":false,"run_id":"brief-run-invalid","candidates":{},"max_delivery_items":2,"candidate_slots":2}'
+      printf '%s\n' '{"runner_protocol":"siftwire-runner/v6","capabilities":["prepared-delivery/v1"],"rejected":false,"run_id":"brief-run-invalid","candidates":{},"max_delivery_items":2,"candidate_slots":2}'
     else
       jq -n '{
-        runner_protocol:"siftwire-runner/v5",capabilities:["prepared-delivery/v1"],rejected:false,
+        runner_protocol:"siftwire-runner/v6",capabilities:["prepared-delivery/v1"],rejected:false,
         run_id:"brief-run-1",max_delivery_items:2,candidate_slots:1,
         must_include:[{title:"Required",url:"https://example.com/required",source_key:"required",threshold:"always"}],
         candidates:[
@@ -211,7 +211,7 @@ case "$(jq -r .action <<<"$request")" in
            candidate_index:999,id:"candidate-id",ids:["alias-id"],aliases:["https://example.com/selected"],run_item_ids:["item-id"],
            summary:"A substantive development",source_key:"alpha",source_label:"Alpha",kind:"rss",
            section:"technology",threshold:"high",priority_rank:0,published_at:"2026-09-08T10:00:00Z",
-           outlet:"Example",reporting:{policy:"watch",note:"Check evidence"}},
+           outlet:"Example"},
           {title:"Skipped",url:"https://news.google.com/rss/articles/OPAQUE-SKIPPED"}
         ],
         sports_updates:[{source_key:"sport",source_label:"Sport",status:"final",title:"Team A 2–1 Team B",
@@ -224,7 +224,7 @@ case "$(jq -r .action <<<"$request")" in
         health_footnote:"Health: source unavailable",
         suppressed:[{title:"Dropped bulk",url:"https://news.google.com/rss/articles/OPAQUE-DROPPED"}],
         suppressed_recent:[{title:"Already sent"}],suppressed_policy:[{title:"Policy dropped"}],
-        suppressed_unresolved:[{title:"Unresolved"}],fetch_status:[{source_key:"alpha",status:"ok",items:2,new_items:2}],
+        fetch_status:[{source_key:"alpha",status:"ok",items:2,new_items:2}],
         paths:{database_path:"/private/transport/path"},summary:"Full runner diagnostics",
         message:"Current transport markdown",text:"Current transport text",html:"<p>Current transport HTML</p>"
       }'
@@ -256,10 +256,10 @@ case "$(jq -r .action <<<"$request")" in
       jq -cn --arg run_id "$run_id" --arg plan_id "$plan_id" \
         --arg message "${TEST_PREPARED_MESSAGE:-$'MARKDOWN-BODY\n'}" --arg text $'TEXT-WITH-SPORTS\n' \
         --arg html $'<p>HTML-BODY</p>\n' \
-        '{runner_protocol:"siftwire-runner/v5",capabilities:["prepared-delivery/v1"],rejected:false,run_id:$run_id,delivery_plan_id:$plan_id,message:$message,text:$text,html:$html}'
+        '{runner_protocol:"siftwire-runner/v6",capabilities:["prepared-delivery/v1"],rejected:false,run_id:$run_id,delivery_plan_id:$plan_id,message:$message,text:$text,html:$html}'
     else
       jq -cn --arg run_id "$run_id" --arg plan_id "$plan_id" \
-        '{runner_protocol:"siftwire-runner/v5",capabilities:["prepared-delivery/v1"],rejected:false,run_id:$run_id,delivery_plan_id:$plan_id,message:"NO_REPLY",text:"NO_REPLY"}'
+        '{runner_protocol:"siftwire-runner/v6",capabilities:["prepared-delivery/v1"],rejected:false,run_id:$run_id,delivery_plan_id:$plan_id,message:"NO_REPLY",text:"NO_REPLY"}'
     fi | runner-result prepare_delivery
     ;;
   confirm_delivery)
@@ -731,6 +731,11 @@ test "$(wc -l <"$temp/replay-pi.count")" = 1
 jq '.runner_protocol = "siftwire-runner/v4"' "$run_dir/brief.json" >"$temp/replay-incompatible.json"
 expect_status 1 env "${replay_env[@]}" "$runner" --replay "$temp/replay-incompatible.json" "$temp/replay-invalid"
 test ! -e "$temp/replay-invalid"
+jq '.candidate_slots = 0' "$run_dir/brief.json" >"$temp/replay-no-capacity.json"
+env "${replay_env[@]}" "$runner" --replay "$temp/replay-no-capacity.json" "$temp/replay-no-capacity" >"$temp/replay-no-capacity.stdout"
+jq -e '.candidate_indexes == []' "$temp/replay-no-capacity.stdout" >/dev/null
+assert_selection_receipt "$temp/replay-no-capacity" replay no_capacity
+test "$(wc -l <"$temp/replay-pi.count")" = 1
 
 mkdir -p "$temp/state-no-reply" "$temp/run-no-reply"
 export TEST_BRIEF_MODE=no_reply TEST_NO_MAILGATE=1

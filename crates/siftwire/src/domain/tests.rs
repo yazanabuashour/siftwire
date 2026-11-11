@@ -8,8 +8,7 @@ use anyhow::{Context, Result, bail};
 use super::{
     OUTLET_EXTRACTION_NONE, OUTLET_POLICY_ALLOW, OutletPolicy, SCHEDULE_FILTER_ALL,
     SCHEDULE_FILTER_STANDINGS_TOP_TWO, SCHEDULE_FORMAT_RIOT, SOURCE_KIND_RSS, SOURCE_KIND_SCHEDULE,
-    Source, THRESHOLD_MEDIUM, URL_CANONICALIZATION_NONE, normalize_outlet_policies,
-    normalize_source, normalize_sources,
+    Source, THRESHOLD_MEDIUM, normalize_outlet_policies, normalize_source, normalize_sources,
 };
 
 fn valid_source(url: &str) -> Source {
@@ -37,10 +36,6 @@ fn source_and_outlet_normalization_preserve_the_durable_contract() -> Result<()>
     assert_eq!(
         source.threshold, THRESHOLD_MEDIUM,
         "threshold default changed"
-    );
-    assert_eq!(
-        source.url_canonicalization, URL_CANONICALIZATION_NONE,
-        "canonicalization default changed"
     );
     assert_eq!(
         source.outlet_extraction, OUTLET_EXTRACTION_NONE,
@@ -89,6 +84,17 @@ fn source_and_outlet_normalization_preserve_the_durable_contract() -> Result<()>
 
 #[test]
 fn removed_source_fields_and_choices_are_not_writable() -> Result<()> {
+    for value in ["none", "google_news_article_url"] {
+        let error =
+            serde_json::from_value::<Source>(serde_json::json!({"url_canonicalization": value}))
+                .err()
+                .context("retired resolver field accepted")?;
+        assert!(
+            error
+                .to_string()
+                .contains("unknown field `url_canonicalization`")
+        );
+    }
     for value in [
         serde_json::json!(true),
         serde_json::json!(false),
@@ -106,11 +112,6 @@ fn removed_source_fields_and_choices_are_not_writable() -> Result<()> {
         ("kind", "atom", "kind must be"),
         ("threshold", "audit", "threshold must be"),
         ("threshold", "observe", "threshold must be"),
-        (
-            "url_canonicalization",
-            "feedburner_redirect",
-            "url_canonicalization must be",
-        ),
         ("outlet_extraction", "url_host", "outlet_extraction must be"),
         (
             "outlet_extraction",

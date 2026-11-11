@@ -19,7 +19,7 @@ fn current_news_reoffers_unselected_stories_without_markers_and_archives_counts(
         &json!({"action":"upsert_source", "source": {
             "key":"news", "label":"News", "kind":"rss", "url":feed_url,
             "section":"technology", "threshold":"high", "enabled":true,
-            "url_canonicalization":"google_news_article_url", "outlet_extraction":"title_suffix"
+            "outlet_extraction":"title_suffix"
         }}),
         &environment,
     )?;

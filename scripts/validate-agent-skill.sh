@@ -138,7 +138,7 @@ delivery history
 latest-seen state
 run state
 NO_REPLY
-siftwire-runner/v5
+siftwire-runner/v6
 current-news/v1
 prepared-delivery/v1'
 printf '%s\n' "$required_contract" | while IFS= read -r required; do

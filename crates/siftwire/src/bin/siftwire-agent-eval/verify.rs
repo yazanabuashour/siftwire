@@ -54,7 +54,7 @@ fn verify_first_group(checker: &mut Checker<'_>, id: &str, message: &str) -> boo
             checker.count("delivery", 1);
             checker.count("sent_item", 1);
             checker.recorded_delivery(message);
-            checker.query_count("processing-field source", "SELECT COUNT(*) FROM brief_source WHERE key = 'github-blog' AND url_canonicalization = 'none' AND outlet_extraction = 'title_suffix' AND dedup_group = 'news' AND priority_rank = 10", 1);
+            checker.query_count("processing-field source", "SELECT COUNT(*) FROM brief_source WHERE key = 'github-blog' AND outlet_extraction = 'title_suffix' AND dedup_group = 'news' AND priority_rank = 10", 1);
         }
         "outlet-policy-watch-audit" => {
             checker.count("source_state", 0);

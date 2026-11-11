@@ -2,15 +2,13 @@ use std::fmt;
 use std::fs;
 use std::io::Read;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
+use ureq::Agent;
 use ureq::unversioned::resolver::{DefaultResolver, ResolvedSocketAddrs, Resolver};
 use ureq::unversioned::transport::{DefaultConnector, NextTimeout};
-use ureq::{Agent, ResponseExt};
 use url::Url;
-
-use super::model::ResolveError;
 
 const USER_AGENT: &str = "siftwire/0";
 const HTTP_TIMEOUT: Duration = Duration::from_secs(20);
@@ -57,45 +55,6 @@ impl HttpClient {
             .call()
             .map_err(|error| request_error(error, endpoint))?;
         read_response(&mut response).with_context(|| format!("read response from {endpoint}"))
-    }
-
-    pub fn get_until(
-        &self,
-        endpoint: &str,
-        deadline: Instant,
-    ) -> Result<(Vec<u8>, String), ResolveError> {
-        let timeout = remaining(deadline)?;
-        let mut response = self
-            .agent
-            .get(endpoint)
-            .config()
-            .timeout_global(Some(timeout))
-            .build()
-            .call()
-            .map_err(|error| resolve_request_error(&error, endpoint))?;
-        let final_url = response.get_uri().to_string();
-        let bytes = read_response(&mut response)
-            .map_err(|error| ResolveError::Message(error.to_string()))?;
-        Ok((bytes, final_url))
-    }
-
-    pub fn post_form_until(
-        &self,
-        endpoint: &str,
-        field: &str,
-        value: &str,
-        deadline: Instant,
-    ) -> Result<Vec<u8>, ResolveError> {
-        let timeout = remaining(deadline)?;
-        let mut response = self
-            .agent
-            .post(endpoint)
-            .config()
-            .timeout_global(Some(timeout))
-            .build()
-            .send_form([(field, value)])
-            .map_err(|error| resolve_request_error(&error, endpoint))?;
-        read_response(&mut response).map_err(|error| ResolveError::Message(error.to_string()))
     }
 }
 
@@ -216,31 +175,12 @@ fn read_eval_file(url: &Url) -> Result<Vec<u8>> {
     fs::read(path).context("read eval feed fixture")
 }
 
-fn remaining(deadline: Instant) -> Result<Duration, ResolveError> {
-    let remaining = deadline.saturating_duration_since(Instant::now());
-    if remaining.is_zero() {
-        Err(ResolveError::Timeout)
-    } else {
-        Ok(remaining)
-    }
-}
-
 fn request_error(error: ureq::Error, endpoint: &str) -> anyhow::Error {
     if let ureq::Error::StatusCode(code) = error {
         anyhow!("HTTP {code} for {endpoint}")
     } else {
         anyhow!(error)
     }
-}
-
-fn resolve_request_error(error: &ureq::Error, endpoint: &str) -> ResolveError {
-    if matches!(error, ureq::Error::Timeout(_)) {
-        return ResolveError::Timeout;
-    }
-    if let ureq::Error::StatusCode(code) = error {
-        return ResolveError::Message(format!("HTTP {code} for {endpoint}"));
-    }
-    ResolveError::Message(error.to_string())
 }
 
 #[cfg(test)]

@@ -52,10 +52,8 @@ installation. Focused checks during development include
 `mise exec -- cargo test --locked -p siftwire` and
 `mise exec -- bun test tools/agent-eval`.
 
-## Keep public artifacts safe
+## Prepare a contribution
 
-Do not commit personal source inventories, outlet-policy evidence, `.openclaw`
-content, workspace backups, delivery logs, run history, or local SQLite databases.
 Use repo-relative paths in committed docs and reports. Public contributions must
 not depend on private infrastructure, credentials, or internal services.
 

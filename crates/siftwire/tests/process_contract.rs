@@ -181,7 +181,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         &environment,
     )?)?;
     assert!(!configured.rejected, "source configuration was rejected");
-    assert_eq!(configured.runner_protocol, "siftwire-runner/v5");
+    assert_eq!(configured.runner_protocol, "siftwire-runner/v6");
     assert!(
         configured
             .capabilities
@@ -202,7 +202,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         &environment,
     )?)?;
     assert!(!run.rejected, "run was rejected");
-    assert_eq!(run.runner_protocol, "siftwire-runner/v5");
+    assert_eq!(run.runner_protocol, "siftwire-runner/v6");
     assert!(
         run.capabilities
             .iter()

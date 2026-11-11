@@ -33,7 +33,7 @@ jq -n --arg published "$(date -u +%FT%TZ)" '
        "League sues illegal livestream operators", "Broadcaster wins live match rights"]
       | map(item(. + " - Wire"; "high"))))
   | to_entries | map(.key as $index | .value + {url:("https://publisher.test/story-" + ($index|tostring))})
-  | {runner_protocol:"siftwire-runner/v5",capabilities:["prepared-delivery/v1","current-news/v1","sports-updates/v1"],
+  | {runner_protocol:"siftwire-runner/v6",capabilities:["prepared-delivery/v1","current-news/v1","sports-updates/v1"],
      rejected:false,run_id:"synthetic-sports-editorial",must_include:[],candidates:.,max_delivery_items:7,
      candidate_slots:7,previous_briefs:[],recent_sent:[],health_footnote:"",
      sports_updates:[

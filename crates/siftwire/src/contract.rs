@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::domain::{OutletPolicy, Source};
 
-pub const RUNNER_PROTOCOL: &str = "siftwire-runner/v5";
+pub const RUNNER_PROTOCOL: &str = "siftwire-runner/v6";
 pub const CAPABILITY_PREPARED_DELIVERY: &str = "prepared-delivery/v1";
 pub const CAPABILITY_SPORTS_UPDATES: &str = "sports-updates/v1";
 pub const CAPABILITY_CURRENT_NEWS: &str = "current-news/v1";
@@ -117,8 +117,6 @@ pub struct BriefResult {
     pub suppressed_recent: Vec<SuppressedRecentItem>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub suppressed_policy: Vec<SuppressedPolicyItem>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub suppressed_unresolved: Vec<SuppressedUnresolvedItem>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub fetch_status: Vec<FetchStatus>,
     #[serde(skip_serializing_if = "String::is_empty")]
@@ -256,15 +254,6 @@ pub enum ItemDisposition {
     Dropped,
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
-pub struct SuppressedUnresolvedItem {
-    pub disposition: ItemDisposition,
-    pub source_key: String,
-    pub title: String,
-    pub url: String,
-    pub reason: String,
-}
-
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct CurrentNewsStatus {
     pub since: String,
@@ -288,8 +277,6 @@ pub struct FetchStatus {
     pub current_news: Option<CurrentNewsStatus>,
     #[serde(skip_serializing_if = "is_default")]
     pub suppressed_policy: usize,
-    #[serde(skip_serializing_if = "is_default")]
-    pub suppressed_unresolved: usize,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]

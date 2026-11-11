@@ -21,8 +21,6 @@ pub const SCHEDULE_FILTER_STANDINGS_TOP_TWO: &str = "standings_top_two";
 pub const THRESHOLD_ALWAYS: &str = "always";
 pub const THRESHOLD_MEDIUM: &str = "medium";
 pub const THRESHOLD_HIGH: &str = "high";
-pub const URL_CANONICALIZATION_NONE: &str = "none";
-pub const URL_CANONICALIZATION_GOOGLE_NEWS_ARTICLE: &str = "google_news_article_url";
 pub const OUTLET_EXTRACTION_NONE: &str = "none";
 pub const OUTLET_EXTRACTION_TITLE_SUFFIX: &str = "title_suffix";
 pub const OUTLET_POLICY_ALLOW: &str = "allow";
@@ -55,11 +53,6 @@ pub struct Source {
     pub threshold: String,
     #[serde(deserialize_with = "crate::serde_util::null_default")]
     pub enabled: bool,
-    #[serde(
-        deserialize_with = "crate::serde_util::null_default",
-        skip_serializing_if = "String::is_empty"
-    )]
-    pub url_canonicalization: String,
     #[serde(
         deserialize_with = "crate::serde_util::null_default",
         skip_serializing_if = "String::is_empty"
@@ -121,7 +114,6 @@ pub fn normalize_source(mut source: Source) -> Result<Source> {
     source.repo = source.repo.trim().to_owned();
     source.section = source.section.trim().to_lowercase();
     source.threshold = source.threshold.trim().to_lowercase();
-    source.url_canonicalization = source.url_canonicalization.trim().to_lowercase();
     source.outlet_extraction = source.outlet_extraction.trim().to_lowercase();
     source.dedup_group = source.dedup_group.trim().to_lowercase();
     source.schedule_format = source.schedule_format.trim().to_lowercase();
@@ -217,9 +209,6 @@ fn set_source_defaults(source: &mut Source) {
     if source.threshold.is_empty() {
         THRESHOLD_MEDIUM.clone_into(&mut source.threshold);
     }
-    if source.url_canonicalization.is_empty() {
-        URL_CANONICALIZATION_NONE.clone_into(&mut source.url_canonicalization);
-    }
     if source.outlet_extraction.is_empty() {
         OUTLET_EXTRACTION_NONE.clone_into(&mut source.outlet_extraction);
     }
@@ -238,15 +227,6 @@ fn validate_source_options(source: &Source) -> Result<()> {
     ) {
         bail!(
             "source {:?} threshold must be always, medium, or high",
-            source.key
-        );
-    }
-    if !matches!(
-        source.url_canonicalization.as_str(),
-        URL_CANONICALIZATION_NONE | URL_CANONICALIZATION_GOOGLE_NEWS_ARTICLE
-    ) {
-        bail!(
-            "source {:?} url_canonicalization must be none or google_news_article_url",
             source.key
         );
     }

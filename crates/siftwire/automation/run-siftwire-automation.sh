@@ -230,7 +230,7 @@ process_outbox() {
 validate_prepared_result() {
   local expected_run_id="$2"
   jq -e --arg run_id "$expected_run_id" '
-    .runner_protocol == "siftwire-runner/v5"
+    .runner_protocol == "siftwire-runner/v6"
     and (.capabilities | type == "array")
     and (.capabilities | index("prepared-delivery/v1") != null)
     and (.capabilities | index("current-news/v1") != null)
@@ -266,7 +266,7 @@ validate_brief_result() {
       # Linkless items have no URL identity; candidate indexes distinguish them.
       ($items | type) == "array" and any($items | map(select(.url != "")) | group_by(.url)[]; length > 1);
     first(
-      if .runner_protocol != "siftwire-runner/v5" then "runner protocol is missing or incompatible" else empty end,
+      if .runner_protocol != "siftwire-runner/v6" then "runner protocol is missing or incompatible" else empty end,
       if (.capabilities | type != "array") then "capabilities is not an array" else empty end,
       if ((.capabilities // []) | index("prepared-delivery/v1") == null) then "prepared-delivery/v1 capability is missing" else empty end,
       if ((.capabilities // []) | index("current-news/v1") == null) then "current-news/v1 capability is missing" else empty end,
@@ -351,7 +351,7 @@ require_siftwire_contract() {
   result="$(printf '%s\n' '{"action":"validate"}' |
     SIFTWIRE_DATABASE_PATH="$database_path" "$siftwire_bin" brief)" || return
   jq -e '
-    .runner_protocol == "siftwire-runner/v5"
+    .runner_protocol == "siftwire-runner/v6"
     and (.capabilities | type == "array")
     and (.capabilities | index("prepared-delivery/v1") != null)
     and (.capabilities | index("current-news/v1") != null)
@@ -484,7 +484,7 @@ else
     exit 1
   }
   require_siftwire_contract || {
-    printf 'siftwire automation: runner requires siftwire-runner/v5 with prepared-delivery/v1 and current-news/v1\n' >&2
+    printf 'siftwire automation: runner requires siftwire-runner/v6 with prepared-delivery/v1 and current-news/v1\n' >&2
     exit 1
   }
   process_outbox
@@ -537,13 +537,16 @@ if [[ $mode == scheduled ]] && jq -e '.candidate_indexes | type == "array"' "$ac
 elif [[ $(jq '.candidates | length' "$brief_result") == 0 ]]; then
   selection_origin=no_candidates
   write_atomic "$selection" '{"candidate_indexes":[]}'
+elif [[ $(jq '.candidate_slots' "$brief_result") == 0 ]]; then
+  selection_origin=no_capacity
+  write_atomic "$selection" '{"candidate_indexes":[]}'
 else
   selection_origin=agent
   selector_input="$run_dir/selector-input.json"
   jq -c '
     def editorial_item:
       with_entries(select(.key | IN("title", "summary", "url", "source_key", "source_label",
-        "kind", "section", "threshold", "priority_rank", "published_at", "outlet", "reporting")));
+        "kind", "section", "threshold", "priority_rank", "published_at", "outlet")));
     with_entries(select(.key | IN("runner_protocol", "capabilities", "run_id", "candidate_slots",
       "must_include", "candidates", "sports_updates", "previous_briefs", "recent_sent", "health_footnote")))
     | .input_kind = "editorial_projection"

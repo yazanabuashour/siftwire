@@ -22,7 +22,8 @@ contents. Coverage depends on what your sources publish and retain.
 If you are upgrading from v0.8.0 or earlier, read the
 [compatibility reset](docs/runner-v5-reset.md) first: you need a fresh database
 and matching consumers. Upgrading from v0.9.x preserves your database and
-configuration.
+configuration. This checkout targets [runner v6](docs/runner-contract.md#upgrade-from-v5);
+update process consumers together when moving from v5.
 
 Install the latest published runner:
 

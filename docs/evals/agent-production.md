@@ -158,7 +158,7 @@ this smoke scenario only, not full capability evaluation or production use.
 ## Transport simulation and evidence checks
 
 Every prompt receives `RUNNER_ONLY_INSTRUCTION` from `scenarios.rs`. It requires
-runner-only behavior, `siftwire-runner/v5`, `prepared-delivery/v1`, and
+runner-only behavior, `siftwire-runner/v6`, `prepared-delivery/v1`, and
 `current-news/v1`. The instruction tells the agent to treat each prepared
 `message`, `text`, and `html` body as transported unchanged, then confirm the
 plan. No real email or external delivery occurs.

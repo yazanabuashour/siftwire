@@ -86,8 +86,7 @@ fn fetched_item(entry: &Entry, raw_date: Option<&str>, current_news: bool) -> Op
             .map_or_else(String::new, |summary| clean_text(&summary.content)),
         url,
         published_at,
-        identity: identity.clone(),
-        feed_identity: identity,
+        identity,
         outlet: String::new(),
     })
 }

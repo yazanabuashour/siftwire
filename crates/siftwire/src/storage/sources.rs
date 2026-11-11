@@ -7,7 +7,7 @@ use crate::domain::normalize_sources;
 use super::{ConfigMutationError, Source, Store, bool_i64, format_timestamp, normalize_source};
 
 const SOURCE_COLUMNS: &str = "key, label, kind, url, repo, section, threshold, enabled, \
-    url_canonicalization, outlet_extraction, dedup_group, priority_rank, \
+    outlet_extraction, dedup_group, priority_rank, \
     schedule_format, schedule_filter, api_key";
 
 impl Store {
@@ -109,13 +109,12 @@ fn source_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Source> {
         section: row.get(5)?,
         threshold: row.get(6)?,
         enabled: enabled == 1,
-        url_canonicalization: row.get(8)?,
-        outlet_extraction: row.get(9)?,
-        dedup_group: row.get(10)?,
-        priority_rank: row.get(11)?,
-        schedule_format: row.get(12)?,
-        schedule_filter: row.get(13)?,
-        api_key: row.get(14)?,
+        outlet_extraction: row.get(8)?,
+        dedup_group: row.get(9)?,
+        priority_rank: row.get(10)?,
+        schedule_format: row.get(11)?,
+        schedule_filter: row.get(12)?,
+        api_key: row.get(13)?,
     })
 }
 
@@ -128,13 +127,12 @@ fn upsert_source_tx(
     transaction
         .execute(
             "INSERT INTO brief_source (key, label, kind, url, repo, section, threshold, enabled, \
-             url_canonicalization, outlet_extraction, dedup_group, priority_rank, \
+             outlet_extraction, dedup_group, priority_rank, \
              schedule_format, schedule_filter, api_key, created_at, updated_at) VALUES \
-             (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17) \
+             (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16) \
              ON CONFLICT(key) DO UPDATE SET label = excluded.label, kind = excluded.kind, \
              url = excluded.url, repo = excluded.repo, section = excluded.section, \
              threshold = excluded.threshold, enabled = excluded.enabled, \
-             url_canonicalization = excluded.url_canonicalization, \
              outlet_extraction = excluded.outlet_extraction, dedup_group = excluded.dedup_group, \
              priority_rank = excluded.priority_rank, \
              schedule_format = excluded.schedule_format, schedule_filter = excluded.schedule_filter, \
@@ -148,7 +146,6 @@ fn upsert_source_tx(
                 source.section,
                 source.threshold,
                 bool_i64(source.enabled),
-                source.url_canonicalization,
                 source.outlet_extraction,
                 source.dedup_group,
                 source.priority_rank,

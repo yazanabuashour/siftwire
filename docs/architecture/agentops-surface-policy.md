@@ -90,8 +90,8 @@ engine and storage tests protect the private outcome and transaction invariants.
 
 RSS and Atom share one feed model. GitHub releases remain a separate source kind
 because they use a different fetch interface. Provider-specific feed source
-kinds do not belong in the runner when generic URL canonicalization, outlet
-extraction, deduplication, priority, and reporting thresholds express the task.
+kinds do not belong in the runner when generic feeds, outlet extraction,
+deduplication, priority, and reporting thresholds express the task.
 
 ### Intake separates inspection from writes
 
@@ -241,7 +241,5 @@ where applicable.
 
 ## Repository evidence
 
-Public artifacts stay repo-relative and free of personal source inventories,
-outlet-policy evidence, delivery logs, run history, workspace backups, and local
-SQLite databases. Validate the shipped skill, release documentation, runner
-behavior, and production agent path with their repository-owned gates.
+Validate the shipped skill, release documentation, runner behavior, and production
+agent path with their repository-owned gates.

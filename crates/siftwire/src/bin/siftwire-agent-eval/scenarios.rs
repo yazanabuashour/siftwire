@@ -1,6 +1,6 @@
 use crate::types::{Scenario, Turn};
 
-pub const RUNNER_ONLY_INSTRUCTION: &str = "Read .agents/skills/siftwire/SKILL.md, then use only the siftwire runner JSON interface. Do not inspect other files, binaries, SQLite, or environment variables, search for instructions, or run siftwire --help. This eval uses synthetic local fixtures: successful prepare_delivery simulates transport of message/text/html unchanged. Call confirm_delivery afterward; never invoke real transport. Require siftwire-runner/v5, prepared-delivery/v1, and current-news/v1.";
+pub const RUNNER_ONLY_INSTRUCTION: &str = "Read .agents/skills/siftwire/SKILL.md, then use only the siftwire runner JSON interface. Do not inspect other files, binaries, SQLite, or environment variables, search for instructions, or run siftwire --help. This eval uses synthetic local fixtures: successful prepare_delivery simulates transport of message/text/html unchanged. Call confirm_delivery afterward; never invoke real transport. Require siftwire-runner/v6, prepared-delivery/v1, and current-news/v1.";
 
 pub fn all() -> Vec<Scenario> {
     let mut values = first_group();
@@ -62,7 +62,7 @@ fn second_group() -> Vec<Scenario> {
         entry(
             "rss-source-generic-processing-fields",
             &[
-                "Configure an RSS source for https://github.blog/feed/ with key github-blog, section technology, threshold medium, url_canonicalization none, outlet_extraction title_suffix, dedup_group news, and priority_rank 10. Then run a SiftWire brief with run_brief, prepare delivery, confirm after simulated transport, and report final_answer.",
+                "Configure an RSS source for https://github.blog/feed/ with key github-blog, section technology, threshold medium, outlet_extraction title_suffix, dedup_group news, and priority_rank 10. Then run a SiftWire brief with run_brief, prepare delivery, confirm after simulated transport, and report final_answer.",
             ],
         ),
         entry(

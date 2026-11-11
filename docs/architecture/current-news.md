@@ -15,8 +15,7 @@ or a new capacity limit.
 
 For optional RSS, collection follows these steps:
 
-1. Parses the whole fetched feed and keeps original item links. It never calls
-   the Google News decoder or applies its five-entry admission limit.
+1. Parses the whole fetched feed and keeps original item links.
 2. Retains publication timestamps in the inclusive interval from collection
    time minus 24 hours through collection time. RSS uses declared publication
    metadata. Atom uses `published`, not `updated` alone. Missing or invalid dates,
@@ -45,12 +44,10 @@ backlog or guarantee discovery of omitted upstream entries.
 
 ## Required sources and saved history
 
-Required RSS retains marker selection, date handling, and configured link
-canonicalization. GitHub releases remain Required. Sports retain fixture and
-result windows. Switching a source to Required reuses its preserved marker. It
-does not reconstruct observations made while optional. Saving a canonicalization
-choice on an optional source preserves it for Required handling but does not
-activate decoding during optional collection.
+Required RSS retains marker selection and date handling, with original feed
+links. GitHub releases remain Required. Sports retain fixture and result windows.
+Switching a source to Required reuses its preserved marker. It does not reconstruct
+observations made while optional.
 
 Preparation remains network-free and renders the immutable collected selection.
 Confirmation still records exact accepted bodies and supports idempotent retry.
@@ -63,9 +60,9 @@ checks report an unknown selection count rather than zero.
 
 ## Compatibility and alternatives
 
-Current-news behavior was introduced in `siftwire-runner/v4`. v0.9.0
-requires `siftwire-runner/v5` with `current-news/v1` before writes or collection.
-See the [compatibility reset](../runner-v5-reset.md).
+Current-news behavior was introduced in `siftwire-runner/v4`. Current consumers
+require `siftwire-runner/v6` with `current-news/v1` before writes or collection.
+See the [v6 upgrade contract](../runner-contract.md#upgrade-from-v5).
 
 A per-source mode would preserve optional selection by feed position but add a
 setting the operator explicitly declined. A persistent seen ledger would track
@@ -82,7 +79,7 @@ reordered feeds, unsent eligibility, confirmed suppression, and archive readback
 Engine tests in `crates/siftwire/src/engine/tests.rs` cover date boundaries,
 missing dates, and original-link handling.
 
-Capability requires access to current tail entries beyond the old decoder limit,
+Capability requires access to current tail entries throughout the fetched feed,
 without claiming exhaustive discovery or semantic event clustering.
 
 User experience requires visible date exclusions and honest candidate labels.

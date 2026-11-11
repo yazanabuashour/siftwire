@@ -3,16 +3,13 @@ use serde::Deserialize;
 
 use crate::domain::{SOURCE_KIND_SCHEDULE, Source};
 
-use super::canonical::process_feed_items;
 use super::feed::parse_feed;
-use super::google::GoogleResolver;
 use super::http::HttpClient;
 use super::model::{FetchOutput, FetchedItem};
 use super::schedule::SportsOptions;
 
 pub struct Fetcher {
     client: HttpClient,
-    google: GoogleResolver,
 }
 
 #[derive(Deserialize)]
@@ -29,10 +26,8 @@ struct GitHubRelease {
 impl Fetcher {
     #[must_use]
     pub fn new() -> Self {
-        let client = HttpClient::new();
         Self {
-            google: GoogleResolver::new(client.clone()),
-            client,
+            client: HttpClient::new(),
         }
     }
 
@@ -41,7 +36,7 @@ impl Fetcher {
     /// # Errors
     ///
     /// Returns an error when the source kind is unsupported or its response cannot be fetched or
-    /// parsed. Per-item canonicalization failures stay in [`FetchOutput::unresolved`].
+    /// parsed.
     pub fn fetch(
         &self,
         source: &Source,
@@ -61,11 +56,8 @@ impl Fetcher {
     fn fetch_feed(&self, source: &Source) -> Result<FetchOutput> {
         let body = self.client.get(&source.url)?;
         let parsed = parse_feed(source, &body)?;
-        let (items, unresolved, truncated) = process_feed_items(&self.google, source, parsed)?;
         Ok(FetchOutput {
-            items,
-            unresolved,
-            truncated,
+            items: process_feed_items(source, parsed),
             ..FetchOutput::default()
         })
     }
@@ -87,6 +79,21 @@ impl Default for Fetcher {
     fn default() -> Self {
         Self::new()
     }
+}
+
+pub(super) fn process_feed_items(source: &Source, items: Vec<FetchedItem>) -> Vec<FetchedItem> {
+    items
+        .into_iter()
+        .map(|mut item| {
+            if source.outlet_extraction == "title_suffix" {
+                item.outlet = item
+                    .title
+                    .rsplit_once(" - ")
+                    .map_or_else(String::new, |(_title, outlet)| outlet.trim().to_owned());
+            }
+            item
+        })
+        .collect()
 }
 
 fn parse_releases(source: &Source, body: &[u8]) -> Result<Vec<FetchedItem>> {
@@ -123,7 +130,6 @@ fn release_item(source: &Source, release: GitHubRelease) -> Option<FetchedItem> 
         url,
         published_at: release.published_at,
         identity: tag.to_owned(),
-        feed_identity: String::new(),
         outlet: String::new(),
         summary: String::new(),
     })

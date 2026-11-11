@@ -22,9 +22,21 @@ separate `source` command.
 
 Every `config` and `brief` result identifies `runner_protocol` and
 `capabilities`. Consumers must require the protocol and capabilities they use
-before acting. v0.9.0 uses `siftwire-runner/v5` with `prepared-delivery/v1`,
+before acting. This checkout uses `siftwire-runner/v6` with `prepared-delivery/v1`,
 `sports-updates/v1`, and `current-news/v1`. The binary release version does not
 replace capability checks.
+
+## Upgrade from v5
+
+v6 removes the Google News resolver and rejects the retired
+`url_canonicalization` source field, including `none`. It also removes
+`suppressed_unresolved` from collection results. Update callers, the skill, and
+the embedded launcher together; v5 selection inputs do not satisfy v6 admission.
+
+The database schema is unchanged. Existing source markers, archived evidence,
+prepared plans, and delivery history remain usable; no reset or import is needed.
+Finish pending automation work before upgrading. Old prepared bodies replay
+unchanged rather than being rendered again.
 
 ## Framing and exits
 
@@ -109,14 +121,12 @@ backlog.
 
 Source writes support `rss`, `github_release`, and `sports_schedule`. The `rss`
 kind auto-detects RSS and Atom documents. Fields are `key`, `label`, `kind`,
-`url`, `repo`, `section`, `threshold`, `enabled`, `url_canonicalization`,
+`url`, `repo`, `section`, `threshold`, `enabled`,
 `outlet_extraction`, `dedup_group`, `priority_rank`, `schedule_format`,
 `schedule_filter`, and `api_key`. A `github_release` source requires `repo`
 as `owner/name` and rejects a nonempty `url`. The runner derives the public
-GitHub releases endpoint. Feed canonicalization accepts `none` or
-`google_news_article_url`, applied only to Required feeds. Optional RSS preserves
-original links and ignores the saved canonicalization choice without rewriting
-it. Publisher extraction accepts `none` or `title_suffix` in either case.
+GitHub releases endpoint. All feeds preserve original links.
+Publisher extraction accepts `none` or `title_suffix`.
 A `sports_schedule` source fetches a schedule endpoint and emits recurring
 upcoming fixtures and completed results. `schedule_format` selects `espn`,
 `espn_scoreboard`, or `riot`. `api_key` carries Riot's public frontend key for
@@ -152,7 +162,8 @@ optional metadata, not instructions.
 Allow and Watch retain matching items and produce annotations. Unmatched items
 also remain. Block excludes matches. New replacement writes reject overlapping
 enabled names or aliases under the runner's shared matcher normalization.
-Rejection leaves the whole collection intact.
+Rejection leaves the whole collection intact. Allow and Watch are audit-only;
+the automation selector receives neither these annotations nor policy notes.
 
 ### Network constraints
 
@@ -194,7 +205,7 @@ on the action:
 | Rejection and run identity | `rejection_reason`, `run_id` |
 | Selection | `must_include`, `candidates`, `max_delivery_items` |
 | Recent context | `previous_briefs`, `recent_sent`, `delivery_message_scope` |
-| Suppression | `suppressed`, `suppressed_recent`, `suppressed_policy`, `suppressed_unresolved` |
+| Suppression | `suppressed`, `suppressed_recent`, `suppressed_policy` |
 | Fetch and health | `fetch_status`, `health_footnote` |
 | Sports | `sports_section`, `sports_updates` |
 | Prepared delivery | `delivery_plan_id`, `message`, `text`, `html`, `prepared_items` |

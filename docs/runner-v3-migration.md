@@ -16,8 +16,7 @@ their original contracts.
 ## Prepare existing configuration
 
 Inspect configuration with the installed runner before upgrading. Back up the
-external database through your normal backup procedure. Keep private inventories
-and backups outside the repository.
+external database through your normal backup procedure.
 
 Use individual `upsert_source` requests for approved changes. Do not use
 `replace_sources` as a migration shortcut. Replacement deletes sources and can

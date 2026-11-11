@@ -47,11 +47,7 @@ pub fn parse_item_time(value: &str) -> Option<DateTime<FixedOffset>> {
 }
 
 #[must_use]
-pub fn select_new_items(
-    items: &[FetchedItem],
-    state: Option<&SourceState>,
-    truncated: bool,
-) -> Vec<FetchedItem> {
+pub fn select_new_items(items: &[FetchedItem], state: Option<&SourceState>) -> Vec<FetchedItem> {
     if items.is_empty() {
         return Vec::new();
     }
@@ -64,11 +60,7 @@ pub fn select_new_items(
     {
         return items.iter().take(position).cloned().collect();
     }
-    if truncated {
-        items.to_vec()
-    } else {
-        items.iter().take(1).cloned().collect()
-    }
+    items.iter().take(1).cloned().collect()
 }
 
 #[must_use]
@@ -89,8 +81,6 @@ pub fn item_to_brief_item(source: &Source, item: &FetchedItem) -> BriefItem {
 }
 
 fn item_matches_state(item: &FetchedItem, state: &SourceState) -> bool {
-    [item.identity.as_str(), item.feed_identity()]
-        .into_iter()
-        .filter(|identity| !identity.trim().is_empty())
-        .any(|identity| identity == state.latest_identity || identity == state.latest_feed_identity)
+    !item.identity.trim().is_empty()
+        && (item.identity == state.latest_identity || item.identity == state.latest_feed_identity)
 }

@@ -4,6 +4,9 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+- Retire Google News URL decoding and its configuration field in runner protocol v6. Preserve original feed links and existing databases, history, and prepared deliveries.
+- Skip editorial selection when no optional slots remain, remove redundant sorting, and keep Allow/Watch policies explicitly audit-only.
+
 ## v0.13.0
 
 - Make scheduled selection independent of harness event streams: pass one plain-text prompt and validate the agent-written selection file after a successful child exit. Keep raw attempts and human logs; remove Pi-only session and event handling. Runner protocol v5 and durable state are unchanged.

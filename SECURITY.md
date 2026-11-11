@@ -8,7 +8,7 @@ receive fixes or backports.
 
 ## Reporting a vulnerability
 
-Do not report vulnerabilities in public issues, pull requests, or discussions. Do not report private brief data, source inventories, outlet policy details, delivery history, local database contents, or workspace paths in public.
+Do not report vulnerabilities in public issues, pull requests, or discussions.
 
 GitHub private vulnerability reporting is disabled. Include the following details
 once private handoff is arranged:

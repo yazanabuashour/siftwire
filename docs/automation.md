@@ -17,10 +17,11 @@ It admits a stable SiftWire release that reports `siftwire-runner/v5` with
 `prepared-delivery/v1` and `current-news/v1`. The declared contract decides, not
 a version floor. These checks run before any durable attempt starts.
 
-Selection uses Pi's configured default model and thinking level. The launcher
-parses Pi's JSON event stream and accepts a result only after `agent_settled`.
-After a Pi upgrade, check that lifecycle with a [replay](#replay-selection); a
-version number does not prove compatibility.
+The launcher runs `pi -p --approve "<prompt>"` with stock defaults. The plain-text
+prompt names the instruction, input, and per-attempt output paths. Selection
+requires a successful child exit and a result file that passes SiftWire's
+selection validator; stdout and stderr are human diagnostics only. Use a
+[replay](#replay-selection) to check selection after a harness upgrade.
 
 ## Find durable state
 
@@ -65,8 +66,8 @@ Mailgate loads the Resend key in its own process.
   refuses to collect until you reconcile that marker.
 - **Selection:** `active-job.json` saves the brief and later the chosen indexes,
   so the next run resumes without collecting. An invalid selection retries up to
-  three times in one run. A Pi failure or incomplete lifecycle blocks delivery
-  without a retry.
+  three times in one run, retaining every raw attempt file. A nonzero child exit
+  blocks delivery without a retry, even if it wrote a valid selection.
 - **Delivery:** a pending outbox record holds the immutable bodies and one
   `siftwire-v2-` idempotency key. Each run finishes pending records first, and
   collection stays blocked until they finish. Accepted email is never resent.
@@ -179,9 +180,9 @@ with no automatic cleanup. The launcher prints the path as `retained evidence`.
 | File                                                | Contents                                     |
 | --------------------------------------------------- | -------------------------------------------- |
 | `brief.json`, `siftwire-render.md`                  | Full normalized brief and the prompt used    |
-| `selector-input.json`                               | Editorial projection given to Pi             |
+| `selector-input.json`                               | Editorial projection given to the selector             |
 | `selection.json`, `selection-receipt.json`          | Chosen indexes and the sanitized receipt     |
-| `pi-events.N.jsonl`, `pi.N.stderr`, `pi-sessions/N` | Raw evidence for each selection attempt      |
+| `selection.N.json`, `selector.N.log`, `selector.N.stderr` | Raw evidence for each selection attempt      |
 | `prepared.json`, `delivery-KEY.json`, `delivery-KEY.stderr` | Delivery plan and confirmation       |
 | `publication.json`, `publication.stderr`            | Notes report, when publication is on         |
 
@@ -191,7 +192,7 @@ The projection keeps candidate order and membership, and it adds each candidate'
 `candidate_index`. It drops identifier aliases, fetch statistics, paths, and
 transport bodies. The host binds selected indexes to URLs in the full brief.
 
-Pi diagnostics warn without blocking delivery. `selection-receipt.json` stays
+Selector stderr diagnostics warn without blocking delivery. `selection-receipt.json` stays
 local and holds counts and identifiers, not story content. Recording errors and
 `empty_selection_with_candidates` warn too; there is no minimum story floor.
 

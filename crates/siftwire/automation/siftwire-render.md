@@ -1,8 +1,8 @@
 # SiftWire candidate selection
 
-Select optional news for one email from the attached editorial projection.
-Return only `{"candidate_indexes":[0,3]}`: one JSON object containing unique
-`candidate_index` values from `candidates`, at most `candidate_slots`. Return an
+Select optional news for one email from the editorial projection.
+Write only `{"candidate_indexes":[0,3]}`: one JSON object containing unique
+`candidate_index` values from `candidates`, at most `candidate_slots`. Write an
 empty array when nothing merits inclusion; do not fill slots for their own sake.
 The host resolves indexes against the full brief and handles required items,
 sports, rendering, and delivery.

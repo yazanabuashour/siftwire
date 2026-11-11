@@ -538,7 +538,7 @@ elif [[ $(jq '.candidates | length' "$brief_result") == 0 ]]; then
   selection_origin=no_candidates
   write_atomic "$selection" '{"candidate_indexes":[]}'
 else
-  selection_origin=pi
+  selection_origin=agent
   selector_input="$run_dir/selector-input.json"
   jq -c '
     def editorial_item:
@@ -560,126 +560,26 @@ else
   # keep every raw attempt for diagnostics.
   for try in 1 2 3; do
     attempt_file="$run_dir/selection.$try.json"
-    events_file="$run_dir/pi-events.$try.jsonl"
-    # Trust only the prompt's own directory, not an inherited cwd.
-    # The foreground child must exit before its event stream can authorize work.
+    prompt="Read and follow $run_dir/siftwire-render.md. Read the editorial projection at $selector_input. Write the selection JSON to $attempt_file."
+    # The foreground child must exit before its output can authorize work.
     (
       cd -- "$(dirname -- "$render_prompt")" || exit
-      exec env \
-        MISE_QUIET=1 \
-        pi -p --mode json --approve \
-        --name siftwire-automation --session-dir "$run_dir/pi-sessions/$try" \
-        "@$run_dir/siftwire-render.md" "@$selector_input" \
-        'Return the candidate selection object for this SiftWire run.'
-    ) >"$events_file" 2>"$run_dir/pi.$try.stderr" || {
-      printf 'siftwire automation: Pi failed; logs: %s\n' "$run_dir" >&2
+      exec pi -p --approve "$prompt"
+    ) >"$run_dir/selector.$try.log" 2>"$run_dir/selector.$try.stderr" || {
+      printf 'siftwire automation: selector failed; logs: %s\n' "$run_dir" >&2
       exit 1
     }
-    if [[ -s $run_dir/pi.$try.stderr ]]; then
-      printf 'siftwire automation: Pi emitted diagnostics; logs: %s\n' "$run_dir" >&2
-    fi
-    if ! jq -ers '
-      def successful_message:
-        .role=="assistant" and .stopReason=="stop" and .errorMessage==null
-        and (.content|type)=="array"
-        and all(.content[]; .type=="thinking" or (.type=="text" and (.text|type)=="string"));
-      def message_text: [.content[] | select(.type=="text") | .text] | join("");
-      def empty_success: successful_message and (message_text=="");
-      def empty_chunk:
-        (.stopReason==null or (.stopReason|IN("pending","stop")))
-        and (.content=(.content // []) | .stopReason="stop" | empty_success);
-      def empty_update:
-        if has("message") then .message|empty_chunk
-        else .assistantMessageEvent
-          | if (.type|IN("thinking_start","text_start")) then true
-            elif .type=="thinking_delta" then (.delta|type)=="string"
-            elif .type=="thinking_end" then (.content|type)=="string"
-            elif .type=="text_delta" then .delta==""
-            elif .type=="text_end" then .content==""
-            else false end
-        end;
-      # Only the stock availability notification may carry a prior result
-      # through one opened, successful, exactly empty assistant turn.
-      def notification_event($event):
-        # Display-only unknown input leaves the result valid, but not reusable.
-        if ($event.type|IN("message_start","message_update","message_end"))
-            and $event.message.role=="custom" and $event.message.customType!="web-search-content-ready"
-          then .notification_blocked=true
-        elif $event.type=="message_end" and ($event.message|successful_message and (message_text|test("\\S")))
-          then .notification_blocked=false
-        else . end
-        | if .notification==null or ($event.type|IN("turn_start","turn_end","entry_appended")) then .
-        elif $event.type=="message_start"
-            and $event.message.role=="custom" and $event.message.customType=="web-search-content-ready"
-            and (.notification.phase|IN("awaiting","notified")) then .notification.phase="notification_started"
-        elif $event.type=="message_end"
-            and $event.message.role=="custom" and $event.message.customType=="web-search-content-ready"
-            and .notification.phase=="notification_started" then .notification.phase="notified"
-        elif $event.type=="message_start" and $event.message.role=="assistant"
-            and .notification.phase=="notified" and ($event.message|empty_chunk) then .notification.phase="responding"
-        elif $event.type=="message_update" and .notification.phase=="responding"
-            and ($event|empty_update) then .
-        elif $event.type=="message_end" and .notification.phase=="responding"
-            and ($event.message|empty_success) then .notification.phase="completed"
-        else .notification=null end;
-      reduce .[] as $event (
-        {started:false, ended:false, settled:false, pending:[], message:null, turnOpen:false, notification:null, notification_blocked:false};
-        notification_event($event)
-        | if ($event | type) != "object" then error("event must be an object")
-        elif $event.type == "agent_start" then
-          .started = true | .ended = false | .settled = false | .message = null
-        elif $event.type == "turn_start" then
-          .notification=(if (.turnOpen|not) and (.pending|length)==0 and (.notification_blocked|not)
-              and (.message|successful_message and (message_text|test("\\S")))
-            then {phase:"awaiting",prior:.message} else null end)
-          | .turnOpen=true | .ended=false | .settled=false | .message=null
-        elif $event.type == "turn_end" then
-          if .turnOpen and .notification.phase=="completed"
-              and (.pending|length)==0 and ($event.message|empty_success) then .message=.notification.prior
-          elif .notification!=null then .message=null else . end
-          | .notification=null | .turnOpen=false | .ended=false | .settled=false
-        # Out-of-turn custom diagnostics do not replace the active result.
-        elif ($event.type | IN("message_start", "message_update", "message_end")) and $event.message.role == "custom" then .
-        elif ($event.type | IN("message_start", "message_update")) then
-          .ended = false | .settled = false | .message = null
-        elif $event.type == "message_end" then
-          .ended = false | .settled = false | .message = null
-          | if $event.message.role == "assistant" then
-              .message = $event.message
-              | .pending += [$event.message | select(.stopReason != "error" and .stopReason != "aborted")
-                | .content[] | select(.type == "toolCall") | .id]
-              | .pending |= unique
-            else . end
-        elif $event.type == "tool_execution_start" then
-          .message = null | .ended = false | .settled = false
-          | .pending = ((.pending + [$event.toolCallId]) | unique)
-        elif $event.type == "tool_execution_end" then
-          .message = null | .ended = false | .settled = false | .pending -= [$event.toolCallId]
-        elif $event.type == "tool_execution_update" then
-          .message = null | .ended = false | .settled = false
-        elif $event.type == "agent_end" then .ended = true | .settled = false
-        elif $event.type == "agent_settled" then .settled = .ended
-        else . end
-      )
-      | if .started and .ended and .settled and (.pending | length == 0)
-          and .message.role == "assistant" and .message.stopReason == "stop" and .message.errorMessage == null
-          and (.message.content | type == "array")
-          and all(.message.content[]; .type != "toolCall")
-          and any(.message.content[]; .type == "text" and (.text | type == "string"))
-        then [.message.content[] | select(.type == "text") | .text] | join("")
-        else error("Pi did not finish with a successful settled assistant result") end
-    ' "$events_file" >"$attempt_file"; then
-      printf 'siftwire automation: Pi lifecycle or final assistant result failed; logs: %s\n' "$run_dir" >&2
-      exit 1
+    if [[ -s $run_dir/selector.$try.stderr ]]; then
+      printf 'siftwire automation: selector emitted diagnostics; logs: %s\n' "$run_dir" >&2
     fi
     if validate_selection "$attempt_file"; then
-      mv -- "$attempt_file" "$selection"
+      cp -- "$attempt_file" "$selection"
       break
     fi
-    printf 'siftwire automation: Pi returned an invalid candidate selection on attempt %s\n' "$try" >&2
+    printf 'siftwire automation: selector wrote an invalid candidate selection on attempt %s\n' "$try" >&2
   done
   [[ -e $selection ]] || {
-    printf 'siftwire automation: Pi returned an invalid candidate selection after 3 attempts; logs: %s\n' "$run_dir" >&2
+    printf 'siftwire automation: selector wrote an invalid candidate selection after 3 attempts; logs: %s\n' "$run_dir" >&2
     exit 1
   }
 fi

@@ -4,6 +4,10 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+## v0.13.0
+
+- Make scheduled selection independent of harness event streams: pass one plain-text prompt and validate the agent-written selection file after a successful child exit. Keep raw attempts and human logs; remove Pi-only session and event handling. Runner protocol v5 and durable state are unchanged.
+
 ## v0.12.0
 
 - Remove Prooflane: the launcher calls SiftWire directly and no longer exports to Axiom. Runner protocol v5 and the database schema are unchanged.
@@ -41,6 +45,9 @@ Public release notes are mirrored in `docs/release-notes/`.
 - Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
 
 ## Releases
+
+- [v0.13.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.13.0)
+  replaces Pi event-stream selection with an app-validated result file.
 
 - [v0.12.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.12.0)
   removes Prooflane and runs selection with Pi's default model.

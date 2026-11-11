@@ -86,37 +86,23 @@ chmod +x "$temp/bin/runner-result"
 cat >"$temp/bin/pi" <<'EOF'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-[[ ${MISE_QUIET:-} == 1 ]] || { printf 'Pi launcher must keep status output out of JSON stdout\n' >&2; exit 1; }
 [[ -z ${SIFTWIRE_NOTES_TOKEN_FILE+x} && -z ${SIFTWIRE_NOTES_API_URL+x} ]] || exit 1
 [[ $PWD == "$HOME/.local/share/siftwire/automation/"* ]]
-for argument in "$@"; do
-  case "$argument" in
-    --no-* | --tools | --exclude-tools | --skill | --system-prompt | --model | --thinking | --extension) exit 1 ;;
-  esac
-done
-[[ " $* " == *' -p --mode json --approve '* ]]
-[[ -z ${PI_RUNTIME_DIGEST+x} ]]
-selector_input=""
-prompt_snapshot=""
-session_dir=""
-previous_argument=""
-for argument in "$@"; do
-  [[ $argument != @*/selector-input.json ]] || selector_input="${argument#@}"
-  [[ $argument != @*/siftwire-render.md ]] || prompt_snapshot="${argument#@}"
-  [[ $previous_argument != --session-dir ]] || session_dir="$argument"
-  previous_argument="$argument"
-done
+[[ $# == 3 && $1 == -p && $2 == --approve ]]
+prompt_snapshot="${3#Read and follow }"
+prompt_snapshot="${prompt_snapshot%. Read the editorial projection at *}"
+selector_input="${3#*Read the editorial projection at }"
+selector_input="${selector_input%. Write the selection JSON to *}"
+attempt_file="${3##*Write the selection JSON to }"
+attempt_file="${attempt_file%.}"
+[[ $selector_input == /* && $attempt_file == /* ]]
 [[ -f $selector_input && $(stat -c %a "$selector_input") == 600 ]]
 [[ $(stat -c %a "$(dirname "$selector_input")") == 700 ]]
 [[ $(wc -l <"$selector_input") == 1 ]]
 run_dir="$(dirname "$selector_input")"
 [[ $prompt_snapshot == "$run_dir/siftwire-render.md" ]]
+[[ $attempt_file == "$run_dir/selection."*.json ]]
 cmp -- "$PWD/siftwire-render.md" "$prompt_snapshot"
-[[ $session_dir == "$run_dir/pi-sessions/"* ]]
-[[ ${session_dir##*/} =~ ^[1-3]$ ]]
-mkdir -p -m 0700 -- "$session_dir"
-jq -cn --arg cwd "$PWD" '{type:"session",version:3,id:"fixture",timestamp:"2026-09-08T12:00:00Z",cwd:$cwd}' \
-  >"$session_dir/fixture.jsonl"
 cp -- "$selector_input" "$TEST_PI_INPUT_CAPTURE"
 if [[ ${TEST_REPLAY:-0} == 1 ]]; then
   [[ ! -e $SIFTWIRE_STATE_DIR/active-job.json ]]
@@ -163,111 +149,14 @@ if [[ -n ${TEST_PI_INVALID_ONCE_FILE:-} && ! -e $TEST_PI_INVALID_ONCE_FILE ]]; t
   touch "$TEST_PI_INVALID_ONCE_FILE"
   selection='{"candidate_indexes":[7]}'
 fi
-printf '%s\n' '{"type":"session","version":999}' '{"type":"agent_start"}'
-# Intermediate text and tool results are deliberately not selection objects.
-printf '%s\n' \
-  '{"type":"message_end","message":{"role":"assistant","stopReason":"toolUse","content":[{"type":"text","text":"Check context first"},{"type":"toolCall","id":"research","name":"ordinary_extension_tool","arguments":{}}]}}' \
-  '{"type":"tool_execution_start","toolCallId":"research","toolName":"ordinary_extension_tool"}'
-if [[ ${TEST_PI_MODE:-} != dangling_tool ]]; then
-  printf '%s\n' '{"type":"tool_execution_end","toolCallId":"research","isError":false}'
-fi
-printf '%s\n' '{"type":"message_end","message":{"role":"toolResult","toolCallId":"research","content":[{"type":"text","text":"not a selection"}]}}'
-# Failed partial calls never execute. Retry must retain any started research tool.
-for stop in error aborted; do
-  jq -cn --arg stop "$stop" '{type:"message_end",message:{role:"assistant",content:[{type:"toolCall",id:("partial-"+$stop),name:"read",arguments:{}}],stopReason:$stop,errorMessage:"stream failed"}}'
-  printf '%s\n' '{"type":"agent_end","messages":[]}' '{"type":"agent_start"}'
-done
-stop_reason=stop
+# Human logs deliberately include a conflicting selection and non-JSON text.
+printf '%s\n' '{"candidate_indexes":[1]}' 'ordinary harness output'
 case "${TEST_PI_MODE:-}" in
-  assistant_error) stop_reason=error ;;
-  aborted) stop_reason=aborted ;;
-  truncated) stop_reason=length ;;
+  missing) ;;
+  malformed) printf 'not JSON\n' >"$attempt_file" ;;
+  *) printf '%s\n' "$selection" >"$attempt_file" ;;
 esac
-jq -cn --arg text "$selection" --arg stop "$stop_reason" \
-  '{type:"message_end",message:{role:"assistant",stopReason:$stop,content:[{type:"thinking",thinking:"private fixture thought"},{type:"text",text:$text}]}}'
-notification_mode="${TEST_PI_MODE:-}"
-case "$notification_mode" in
-  notification-prior-tool) printf '%s\n' '{"type":"tool_execution_start","toolCallId":"late"}' '{"type":"tool_execution_end","toolCallId":"late"}' ;;
-  notification-prior-tool-update | notification-prior-tool-end)
-    jq -cn --arg type "tool_execution_${notification_mode##*-}" '{type:$type,toolCallId:"late"}' ;;
-  notification-prior-user-end) printf '%s\n' '{"type":"message_end","message":{"role":"user","content":"New input"}}' ;;
-  notification-prior-unknown | notification-replacement) printf '%s\n' '{"type":"message_end","message":{"role":"custom","customType":"unknown","content":"Display only"}}' ;;
-esac
-if [[ $notification_mode == notification-replacement ]]; then
-  printf '%s\n' '{"type":"turn_start"}' '{"type":"message_start","message":{"role":"assistant"}}'
-  jq -cn '{type:"message_end",message:{role:"assistant",stopReason:"stop",content:[{type:"text",text:"{\"candidate_indexes\":[1]}"}]}}'
-  printf '%s\n' '{"type":"turn_end"}'
-fi
-for cycle in 1 2; do
-  [[ $notification_mode == notification-* ]] || break
-  [[ $notification_mode == notification-unopened ]] || printf '%s\n' '{"type":"turn_start"}'
-  role=custom
-  custom_type=web-search-content-ready
-  [[ $notification_mode != notification-user ]] || role=user
-  [[ $notification_mode != notification-unknown ]] || custom_type=unknown
-  if [[ $notification_mode != notification-ordinary ]]; then
-    notification_events=(message_start message_end)
-    [[ $notification_mode != notification-replacement ]] || notification_events+=(message_start message_end)
-    for event in "${notification_events[@]}"; do
-      [[ $notification_mode != notification-custom-no-start || $event != message_start ]] || continue
-      [[ $notification_mode != notification-custom-no-end || $event != message_end ]] || continue
-      jq -cn --arg event "$event" --arg role "$role" --arg custom_type "$custom_type" \
-        '{type:$event,message:{role:$role,customType:$custom_type,content:"Fixture content available"}}'
-    done
-  fi
-  case "$notification_mode" in
-    notification-tool) printf '%s\n' '{"type":"tool_execution_start","toolCallId":"late"}' '{"type":"tool_execution_end","toolCallId":"late"}' ;;
-    notification-restart) printf '%s\n' '{"type":"agent_start"}' ;;
-  esac
-  if [[ $notification_mode == notification-text-start ]]; then
-    printf '%s\n' '{"type":"message_start","message":{"role":"assistant","content":[{"type":"text","text":"discarded text"}]}}'
-  elif [[ $notification_mode != notification-no-start ]]; then
-    printf '%s\n' '{"type":"message_start","message":{"role":"assistant","content":[]}}'
-  fi
-  printf '%s\n' \
-    '{"type":"message_update","assistantMessageEvent":{"type":"thinking_start","contentIndex":0},"usage":{}}' \
-    '{"type":"message_update","assistantMessageEvent":{"type":"thinking_end","contentIndex":0,"content":"fixture"},"usage":{}}' \
-    '{"type":"message_update","assistantMessageEvent":{"type":"text_start","contentIndex":1},"usage":{}}' \
-    '{"type":"message_update","assistantMessageEvent":{"type":"text_end","contentIndex":1,"content":""},"usage":{}}'
-  case "$notification_mode" in
-    notification-native-text-delta) printf '%s\n' '{"type":"message_update","assistantMessageEvent":{"type":"text_delta","delta":"discarded text"},"usage":{}}' ;;
-    notification-native-text-end) printf '%s\n' '{"type":"message_update","assistantMessageEvent":{"type":"text_end","content":"discarded text"},"usage":{}}' ;;
-    notification-native-toolcall-update) printf '%s\n' '{"type":"message_update","assistantMessageEvent":{"type":"toolcall_delta","delta":"{}"},"usage":{}}' ;;
-    notification-double-start) printf '%s\n' '{"type":"message_start","message":{"role":"assistant","content":[]}}' ;;
-    notification-text-update) printf '%s\n' '{"type":"message_update","message":{"role":"assistant","content":[{"type":"text","text":"discarded text"}]}}' ;;
-  esac
-  message='{"role":"assistant","stopReason":"stop","content":[{"type":"thinking","thinking":"fixture"},{"type":"text","text":""}]}'
-  case "$notification_mode" in
-    notification-whitespace) message="$(jq '.content[1].text=" "' <<<"$message")" ;;
-    notification-content) message="$(jq '.content += [{type:"unknown"}]' <<<"$message")" ;;
-    notification-error | notification-aborted) message="$(jq --arg stop "${notification_mode#notification-}" '.stopReason=$stop | .errorMessage="fixture failure"' <<<"$message")" ;;
-  esac
-  [[ $notification_mode == notification-no-end ]] || jq -cn --argjson message "$message" '{type:"message_end",message:$message}'
-  printf '%s\n' '{"type":"entry_appended","entry":{"type":"custom","customType":"web-search-results"}}'
-  if [[ $notification_mode == notification-turn-error ]]; then
-    message="$(jq '.stopReason="error" | .errorMessage="fixture turn failure"' <<<"$message")"
-  fi
-  case "$notification_mode" in
-    notification-turn-missing-message) printf '%s\n' '{"type":"turn_end"}' ;;
-    notification-turn-null-message) printf '%s\n' '{"type":"turn_end","message":null}' ;;
-    notification-no-turn-end) ;;
-    *) jq -cn --argjson message "$message" '{type:"turn_end",message:$message}' ;;
-  esac
-done
-case "${TEST_PI_MODE:-}" in
-  stale_turn) printf '%s\n' '{"type":"turn_start"}' '{"type":"turn_end"}' ;;
-  unfinished_message) printf '%s\n' '{"type":"message_start","message":{"role":"assistant"}}' ;;
-  updated_message) printf '%s\n' '{"type":"message_update","message":{"role":"assistant"}}' ;;
-esac
-printf '%s\n' '{"type":"message_start","message":{"role":"custom","content":"before settlement"}}' \
-  '{"type":"message_end","message":{"role":"custom","content":"before settlement"}}' \
-  '{"type":"agent_end","messages":[]}'
-[[ ${TEST_PI_MODE:-} == unsettled ]] || printf '%s\n' '{"type":"agent_settled"}'
-[[ ${TEST_PI_MODE:-} != restarted ]] || printf '%s\n' '{"type":"agent_start"}'
-printf '%s\n' '{"type":"message_start","message":{"role":"custom","content":"after settlement"}}' \
-  '{"type":"message_end","message":{"role":"custom","content":"after settlement"}}' \
-  '{"type":"new_diagnostic","details":"additive event after settlement"}'
-# A valid stream is not enough. The host must wait for the actual child exit.
+# A valid file is not enough. The host must wait for the actual child exit.
 [[ -z ${TEST_PI_WAIT_FIFO:-} ]] || { printf 'ready\n' >"$TEST_PI_READY_FIFO"; read -r _ <"$TEST_PI_WAIT_FIFO"; }
 [[ ${TEST_PI_MODE:-} != exit_failure ]] || exit 9
 EOF
@@ -343,7 +232,7 @@ case "$(jq -r .action <<<"$request")" in
     [[ ${TEST_BRIEF_EXIT_FAILURE:-0} != 1 ]] || exit 99
     ;;
   prepare_delivery)
-    if [[ ${TEST_PI_MODE:-} == notification-replacement || ${TEST_LINKLESS:-0} == 1 ]]; then
+    if [[ ${TEST_LINKLESS:-0} == 1 ]]; then
       jq -e '.candidate_indexes==[1]' <<<"$request" >/dev/null || exit 1
     elif [[ -n ${TEST_REQUIRED_ITEMS:-} ]]; then
       jq -e '.candidate_indexes==[0]' <<<"$request" >/dev/null || exit 1
@@ -455,10 +344,10 @@ assert_selection_receipt() {
 assert_pi_evidence() {
   local run_dir="$1"
   test -s "$run_dir/selector-input.json"
-  test -s "$run_dir/pi-events.1.jsonl"
-  test -s "$run_dir/pi-sessions/1/fixture.jsonl"
+  test -s "$run_dir/selector.1.log"
+  test -s "$run_dir/selection.1.json"
+  cmp -- "$run_dir/selection.1.json" "$run_dir/selection.json"
   cmp -- "$prompt_source" "$run_dir/siftwire-render.md"
-  jq -e '.type == "session" and .version == 3' "$run_dir/pi-sessions/1/fixture.jsonl" >/dev/null
 }
 
 base_env=(
@@ -691,29 +580,19 @@ grep -F 'candidates is not an array' "$temp/invalid-candidates.stderr" >/dev/nul
 
 export TEST_DELIVERY_REQUEST="$temp/delivery-after-rejection.json"
 export TEST_MAILGATE_REQUEST="$temp/mailgate-after-rejection.json"
-env "${base_env[@]}" TEST_PI_MODE=notification-replacement \
+env "${base_env[@]}" TEST_PI_MODE=select_one \
   SIFTWIRE_STATE_DIR="$temp/state-rejected" SIFTWIRE_RUN_ROOT="$temp/run-rejected" \
   "$runner" >/dev/null
 test -f "$temp/state-rejected/outbox/sent/$brief_run_one_digest.json"
 
-for mode in overflow duplicate negative fractional boolean extra_key multiple \
-  assistant_error aborted truncated dangling_tool unsettled restarted stale_turn unfinished_message updated_message exit_failure \
-  notification-unopened notification-user notification-unknown notification-ordinary notification-tool notification-restart \
-  notification-no-start notification-double-start notification-text-update notification-whitespace notification-content notification-error notification-aborted \
-  notification-no-end notification-turn-error notification-no-turn-end \
-  notification-custom-no-start notification-custom-no-end notification-turn-missing-message notification-turn-null-message \
-  notification-prior-tool notification-prior-tool-update notification-prior-tool-end notification-prior-user-end notification-prior-unknown \
-  notification-text-start notification-native-text-delta notification-native-text-end notification-native-toolcall-update; do
+for mode in overflow duplicate negative fractional boolean extra_key multiple missing malformed exit_failure; do
   expect_status 1 env "${base_env[@]}" TEST_PI_MODE="$mode" \
     TEST_PI_COUNT="$temp/pi-$mode.count" \
     SIFTWIRE_STATE_DIR="$temp/state-selection-$mode" SIFTWIRE_RUN_ROOT="$temp/run-selection-$mode" "$runner"
   jq -e '.candidate_indexes == null' "$temp/state-selection-$mode/active-job.json" >/dev/null
   test -z "$(find "$temp/state-selection-$mode/outbox" -name '*.json' -print -quit)"
-  case "$mode" in
-    notification-error | notification-aborted | notification-no-end) expected_attempts=1 ;;
-    overflow | duplicate | negative | fractional | boolean | extra_key | multiple | notification-*) expected_attempts=3 ;;
-    *) expected_attempts=1 ;;
-  esac
+  expected_attempts=3
+  [[ $mode != exit_failure ]] || expected_attempts=1
   test "$(wc -l <"$temp/pi-$mode.count")" = "$expected_attempts"
 done
 
@@ -722,9 +601,9 @@ env "${base_env[@]}" TEST_PI_DIAGNOSTIC=1 \
   SIFTWIRE_STATE_DIR="$state" SIFTWIRE_RUN_ROOT="$state/runs" \
   "$runner" >/dev/null 2>"$temp/stderr-diagnostic.stderr"
 test -f "$state/outbox/sent/$brief_run_one_digest.json"
-grep -F 'Pi emitted diagnostics' "$temp/stderr-diagnostic.stderr" >/dev/null
+grep -F 'selector emitted diagnostics' "$temp/stderr-diagnostic.stderr" >/dev/null
 
-# Keep the real fixture child alive after it writes settlement evidence.
+# Keep the real fixture child alive after it writes a valid selection.
 mkfifo "$temp/pi-ready" "$temp/pi-release"
 setsid env "${base_env[@]}" \
   TEST_PI_WAIT_FIFO="$temp/pi-release" TEST_PI_READY_FIFO="$temp/pi-ready" \
@@ -758,6 +637,9 @@ env "${base_env[@]}" TEST_PI_INVALID_ONCE_FILE="$temp/pi-invalid-once" \
   "$runner" \
   >/dev/null 2>"$temp/selection-retry.stderr"
 grep -F 'invalid candidate selection on attempt 1' "$temp/selection-retry.stderr" >/dev/null
+retry_run="$(find "$temp/run-selection-retry" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+jq -e '.candidate_indexes == [7]' "$retry_run/selection.1.json" >/dev/null
+cmp -- "$retry_run/selection.2.json" "$retry_run/selection.json"
 
 mkdir -p "$temp/state-prepare-resume" "$temp/run-prepare-resume"
 export TEST_DELIVERY_REQUEST="$temp/delivery-prepare-resume.json"
@@ -782,7 +664,7 @@ test "$(jq -sr '[.[] | select(.selection_origin == "resumed")] | length' \
 
 export TEST_DELIVERY_REQUEST="$temp/delivery.json"
 export TEST_MAILGATE_REQUEST="$temp/mailgate.json"
-env "${base_env[@]}" TEST_PI_MODE=notification-preserve \
+env "${base_env[@]}" TEST_PI_MODE=select_one \
   SIFTWIRE_STATE_DIR="$temp/state" SIFTWIRE_RUN_ROOT="$temp/run" \
   "$runner" >/dev/null
 
@@ -806,7 +688,7 @@ jq -e '
 ' "$sent_outbox" >/dev/null
 
 run_dir="$(find "$temp/run" -mindepth 1 -maxdepth 1 -type d -print -quit)"
-assert_selection_receipt "$run_dir" scheduled pi
+assert_selection_receipt "$run_dir" scheduled agent
 assert_pi_evidence "$run_dir"
 
 state="$temp/state-empty-selection"
@@ -815,7 +697,7 @@ env "${base_env[@]}" \
   SIFTWIRE_STATE_DIR="$state" SIFTWIRE_RUN_ROOT="$state/runs" \
   "$runner" >"$temp/empty-selection.stdout" 2>"$temp/empty-selection.stderr"
 empty_run="$(find "$state/runs" -mindepth 1 -maxdepth 1 -type d -print -quit)"
-assert_selection_receipt "$empty_run" scheduled pi
+assert_selection_receipt "$empty_run" scheduled agent
 assert_pi_evidence "$empty_run"
 jq -e '.selected_candidate_count == 0 and .empty_selection_with_candidates' "$empty_run/selection-receipt.json" >/dev/null
 grep -F 'no news selected from 2 candidates with 1 slots' "$temp/empty-selection.stderr" >/dev/null
@@ -839,7 +721,7 @@ env "${replay_env[@]}" "$runner" --replay "$run_dir/brief.json" "$temp/replay" >
 cmp -- "$temp/replay-source.before" "$run_dir/brief.json"
 cmp -- "$run_dir/selection.json" "$temp/replay/selection.json"
 jq -e '.candidate_indexes == [0] and keys == ["candidate_indexes"]' "$temp/replay.stdout" >/dev/null
-assert_selection_receipt "$temp/replay" replay pi
+assert_selection_receipt "$temp/replay" replay agent
 assert_pi_evidence "$temp/replay"
 test ! -e "$temp/forbidden-host-calls"
 test ! -e "$temp/replay-live-state"

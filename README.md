@@ -22,7 +22,7 @@ contents. Coverage depends on what your sources publish and retain.
 If you are upgrading from v0.8.0 or earlier, read the
 [compatibility reset](docs/runner-v5-reset.md) first: you need a fresh database
 and matching consumers. Upgrading from v0.9.x preserves your database and
-configuration. This checkout targets [runner v6](docs/runner-contract.md#upgrade-from-v5);
+configuration. v0.14.0 uses [runner v6](docs/runner-contract.md#upgrade-from-v5);
 update process consumers together when moving from v5.
 
 Install the latest published runner:
@@ -32,16 +32,16 @@ sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/d
 siftwire --version
 ```
 
-To pin the latest documented release, v0.13.0:
+To pin the latest documented release, v0.14.0:
 
 ```bash
-SIFTWIRE_VERSION=v0.13.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.13.0/install.sh)"
+SIFTWIRE_VERSION=v0.14.0 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.14.0/install.sh)"
 siftwire --version
 ```
 
 Register the matching `skills/siftwire/SKILL.md` with your agent's skill system.
-For v0.13.0, use the `v0.13.0` repository tag or the release asset
-`siftwire_0.13.0_skill.tar.gz`. You need both the runner and its matching skill;
+For v0.14.0, use the `v0.14.0` repository tag or the release asset
+`siftwire_0.14.0_skill.tar.gz`. You need both the runner and its matching skill;
 no particular agent or skill directory is required.
 
 When upgrading, update the runner, skill, and process consumers together.
@@ -53,7 +53,7 @@ The installer accepts no arguments. `SIFTWIRE_VERSION` selects the release.
 ## Configure your brief
 
 Ask your agent to show your current configuration, grouped by releases, blogs,
-news, sports, publisher rules, and brief settings. It reads the installed runner;
+news, forums, sports, publisher rules, and brief settings. It reads the installed runner;
 no web server is needed. For changes, ask it to propose sources and reporting
 choices, then approve the configuration before it writes anything. A fresh
 database has no sources. The [agent skill](skills/siftwire/SKILL.md) covers

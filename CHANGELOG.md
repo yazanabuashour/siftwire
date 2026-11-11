@@ -2,11 +2,10 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
-## Unreleased
+## v0.14.0
 
 - Separate Releases, Blogs, News, Forums, and Sports in HTML, Markdown, and plain text. Count each category separately and omit empty sections.
 - Apply `max_delivery_items` to optional News and Forums together, without subtracting Required blogs or releases. Saved prepared bodies remain unchanged.
-
 - Retire Google News URL decoding and its configuration field in runner protocol v6. Preserve original feed links and existing databases, history, and prepared deliveries.
 - Skip editorial selection when no optional slots remain, remove redundant sorting, and keep Allow/Watch policies explicitly audit-only.
 
@@ -51,6 +50,10 @@ Public release notes are mirrored in `docs/release-notes/`.
 - Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
 
 ## Releases
+
+- [v0.14.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.14.0)
+  retires Google News resolution and separates brief categories with a shared
+  optional News/Forums allowance. See the [release notes](docs/release-notes/v0.14.0.md).
 
 - [v0.13.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.13.0)
   replaces Pi event-stream selection with an app-validated result file.

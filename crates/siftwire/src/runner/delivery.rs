@@ -16,6 +16,8 @@ use crate::storage::{
     RunItemRow, Store, StoredSentItem,
 };
 
+use super::sections::group_items;
+
 pub(super) fn prepare(paths: Paths, store: &Store, request: &BriefRequest) -> Result<BriefResult> {
     if request.run_id.trim().is_empty() {
         return Ok(rejected(paths, "run_id is required"));
@@ -116,11 +118,10 @@ fn select_rows<'a>(
         .iter()
         .filter(|row| row.category == RUN_ITEM_CANDIDATE)
         .collect::<Vec<_>>();
-    let max_items = usize::try_from(max_items).unwrap_or_default();
-    let candidate_slots = max_items.saturating_sub(required.len());
+    let candidate_slots = usize::try_from(max_items).unwrap_or_default();
     if candidate_indexes.len() > candidate_slots {
         anyhow::bail!(
-            "candidate selection has {} indexes but only {candidate_slots} slots remain",
+            "candidate selection has {} indexes but the optional limit is {candidate_slots}",
             candidate_indexes.len()
         );
     }
@@ -199,29 +200,44 @@ fn render_bodies(
     context: &RunDeliveryContext,
     started_at: &str,
 ) -> Result<(String, String, String)> {
-    let markdown_items = selected
+    let groups = group_items(selected);
+    let markdown_items = groups
         .iter()
-        .map(|item| {
-            if item.url.is_empty() {
-                format!("- {}", markdown_link_text(&item.title))
-            } else {
-                format!("- [{}](<{}>)", markdown_link_text(&item.title), item.url)
-            }
+        .map(|(section, items)| {
+            let rows = items
+                .iter()
+                .map(|item| {
+                    if item.url.is_empty() {
+                        format!("- {}", markdown_link_text(&item.title))
+                    } else {
+                        format!("- [{}](<{}>)", markdown_link_text(&item.title), item.url)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("## {}\n\n{rows}", section.heading())
         })
         .collect::<Vec<_>>()
-        .join("\n");
-    let text_items = selected
+        .join("\n\n");
+    let text_items = groups
         .iter()
-        .map(|item| {
-            let title = plain_text(&item.title);
-            if item.url.is_empty() {
-                format!("- {title}")
-            } else {
-                format!("- {title}\n  {}", item.url)
-            }
+        .map(|(section, items)| {
+            let rows = items
+                .iter()
+                .map(|item| {
+                    let title = plain_text(&item.title);
+                    if item.url.is_empty() {
+                        format!("- {title}")
+                    } else {
+                        format!("- {title}\n  {}", item.url)
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            format!("{}\n\n{rows}", section.heading())
         })
         .collect::<Vec<_>>()
-        .join("\n");
+        .join("\n\n");
     let timezone = context
         .sports_timezone
         .parse::<Tz>()
@@ -417,7 +433,9 @@ mod tests {
     )]
 
     use crate::contract::DeliveryRecord;
-    use crate::storage::{RUN_ITEM_MUST_INCLUDE, RunDeliveryContext, RunItemRow};
+    use crate::storage::{
+        RUN_ITEM_CANDIDATE, RUN_ITEM_MUST_INCLUDE, RunDeliveryContext, RunItemRow,
+    };
 
     use super::{build_plan, final_answer};
 
@@ -430,27 +448,73 @@ mod tests {
     }
 
     #[test]
-    fn prepared_delivery_renders_required_linkless_items_as_text() -> anyhow::Result<()> {
+    fn prepared_delivery_groups_items_and_preserves_optional_capacity() -> anyhow::Result<()> {
         let row = RunItemRow {
             category: RUN_ITEM_MUST_INCLUDE.to_owned(),
             kind: "rss".to_owned(),
             title: "Linkless item".to_owned(),
+            section: "blogs".to_owned(),
             ..RunItemRow::default()
         };
         let context = RunDeliveryContext {
-            max_delivery_items: 7,
+            max_delivery_items: 2,
             sports_updates: Vec::new(),
             sports_timezone: "America/Chicago".to_owned(),
             health_footnote: String::new(),
         };
+        let rows = [
+            row,
+            RunItemRow {
+                category: RUN_ITEM_MUST_INCLUDE.to_owned(),
+                kind: "github_release".to_owned(),
+                title: "Version two".to_owned(),
+                ..RunItemRow::default()
+            },
+            RunItemRow {
+                category: RUN_ITEM_CANDIDATE.to_owned(),
+                section: "forums".to_owned(),
+                title: "Forum update".to_owned(),
+                ..RunItemRow::default()
+            },
+            RunItemRow {
+                category: RUN_ITEM_CANDIDATE.to_owned(),
+                section: "technology".to_owned(),
+                title: "News update".to_owned(),
+                ..RunItemRow::default()
+            },
+        ];
+        let selected = super::select_rows(&[0, 1], &rows, context.max_delivery_items)?;
         let plan = build_plan(
             "run-linkless",
-            &[],
+            &[0, 1],
             "2026-08-27T12:00:00Z",
-            &[&row],
+            &selected,
             &context,
         )?;
-        assert_eq!(plan.message, "- Linkless item");
+        assert_eq!(
+            plan.message,
+            "## Releases\n\n- Version two\n\n## Blogs\n\n- Linkless item\n\n## News\n\n- News update\n\n## Forums\n\n- Forum update"
+        );
+        assert_eq!(
+            plan.text,
+            "Releases\n\n- Version two\n\nBlogs\n\n- Linkless item\n\nNews\n\n- News update\n\nForums\n\n- Forum update"
+        );
+        let mut remaining = plan.html.as_str();
+        for heading in ["Releases", "Blogs", "News", "Forums"] {
+            let marker = format!(">{heading}</h2>");
+            remaining = remaining
+                .split_once(&marker)
+                .map(|(_, rest)| rest)
+                .ok_or_else(|| anyhow::anyhow!("missing or misordered section {heading}"))?;
+        }
+        assert!(
+            plan.html
+                .contains("1 release, 1 blog post, 1 news story, 1 forum discussion.")
+        );
+        let error = super::select_rows(&[0, 1], &rows, 1)
+            .err()
+            .ok_or_else(|| anyhow::anyhow!("shared optional limit was not enforced"))?;
+        assert!(error.to_string().contains("optional limit is 1"));
         assert!(plan.html.contains(">Linkless item</span>"));
         assert!(!plan.html.contains("href=\"\""));
         Ok(())

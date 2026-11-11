@@ -22,8 +22,8 @@ mise exec -- cargo test --locked -p siftwire --bin siftwire runner::email::tests
 
 The initial shared-renderer outputs matched all four frozen files exactly.
 Current mapper assertions retain these original files and apply only the
-explicit responsive-header and image-free schedule-column fixes to their
-expected strings; they do not regenerate the oracle from the renderer. The HTML is
+explicit responsive-header, image-free schedule-column, section-heading, and
+category-count changes to their expected strings; they do not regenerate the oracle from the renderer. The HTML is
 browser-ready; external image hosts are synthetic and may not load. This is a
 byte-parity receipt, not an email-client compatibility or live-delivery claim.
 The empty fixture exercises the HTML renderer directly; delivery preparation

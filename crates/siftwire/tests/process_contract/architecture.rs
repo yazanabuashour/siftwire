@@ -94,6 +94,80 @@ fn config_preserves_raw_sources_cursors_and_historical_reporting() -> Result<()>
     Ok(())
 }
 
+#[test]
+fn required_items_leave_the_shared_news_and_forum_allowance_intact() -> Result<()> {
+    let temp = TempDir::new()?;
+    let database = temp
+        .path()
+        .join("sections.sqlite")
+        .to_string_lossy()
+        .into_owned();
+    let environment = BTreeMap::from([("SIFTWIRE_EVAL_ALLOW_FILE_URLS", "1")]);
+    for (key, section, threshold) in [
+        ("blog", "blogs", "always"),
+        ("news", "technology", "medium"),
+        ("forum", "forums", "medium"),
+    ] {
+        let feed = temp.path().join(format!("{key}.xml"));
+        fs::write(
+            &feed,
+            format!(
+                "<rss version=\"2.0\"><channel><title>Fixture</title><item><title>{key} update</title><link>https://example.test/{key}</link><guid>{key}</guid><pubDate>{}</pubDate></item></channel></rss>",
+                chrono::Utc::now().to_rfc2822()
+            ),
+        )?;
+        let url = url::Url::from_file_path(&feed).map_err(|()| anyhow::anyhow!("fixture URL"))?;
+        invoke_json(
+            &["config", "--db", &database],
+            &json!({"action":"upsert_source", "source":{
+                "key":key, "label":key, "kind":"rss", "url":url, "section":section,
+                "threshold":threshold, "enabled":true
+            }}),
+            &environment,
+        )?;
+    }
+    invoke_json(
+        &["config", "--db", &database],
+        &json!({"action":"set_brief_options", "max_delivery_items":2}),
+        &environment,
+    )?;
+    let run: RunResult = decode(invoke_json(
+        &["brief", "--db", &database],
+        &json!({"action":"run_brief"}),
+        &environment,
+    )?)?;
+    assert_eq!(run.must_include.len(), 1);
+    assert_eq!(
+        run.candidate_slots, 2,
+        "required blog consumed optional capacity"
+    );
+    assert_eq!(run.candidates.len(), 2);
+    invoke_json(
+        &["config", "--db", &database],
+        &json!({"action":"set_brief_options", "max_delivery_items":1}),
+        &environment,
+    )?;
+    let prepared: DeliveryResult = decode(invoke_json(
+        &["brief", "--db", &database],
+        &json!({"action":"prepare_delivery", "run_id":run.run_id, "candidate_indexes":[0,1]}),
+        &environment,
+    )?)?;
+    assert!(
+        !prepared.rejected,
+        "preparation lost the recorded optional allowance"
+    );
+    assert_eq!(
+        prepared.message,
+        "## Blogs\n\n- [blog update](<https://example.test/blog>)\n\n## News\n\n- [news update](<https://example.test/news>)\n\n## Forums\n\n- [forum update](<https://example.test/forum>)"
+    );
+    assert!(
+        prepared
+            .html
+            .contains("1 blog post, 1 news story, 1 forum discussion.")
+    );
+    Ok(())
+}
+
 fn configure_annotation_sources(
     temp: &TempDir,
     database: &str,

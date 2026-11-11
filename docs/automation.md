@@ -191,6 +191,10 @@ The projection keeps candidate order and membership, and it adds each candidate'
 `candidate_index`. It drops identifier aliases, fetch statistics, paths, and
 transport bodies. The host binds selected indexes to URLs in the full brief.
 
+News and Forums share the optional allowance. Required blogs, releases, and
+sports remain outside it. Prepared bodies separate each populated category;
+empty categories do not add headings.
+
 Selector stderr diagnostics warn without blocking delivery. `selection-receipt.json` stays
 local and holds counts and identifiers, not story content. Recording errors and
 `empty_selection_with_candidates` warn too; there is no minimum story floor.

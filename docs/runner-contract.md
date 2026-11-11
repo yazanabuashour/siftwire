@@ -30,8 +30,12 @@ replace capability checks.
 
 v6 removes the Google News resolver and rejects the retired
 `url_canonicalization` source field, including `none`. It also removes
-`suppressed_unresolved` from collection results. Update callers, the skill, and
-the embedded launcher together; v5 selection inputs do not satisfy v6 admission.
+`suppressed_unresolved` from collection results. `max_delivery_items` now limits
+optional candidates only; Required items no longer reduce that allowance.
+New deliveries separate Releases, Blogs, News, Forums, and Sports in every body.
+
+Update callers, the skill, and the embedded launcher together; v5 selection
+inputs do not satisfy v6 admission.
 
 The database schema is unchanged. Existing source markers, archived evidence,
 prepared plans, and delivery history remain usable; no reset or import is needed.
@@ -84,7 +88,7 @@ The `action` field accepts these values:
 | `upsert_source`           | Add or replace one normalized source.                                    |
 | `delete_source`           | Delete one source by key.                                                |
 | `replace_outlet_policies` | Transactionally replace all outlet policies. An empty array clears them. |
-| `set_brief_options`       | Set normal-item limits, sports windows, and the sports time zone.        |
+| `set_brief_options`       | Set optional-item limits, sports windows, and the sports time zone.      |
 
 ### Results
 
@@ -126,7 +130,9 @@ kind auto-detects RSS and Atom documents. Fields are `key`, `label`, `kind`,
 `schedule_filter`, and `api_key`. A `github_release` source requires `repo`
 as `owner/name` and rejects a nonempty `url`. The runner derives the public
 GitHub releases endpoint. All feeds preserve original links.
-Publisher extraction accepts `none` or `title_suffix`.
+Publisher extraction accepts `none` or `title_suffix`. Section values `blogs`
+and `forums` select dedicated delivery groups; GitHub releases use Releases by
+kind, and other normal items use News.
 A `sports_schedule` source fetches a schedule endpoint and emits recurring
 upcoming fixtures and completed results. `schedule_format` selects `espn`,
 `espn_scoreboard`, or `riot`. `api_key` carries Riot's public frontend key for
@@ -148,9 +154,9 @@ Every update links to an ESPN FightCenter page, never the JSON endpoint.
 
 ### Brief options
 
-`max_delivery_items` defaults to 7. Required normal items always remain. The
-limit determines how many optional candidates fit after them. Sports updates do
-not use candidate slots.
+`max_delivery_items` defaults to 7 and limits optional candidates across News
+and Forums together. Required items and sports do not consume this allowance.
+`candidate_slots` reports the saved optional allowance for the run.
 `sports_pre_game_days` defaults to 7, `sports_post_game_days` defaults to 3, and
 `sports_timezone` defaults to the IANA value `America/Chicago`.
 `set_brief_options` updates any supplied subset in one transaction.
@@ -270,8 +276,8 @@ run settings, not current configuration.
 identical retry returns that plan, while different indexes are rejected. The plan's
 `message`, `text`, and `html` are complete transport bodies in Markdown, plain
 text, and HTML, respectively.
-Required normal items can exceed `max_delivery_items`. `candidate_slots` then
-remains explicitly zero. Consumers must send prepared bodies unchanged. Each
+Required items can exceed `max_delivery_items` without reducing `candidate_slots`.
+Consumers must send prepared bodies unchanged. Each
 `prepared_items` entry includes its source `kind`. Sports evidence remains
 auditable but does not enter normal-item recent suppression. Plans retain
 `run_item_ids` as strings that link normal prepared items to immutable collection

@@ -90,9 +90,9 @@ These feed-processing fields are optional:
 
 Use `threshold: "always"` for required items. Replacement actions replace the
 entire corresponding set; an empty array clears it. `max_delivery_items`
-defaults to 7. Sports
-fixtures repeat for 7 days before kickoff and final results repeat for 3 days
-after kickoff by default.
+defaults to 7 optional items shared across News and Forums. Required items and
+sports do not consume that allowance. Sports fixtures repeat for 7 days before
+kickoff and final results repeat for 3 days after kickoff by default.
 `sports_timezone` is an IANA time zone and defaults to `America/Chicago`.
 
 ## Brief Tasks
@@ -136,9 +136,9 @@ confirm it with `confirm_delivery`:
 {"action":"confirm_delivery","run_id":"run_id_from_run_brief","delivery_plan_id":"plan_id_from_prepare_delivery"}
 ```
 
-The runner keeps every required item and limits optional candidates. Sports do
-not use candidate slots. The result includes complete `message`, `text`, and
-`html` bodies. Deliver those bodies unchanged before calling `confirm_delivery`.
+The runner keeps every required item and limits optional candidates. Required
+items and sports do not use candidate slots. The result includes complete
+`message`, `text`, and `html` bodies. Deliver those bodies unchanged before calling `confirm_delivery`.
 If confirmation returns `final_answer`, answer with exactly that string;
 otherwise answer with exactly the prepared `message`.
 

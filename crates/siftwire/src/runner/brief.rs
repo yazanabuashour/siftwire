@@ -116,7 +116,7 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
         persist_delivery_context(store, &run_id, &options, &sports_updates, &health_footnote)?;
         store.finish_run(&run_id, "ok", &summary)?;
     }
-    let candidate_slots = candidate_slots(&classified.must_include, options.max_delivery_items);
+    let candidate_slots = usize::try_from(options.max_delivery_items).unwrap_or_default();
     Ok(BriefResult {
         paths,
         run_id,
@@ -527,12 +527,6 @@ fn persist_delivery_context(
             health_footnote: health_footnote.to_owned(),
         },
     )
-}
-
-fn candidate_slots(must_include: &[BriefItem], max_items: i64) -> usize {
-    usize::try_from(max_items)
-        .unwrap_or_default()
-        .saturating_sub(must_include.len())
 }
 
 fn previous_brief(delivery: Delivery) -> PreviousBrief {

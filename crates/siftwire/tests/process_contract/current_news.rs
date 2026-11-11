@@ -66,7 +66,10 @@ fn current_news_reoffers_unselected_stories_without_markers_and_archives_counts(
         "optional feed URL was rewritten or decoded"
     );
     // File-backed fixture links are evidence, not renderable delivery hyperlinks.
-    let message = format!("- {}\n\nSource coverage - NEW: news.", selected.title);
+    let message = format!(
+        "## News\n\n- {}\n\nSource coverage - NEW: news.",
+        selected.title
+    );
     let prepared =
         assert_normal_prepared_plan(&database, &first_run.run_id, &message, &environment)?;
     let confirmed: DeliveryResult = decode(invoke_json(

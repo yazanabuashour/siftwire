@@ -223,7 +223,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         .candidates
         .first()
         .context("run did not return a candidate")?;
-    let message = format!("- [{}](<{}>)", item.title, item.url);
+    let message = format!("## News\n\n- [{}](<{}>)", item.title, item.url);
     let prepared =
         assert_normal_prepared_plan(&database_text, &run.run_id, &message, &environment)?;
     assert!(

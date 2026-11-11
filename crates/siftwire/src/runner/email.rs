@@ -4,8 +4,9 @@ use chrono_tz::Tz;
 use email_ui::{Document, Header, Image, Notice, Row, ScheduleGroup, ScheduleRow, Section};
 
 use crate::contract::SportsUpdate;
-use crate::domain::SOURCE_KIND_GITHUB_RELEASE;
 use crate::storage::{RunDeliveryContext, RunItemRow};
+
+use super::sections::{ItemSection, group_items};
 
 pub fn render(
     selected: &[&RunItemRow],
@@ -32,45 +33,50 @@ fn document(
     } else {
         "Evening"
     };
-    let mut releases = Vec::new();
-    let mut news = Vec::new();
-    for item in selected {
-        if item.kind == SOURCE_KIND_GITHUB_RELEASE {
-            releases.push(Row {
-                title: item.title.clone(),
-                url: item.url.clone(),
-                eyebrow: item.source_label.clone(),
-            });
+    let groups = group_items(selected);
+    let mut counts: Vec<_> = groups
+        .iter()
+        .map(|(section, items)| section.count_label(items.len()))
+        .collect();
+    let sports_count = context.sports_updates.len();
+    if sports_count > 0 {
+        let label = if sports_count == 1 {
+            "sports update"
         } else {
-            news.push(news_row(item));
-        }
-    }
-    let count_label = |count: usize, singular: &str, plural: &str| {
-        format!("{count} {}", if count == 1 { singular } else { plural })
-    };
-    let preheader = format!(
-        "{}, {}, {}.",
-        count_label(news.len(), "story", "stories"),
-        count_label(releases.len(), "release", "releases"),
-        count_label(
-            context.sports_updates.len(),
-            "sports update",
             "sports updates"
-        )
-    );
-    let mut sections = Vec::new();
-    if !releases.is_empty() {
-        sections.push(Section::Cards {
-            heading: "New versions".to_owned(),
-            rows: releases,
-        });
+        };
+        counts.push(format!("{sports_count} {label}"));
     }
-    if !news.is_empty() {
-        sections.push(Section::Stories {
-            heading: "News".to_owned(),
-            rows: news,
-        });
-    }
+    let preheader = if counts.is_empty() {
+        "No updates.".to_owned()
+    } else {
+        format!("{}.", counts.join(", "))
+    };
+    let mut sections = groups
+        .into_iter()
+        .map(|(section, items)| {
+            let heading = section.heading().to_owned();
+            let rows = items
+                .into_iter()
+                .map(|item| {
+                    if section == ItemSection::News {
+                        news_row(item)
+                    } else {
+                        Row {
+                            title: item.title.clone(),
+                            url: item.url.clone(),
+                            eyebrow: item.source_label.clone(),
+                        }
+                    }
+                })
+                .collect();
+            if section == ItemSection::Releases {
+                Section::Cards { heading, rows }
+            } else {
+                Section::Stories { heading, rows }
+            }
+        })
+        .collect::<Vec<_>>();
     if !context.sports_updates.is_empty() {
         let groups = [("Upcoming", "upcoming"), ("Results", "final")]
             .into_iter()
@@ -164,6 +170,11 @@ mod tests {
 
     fn expected_html(frozen: &str) -> String {
         frozen
+            .replace("New versions</h2>", "Releases</h2>")
+            .replace("1 story, 1 release, 2 sports updates.", "1 release, 1 news story, 2 sports updates.")
+            .replace("2 stories, 2 releases, 1 sports update.", "2 releases, 2 news stories, 1 sports update.")
+            .replace("0 stories, 0 releases, 0 sports updates.", "No updates.")
+            .replace("0 stories, 0 releases, 1 sports update.", "1 sports update.")
             .replace(
                 "  .date-cell { width:45px !important; }",
                 "  .date-cell { width:45px !important; }\n  .header-cell { display:block !important; width:100% !important; }\n  .header-meta { padding-top:8px !important; text-align:left !important; }",

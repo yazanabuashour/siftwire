@@ -6,6 +6,7 @@ mod evidence;
 mod format;
 mod notes;
 mod runs_cli;
+mod sections;
 
 use std::env;
 use std::io::{self, Read, Write};

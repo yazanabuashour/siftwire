@@ -4,6 +4,12 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Unreleased
 
+## v0.12.0
+
+- Remove Prooflane: the launcher calls SiftWire directly and no longer exports to Axiom. Runner protocol v5 and the database schema are unchanged.
+- Run selection with Pi's default model and thinking instead of `model-role`; run records drop `configured_model`.
+- Shorten the embedded selector prompt and production skill.
+
 ## v0.11.0
 
 - Add optional publication of each finished brief to a Notes vault with `siftwire notes publish`. It is off until configured and does not change email, confirmation, runner protocol v5, or the database schema. See `docs/automation.md`.
@@ -36,6 +42,8 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Releases
 
+- [v0.12.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.12.0)
+  removes Prooflane and runs selection with Pi's default model.
 - [v0.11.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.11.0)
   ships the scheduled automation launcher inside the binary, embeds a neutral
   selector prompt, and adds optional Notes publication. See the

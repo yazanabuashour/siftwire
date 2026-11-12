@@ -271,12 +271,12 @@ them.
    Load it explicitly for full runner tasks with `pi --skill PATH`. The selector
    does not use it.
 
-4. Start one run, then re-enable the schedule:
+4. Start one run, then restart the schedule:
 
    ```bash
    systemctl --user start siftwire.service
    journalctl --user -u siftwire.service -n 100 --no-pager
-   systemctl --user enable --now siftwire.timer
+   systemctl --user start siftwire.timer
    ```
 
 A release that embeds the launcher replaces the previous launcher and embedded

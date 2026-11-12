@@ -88,7 +88,7 @@ fn incompatible_databases_are_rejected_without_mutation() -> Result<()> {
             "partial",
             "CREATE TABLE brief_source (key TEXT PRIMARY KEY); PRAGMA user_version = 1;",
         ),
-        ("future", "PRAGMA user_version = 2;"),
+        ("future", "PRAGMA user_version = 3;"),
         ("foreign", "PRAGMA application_id = 42;"),
     ] {
         let path = temp.path().join(format!("{name}.sqlite"));
@@ -124,7 +124,7 @@ fn incompatible_uncheckpointed_wal_is_rejected_without_mutation() -> Result<()> 
     let writer = Connection::open(&source)?;
     writer.execute_batch(
         "PRAGMA wal_autocheckpoint = 0; \
-         PRAGMA user_version = 2; \
+         PRAGMA user_version = 3; \
          CREATE TABLE preserved (value TEXT); \
          INSERT INTO preserved VALUES ('committed only in WAL');",
     )?;
@@ -199,13 +199,30 @@ fn reopening_preserves_configuration_state_and_delivery_evidence() -> Result<()>
         .prepare("SELECT key_name, value_text, updated_at FROM runtime_config ORDER BY key_name")?
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
         .collect::<rusqlite::Result<_>>()?;
+    store.connection.execute_batch(
+        "ALTER TABLE brief_source DROP COLUMN release_url_prefixes_json; PRAGMA user_version = 1;",
+    )?;
     drop(store);
     let store = Store::open(temp.path().join("siftwire.sqlite"))?;
+    assert_eq!(
+        store
+            .connection
+            .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))?,
+        2
+    );
     let source = store.list_sources(true)?.remove(0);
+    assert!(source.release_url_prefixes.is_empty());
     store.upsert_source(Source {
         threshold: "medium".to_owned(),
+        release_url_prefixes: vec!["https://example.test/releases/".to_owned()],
         ..source
     })?;
+    drop(store);
+    let store = Store::open(temp.path().join("siftwire.sqlite"))?;
+    assert_eq!(
+        store.list_sources(true)?.remove(0).release_url_prefixes,
+        ["https://example.test/releases/"]
+    );
     assert_eq!(
         store
             .source_state("feed")?

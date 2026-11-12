@@ -8,6 +8,9 @@ use super::{
     RUNTIME_CONFIG_SPORTS_TIMEZONE, Store, format_timestamp,
 };
 
+const RELEASE_URL_PREFIXES_MIGRATION: &str =
+    "ALTER TABLE brief_source ADD COLUMN release_url_prefixes_json TEXT NOT NULL DEFAULT '[]';";
+
 const SCHEMA: &[&str] = &[
     "CREATE TABLE runtime_config (\
         key_name TEXT PRIMARY KEY,\
@@ -150,22 +153,29 @@ impl Store {
     }
 
     pub(super) fn init_schema(&self) -> Result<()> {
-        if !validate_schema(&self.connection)? {
-            return self.configure();
-        }
+        let version = validate_schema(&self.connection)?;
         self.configure()?;
+        if version == 2 {
+            return Ok(());
+        }
         let transaction =
             Transaction::new_unchecked(&self.connection, TransactionBehavior::Immediate)
-                .context("begin sqlite initialization")?;
-        create_schema(&transaction)?;
-        seed_runtime_config(&transaction, &format_timestamp(self.timestamp()))?;
-        transaction.execute_batch("PRAGMA user_version = 1")?;
-        transaction.commit().context("commit sqlite initialization")
+                .context("begin sqlite initialization or upgrade")?;
+        if version == 0 {
+            create_schema(&transaction, 2)?;
+            seed_runtime_config(&transaction, &format_timestamp(self.timestamp()))?;
+        } else {
+            transaction.execute_batch(RELEASE_URL_PREFIXES_MIGRATION)?;
+        }
+        transaction.execute_batch("PRAGMA user_version = 2")?;
+        transaction
+            .commit()
+            .context("commit sqlite initialization or upgrade")
     }
 }
 
-// Reject incompatible schemas and return whether the database needs initialization.
-pub(super) fn validate_schema(connection: &Connection) -> Result<bool> {
+// Return the compatible schema version, or zero for an empty database.
+pub(super) fn validate_schema(connection: &Connection) -> Result<i64> {
     let actual = schema_objects(connection)?;
     let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     let application_id: i64 =
@@ -174,23 +184,29 @@ pub(super) fn validate_schema(connection: &Connection) -> Result<bool> {
         bail!("incompatible database application_id; select a new empty database");
     }
     if actual.is_empty() && version == 0 {
-        return Ok(true);
+        return Ok(0);
+    }
+    if !matches!(version, 1 | 2) {
+        bail!("incompatible SiftWire database schema version; select a supported database");
     }
     let expected = Connection::open_in_memory().context("open schema reference")?;
-    create_schema(&expected)?;
-    if version != 1 || actual != schema_objects(&expected)? {
+    create_schema(&expected, version)?;
+    if actual != schema_objects(&expected)? {
         bail!(
-            "incompatible SiftWire database schema; select a new empty database (automatic migration is not supported)"
+            "incompatible SiftWire database schema; only unmodified supported schemas can be opened or upgraded"
         );
     }
-    Ok(false)
+    Ok(version)
 }
 
-fn create_schema(connection: &Connection) -> Result<()> {
+fn create_schema(connection: &Connection, version: i64) -> Result<()> {
     for statement in SCHEMA {
         connection
             .execute_batch(statement)
             .context("initialize sqlite schema")?;
+    }
+    if version == 2 {
+        connection.execute_batch(RELEASE_URL_PREFIXES_MIGRATION)?;
     }
     Ok(())
 }

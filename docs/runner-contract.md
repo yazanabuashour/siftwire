@@ -23,8 +23,9 @@ separate `source` command.
 Every `config` and `brief` result identifies `runner_protocol` and
 `capabilities`. Consumers must require the protocol and capabilities they use
 before acting. This checkout uses `siftwire-runner/v6` with `prepared-delivery/v1`,
-`sports-updates/v1`, and `current-news/v1`. The binary release version does not
-replace capability checks.
+`sports-updates/v1`, `current-news/v1`, and `rss-release-routing/v1`. Require
+`rss-release-routing/v1` before configuring RSS release sections or URL prefixes.
+The binary release version does not replace capability checks.
 
 ## Upgrade from v5
 
@@ -37,8 +38,9 @@ New deliveries separate Releases, Blogs, News, Forums, and Sports in every body.
 Update callers, the skill, and the embedded launcher together; v5 selection
 inputs do not satisfy v6 admission.
 
-The database schema is unchanged. Existing source markers, archived evidence,
-prepared plans, and delivery history remain usable; no reset or import is needed.
+Existing source markers, archived evidence, prepared plans, and delivery history
+remain usable; no reset or import is needed. See [storage selection](#storage-selection)
+for the supported additive schema upgrade.
 Finish pending automation work before upgrading. Old prepared bodies replay
 unchanged rather than being rendered again.
 
@@ -126,13 +128,22 @@ backlog.
 Source writes support `rss`, `github_release`, and `sports_schedule`. The `rss`
 kind auto-detects RSS and Atom documents. Fields are `key`, `label`, `kind`,
 `url`, `repo`, `section`, `threshold`, `enabled`,
-`outlet_extraction`, `dedup_group`, `priority_rank`, `schedule_format`,
-`schedule_filter`, and `api_key`. A `github_release` source requires `repo`
+`outlet_extraction`, `dedup_group`, `priority_rank`, `release_url_prefixes`,
+`schedule_format`, `schedule_filter`, and `api_key`. A `github_release` source requires `repo`
 as `owner/name` and rejects a nonempty `url`. The runner derives the public
 GitHub releases endpoint. All feeds preserve original links.
-Publisher extraction accepts `none` or `title_suffix`. Section values `blogs`
-and `forums` select dedicated delivery groups; GitHub releases use Releases by
-kind, and other normal items use News.
+Publisher extraction accepts `none` or `title_suffix`. Section values `releases`,
+`blogs`, and `forums` select dedicated delivery groups; GitHub releases always
+use Releases by kind, and other normal items use News.
+
+For mixed RSS feeds, `release_url_prefixes` is an optional array of absolute
+HTTP(S) directory URLs ending in `/`, without credentials, queries, or fragments.
+Prefixes are normalized as URLs, deduplicated, and sorted; URL paths remain
+case-sensitive. A matching item URL records section `releases`; other items keep
+the source's section. Matching uses the normalized item URL without rewriting
+its original link. This changes grouping only, not kind, threshold, freshness,
+deduplication, or optional capacity. It does not merge related version posts.
+Nonempty prefixes are rejected for non-RSS sources.
 A `sports_schedule` source fetches a schedule endpoint and emits recurring
 upcoming fixtures and completed results. `schedule_format` selects `espn`,
 `espn_scoreboard`, or `riot`. `api_key` carries Riot's public frontend key for
@@ -154,8 +165,8 @@ Every update links to an ESPN FightCenter page, never the JSON endpoint.
 
 ### Brief options
 
-`max_delivery_items` defaults to 7 and limits optional candidates across News
-and Forums together. Required items and sports do not consume this allowance.
+`max_delivery_items` defaults to 7 and limits optional candidates across all
+delivery sections together. Required items and sports do not consume this allowance.
 `candidate_slots` reports the saved optional allowance for the run.
 `sports_pre_game_days` defaults to 7, `sports_post_game_days` defaults to 3, and
 `sports_timezone` defaults to the IANA value `America/Chicago`.
@@ -345,6 +356,14 @@ default of `${XDG_DATA_HOME:-~/.local/share}/siftwire/siftwire.sqlite`.
 `XDG_DATA_HOME` is honored only when absolute. Newly created database
 directories and files are owner-only. Existing explicit parent directories
 retain their permissions. All commands that open storage can initialize an empty
-database, including inspection and archive reads. Older database formats are
-rejected without migration; use a fresh database when upgrading to v0.9.0. Keep the old
-database and its matching released runner separately if you need historical reads.
+database, including inspection and archive reads. Runners with
+`rss-release-routing/v1` also transactionally upgrade the exact schema-1 format
+to schema 2 by adding empty release URL prefix lists. Existing configuration,
+markers, runs, plans, and delivery evidence are retained. Modified or unknown
+schemas are rejected before a read/write connection opens. Back up the database
+before upgrading; older runners cannot open schema 2, so downgrading requires
+the pre-upgrade backup.
+
+Formats predating v0.9.0 remain unsupported; use a fresh database for that
+compatibility reset. Keep the old database and matching released runner for
+historical reads.

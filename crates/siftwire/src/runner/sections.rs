@@ -14,7 +14,7 @@ impl ItemSection {
 
     fn of(item: &RunItemRow) -> Self {
         match (item.kind.as_str(), item.section.as_str()) {
-            (SOURCE_KIND_GITHUB_RELEASE, _) => Self::Releases,
+            (SOURCE_KIND_GITHUB_RELEASE, _) | (_, "releases") => Self::Releases,
             (_, "blogs") => Self::Blogs,
             (_, "forums") => Self::Forums,
             _ => Self::News,

@@ -57,19 +57,23 @@ to an email-ui git revision; development-only sibling paths must not ship.
 
 ### Brief sections share one presentation mapping
 
-`runner/sections.rs` groups GitHub releases as Releases, sources with section
-`blogs` as Blogs, sources with section `forums` as Forums, and other normal
-items as News. HTML, Markdown, and plain text use the same order and omit empty
+`runner/sections.rs` groups GitHub releases and items with section `releases`
+as Releases, items with section `blogs` as Blogs, items with section `forums`
+as Forums, and other normal items as News. Mixed RSS feeds can declare release
+URL prefixes through the existing source configuration action; collection
+records the matching item's section without changing its source kind or threshold. HTML, Markdown, and plain text use the same order and omit empty
 groups. Sports retain their recurring section. Required items and sports sit
 outside the shared optional allowance; no forum-specific quota or source kind
 is needed.
 
 - **Safety:** grouping uses recorded run items, not current configuration, and
   never rewrites saved plans or published pages.
-- **Capability:** separate headings and counts distinguish blogs and forum
-  discussions from news without changing source intake.
-- **User experience:** News and Forums share the existing optional allowance,
-  avoiding an independent stream of extra items.
+- **Capability:** separate headings and counts distinguish software updates,
+  blogs, and forum discussions from news. Configurable directory URL prefixes
+  handle mixed feeds without provider-specific source kinds, another agent call,
+  or a general rule language.
+- **User experience:** optional items share the existing allowance regardless of
+  section, avoiding an independent stream of extra items.
 
 ### Private modules own complete outcomes
 

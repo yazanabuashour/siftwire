@@ -67,6 +67,8 @@ struct RunResult {
 struct Item {
     title: String,
     url: String,
+    #[serde(default)]
+    section: String,
 }
 
 #[derive(Deserialize)]
@@ -182,19 +184,19 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
     )?)?;
     assert!(!configured.rejected, "source configuration was rejected");
     assert_eq!(configured.runner_protocol, "siftwire-runner/v6");
-    assert!(
-        configured
-            .capabilities
-            .iter()
-            .any(|value| value == "current-news/v1")
-    );
-    assert!(
-        configured
-            .capabilities
-            .iter()
-            .any(|capability| capability == "prepared-delivery/v1"),
-        "prepared delivery capability is missing"
-    );
+    for capability in [
+        "current-news/v1",
+        "prepared-delivery/v1",
+        "rss-release-routing/v1",
+    ] {
+        assert!(
+            configured
+                .capabilities
+                .iter()
+                .any(|value| value == capability),
+            "config omitted {capability}"
+        );
+    }
 
     let run: RunResult = decode(invoke_json(
         &["brief", "--db", &database_text],
@@ -203,17 +205,16 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
     )?)?;
     assert!(!run.rejected, "run was rejected");
     assert_eq!(run.runner_protocol, "siftwire-runner/v6");
-    assert!(
-        run.capabilities
-            .iter()
-            .any(|value| value == "current-news/v1")
-    );
-    assert!(
-        run.capabilities
-            .iter()
-            .any(|capability| capability == "prepared-delivery/v1"),
-        "run omitted prepared delivery capability"
-    );
+    for capability in [
+        "current-news/v1",
+        "prepared-delivery/v1",
+        "rss-release-routing/v1",
+    ] {
+        assert!(
+            run.capabilities.iter().any(|value| value == capability),
+            "run omitted {capability}"
+        );
+    }
     assert_eq!(run.candidates.len(), 1, "candidate count differs");
     assert_eq!(
         run.delivery_message_scope, "current_brief_only",

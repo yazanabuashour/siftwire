@@ -9,12 +9,14 @@ pub const RUNNER_PROTOCOL: &str = "siftwire-runner/v6";
 pub const CAPABILITY_PREPARED_DELIVERY: &str = "prepared-delivery/v1";
 pub const CAPABILITY_SPORTS_UPDATES: &str = "sports-updates/v1";
 pub const CAPABILITY_CURRENT_NEWS: &str = "current-news/v1";
+pub const CAPABILITY_RSS_RELEASE_ROUTING: &str = "rss-release-routing/v1";
 
 fn capabilities() -> Vec<String> {
     vec![
         CAPABILITY_PREPARED_DELIVERY.to_owned(),
         CAPABILITY_SPORTS_UPDATES.to_owned(),
         CAPABILITY_CURRENT_NEWS.to_owned(),
+        CAPABILITY_RSS_RELEASE_ROUTING.to_owned(),
     ]
 }
 

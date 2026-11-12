@@ -8,7 +8,7 @@ use super::{ConfigMutationError, Source, Store, bool_i64, format_timestamp, norm
 
 const SOURCE_COLUMNS: &str = "key, label, kind, url, repo, section, threshold, enabled, \
     outlet_extraction, dedup_group, priority_rank, \
-    schedule_format, schedule_filter, api_key";
+    schedule_format, schedule_filter, api_key, release_url_prefixes_json";
 
 impl Store {
     /// Lists sources ordered by key, rejecting unsupported stored configuration.
@@ -100,6 +100,15 @@ impl Store {
 
 fn source_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Source> {
     let enabled = row.get::<_, i64>(7)?;
+    let release_url_prefixes_json = row.get::<_, String>(14)?;
+    let release_url_prefixes =
+        serde_json::from_str(&release_url_prefixes_json).map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                14,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?;
     Ok(Source {
         key: row.get(0)?,
         label: row.get(1)?,
@@ -115,6 +124,7 @@ fn source_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Source> {
         schedule_format: row.get(11)?,
         schedule_filter: row.get(12)?,
         api_key: row.get(13)?,
+        release_url_prefixes,
     })
 }
 
@@ -124,19 +134,22 @@ fn upsert_source_tx(
     now: DateTime<Utc>,
 ) -> Result<()> {
     let timestamp = format_timestamp(now);
+    let release_url_prefixes = serde_json::to_string(&source.release_url_prefixes)
+        .context("encode release URL prefixes")?;
     transaction
         .execute(
             "INSERT INTO brief_source (key, label, kind, url, repo, section, threshold, enabled, \
              outlet_extraction, dedup_group, priority_rank, \
-             schedule_format, schedule_filter, api_key, created_at, updated_at) VALUES \
-             (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16) \
+             schedule_format, schedule_filter, api_key, created_at, updated_at, release_url_prefixes_json) VALUES \
+             (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17) \
              ON CONFLICT(key) DO UPDATE SET label = excluded.label, kind = excluded.kind, \
              url = excluded.url, repo = excluded.repo, section = excluded.section, \
              threshold = excluded.threshold, enabled = excluded.enabled, \
              outlet_extraction = excluded.outlet_extraction, dedup_group = excluded.dedup_group, \
              priority_rank = excluded.priority_rank, \
              schedule_format = excluded.schedule_format, schedule_filter = excluded.schedule_filter, \
-             api_key = excluded.api_key, updated_at = excluded.updated_at",
+             api_key = excluded.api_key, updated_at = excluded.updated_at, \
+             release_url_prefixes_json = excluded.release_url_prefixes_json",
             params![
                 source.key,
                 source.label,
@@ -154,6 +167,7 @@ fn upsert_source_tx(
                 source.api_key,
                 timestamp,
                 timestamp,
+                release_url_prefixes,
             ],
         )
         .with_context(|| format!("upsert source {}", source.key))?;

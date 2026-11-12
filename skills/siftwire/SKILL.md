@@ -87,11 +87,17 @@ These feed-processing fields are optional:
 - `outlet_extraction`: `none` or `title_suffix`
 - `dedup_group`: same-topic grouping across sources
 - `priority_rank`: lower values win duplicate selection after publication recency
+- `release_url_prefixes`: RSS-only absolute HTTP(S) directory URLs ending in `/`,
+  without credentials, queries, or fragments; matching items use Releases while
+  others keep the source section
+
+Require `rss-release-routing/v1` before configuring `release_url_prefixes` or an
+RSS source with section `releases`.
 
 Use `threshold: "always"` for required items. Replacement actions replace the
 entire corresponding set; an empty array clears it. `max_delivery_items`
-defaults to 7 optional items shared across News and Forums. Required items and
-sports do not consume that allowance. Sports fixtures repeat for 7 days before
+defaults to 7 optional items shared across all delivery sections. Required items
+and sports do not consume that allowance. Sports fixtures repeat for 7 days before
 kickoff and final results repeat for 3 days after kickoff by default.
 `sports_timezone` is an IANA time zone and defaults to `America/Chicago`.
 

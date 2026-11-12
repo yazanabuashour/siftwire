@@ -49,6 +49,11 @@ pub struct Source {
     pub repo: String,
     #[serde(deserialize_with = "crate::serde_util::null_default")]
     pub section: String,
+    #[serde(
+        deserialize_with = "crate::serde_util::null_default",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub release_url_prefixes: Vec<String>,
     #[serde(deserialize_with = "crate::serde_util::null_default")]
     pub threshold: String,
     #[serde(deserialize_with = "crate::serde_util::null_default")]
@@ -80,6 +85,53 @@ pub struct Source {
         skip_serializing_if = "String::is_empty"
     )]
     pub api_key: String,
+}
+
+impl Source {
+    #[must_use]
+    pub fn section_for_url(&self, value: &str) -> &str {
+        if !self.release_url_prefixes.is_empty()
+            && Url::parse(value).is_ok_and(|url| {
+                self.release_url_prefixes
+                    .iter()
+                    .any(|prefix| url.as_str().starts_with(prefix))
+            })
+        {
+            "releases"
+        } else {
+            &self.section
+        }
+    }
+}
+
+fn normalize_release_url_prefixes(source: &mut Source) -> Result<()> {
+    if source.kind != SOURCE_KIND_RSS && !source.release_url_prefixes.is_empty() {
+        bail!(
+            "source {:?} release_url_prefixes apply only to rss sources",
+            source.key
+        );
+    }
+    for prefix in &mut source.release_url_prefixes {
+        let value = prefix.trim();
+        validate_fetch_url(value).map_err(|error| {
+            anyhow::anyhow!("source {:?} release_url_prefixes: {error}", source.key)
+        })?;
+        let url = Url::parse(value)?;
+        if !matches!(url.scheme(), "http" | "https")
+            || url.query().is_some()
+            || url.fragment().is_some()
+            || !url.path().ends_with('/')
+        {
+            bail!(
+                "source {:?} release_url_prefixes must be absolute HTTP(S) directory URLs ending in / without a query or fragment",
+                source.key
+            );
+        }
+        *prefix = url.into();
+    }
+    source.release_url_prefixes.sort();
+    source.release_url_prefixes.dedup();
+    Ok(())
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -120,6 +172,7 @@ pub fn normalize_source(mut source: Source) -> Result<Source> {
     source.schedule_filter = source.schedule_filter.trim().to_lowercase();
     // API keys are case-sensitive; trim only.
     source.api_key = source.api_key.trim().to_owned();
+    normalize_release_url_prefixes(&mut source)?;
     validate_source_fields(&mut source)?;
     Ok(source)
 }

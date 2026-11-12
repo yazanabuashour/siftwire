@@ -69,7 +69,7 @@ pub fn item_to_brief_item(source: &Source, item: &FetchedItem) -> BriefItem {
         source_key: source.key.clone(),
         source_label: source.label.clone(),
         kind: source.kind.clone(),
-        section: source.section.clone(),
+        section: source.section_for_url(&item.url).to_owned(),
         threshold: source.threshold.clone(),
         priority_rank: source.priority_rank,
         title: item.title.clone(),

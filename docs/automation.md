@@ -191,8 +191,8 @@ The projection keeps candidate order and membership, and it adds each candidate'
 `candidate_index`. It drops identifier aliases, fetch statistics, paths, and
 transport bodies. The host binds selected indexes to URLs in the full brief.
 
-News and Forums share the optional allowance. Required blogs, releases, and
-sports remain outside it. Prepared bodies separate each populated category;
+Optional items share the allowance across all delivery sections. Required items
+and sports remain outside it. Prepared bodies separate each populated category;
 empty categories do not add headings.
 
 Selector stderr diagnostics warn without blocking delivery. `selection-receipt.json` stays
@@ -238,7 +238,10 @@ them.
    fi
    ```
 
-   If a check fails, finish or reconcile that state first.
+   If a check fails, finish or reconcile that state first. Before replacing the
+   runner, preserve a consistent database backup and the installed runner and
+   skill. Schema-changing upgrades require that backup for rollback; an older
+   runner cannot open a newer schema.
 
 2. Verify and install the runner at the path the unit uses:
 

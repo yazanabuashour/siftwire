@@ -83,6 +83,65 @@ fn source_and_outlet_normalization_preserve_the_durable_contract() -> Result<()>
 }
 
 #[test]
+fn rss_release_prefixes_match_normalized_directory_urls() -> Result<()> {
+    let source = normalize_source(Source {
+        release_url_prefixes: vec![
+            " https://EXAMPLE.COM:443/releases/ ".to_owned(),
+            "https://example.com/releases/".to_owned(),
+            "https://example.com/security/".to_owned(),
+        ],
+        ..valid_source("https://example.com/feed.xml")
+    })?;
+    assert_eq!(
+        source.release_url_prefixes,
+        [
+            "https://example.com/releases/",
+            "https://example.com/security/"
+        ]
+    );
+    for (url, section) in [
+        ("https://example.com/releases/v2?download=1", "releases"),
+        ("https://EXAMPLE.COM:443/security/fixes", "releases"),
+        ("https://example.com/releases/../news/update", "technology"),
+        ("https://example.com.evil/releases/v2", "technology"),
+        ("https://example.com/news/update", "technology"),
+        ("invalid URL", "technology"),
+    ] {
+        assert_eq!(source.section_for_url(url), section, "{url}");
+    }
+    for prefix in [
+        "",
+        "/releases/",
+        "https://example.com/releases",
+        "https://example.com/releases/?query=1",
+        "https://example.com/releases/#fragment",
+        "https://user@example.com/releases/",
+        "file:///releases/",
+    ] {
+        let error = normalize_source(Source {
+            release_url_prefixes: vec![prefix.to_owned()],
+            ..source.clone()
+        })
+        .err()
+        .context("invalid release prefix accepted")?;
+        assert!(
+            error.to_string().contains("release_url_prefixes"),
+            "{error}"
+        );
+    }
+    let error = normalize_source(Source {
+        kind: "github_release".to_owned(),
+        url: String::new(),
+        repo: "owner/repository".to_owned(),
+        ..source
+    })
+    .err()
+    .context("non-RSS release prefixes accepted")?;
+    assert!(error.to_string().contains("apply only to rss"), "{error}");
+    Ok(())
+}
+
+#[test]
 fn removed_source_fields_and_choices_are_not_writable() -> Result<()> {
     for value in ["none", "google_news_article_url"] {
         let error =

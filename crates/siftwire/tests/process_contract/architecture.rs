@@ -16,7 +16,8 @@ fn config_preserves_raw_sources_cursors_and_historical_reporting() -> Result<()>
             "key":"feed", "label":"Recorded label", "kind":"rss", "url":"https://example.test/feed",
             "section":"technology", "threshold":"always", "enabled":true,
             "priority_rank":i64::MIN, "dedup_group":"preserve",
-            "outlet_extraction":"title_suffix"
+            "outlet_extraction":"title_suffix",
+            "release_url_prefixes":["https://example.test/releases/"]
         }}),
         &environment,
     )?;
@@ -165,6 +166,110 @@ fn required_items_leave_the_shared_news_and_forum_allowance_intact() -> Result<(
             .html
             .contains("1 blog post, 1 news story, 1 forum discussion.")
     );
+    Ok(())
+}
+
+#[test]
+fn mixed_rss_release_routing_preserves_saved_sections_and_optional_limits() -> Result<()> {
+    let temp = TempDir::new()?;
+    let database = temp
+        .path()
+        .join("routing.sqlite")
+        .to_string_lossy()
+        .into_owned();
+    let environment = BTreeMap::from([("SIFTWIRE_EVAL_ALLOW_FILE_URLS", "1")]);
+    let config_args = ["config", "--db", &database];
+    let brief_args = ["brief", "--db", &database];
+    let feed = temp.path().join("mixed.xml");
+    fs::write(
+        &feed,
+        format!(
+            r#"<rss version="2.0"><channel><title>Project</title>
+        <item><title>Version two</title><link>https://example.test/project/release/v2</link><pubDate>{published}</pubDate></item>
+        <item><title>Security releases</title><link>https://example.test/project/security/patches</link><pubDate>{published}</pubDate></item>
+        <item><title>Project news</title><link>https://example.test/project/news</link><pubDate>{published}</pubDate></item>
+        </channel></rss>"#,
+            published = chrono::Utc::now().to_rfc2822()
+        ),
+    )?;
+    let url = url::Url::from_file_path(&feed).map_err(|()| anyhow::anyhow!("fixture URL"))?;
+    let configured = invoke_json(
+        &config_args,
+        &json!({"action":"upsert_source","source":{
+            "key":"project","label":"Project","kind":"rss","url":url,
+            "section":"technology","threshold":"medium","enabled":true,
+            "release_url_prefixes":[
+                "https://example.test/project/release/",
+                "https://example.test/project/security/"
+            ]
+        }}),
+        &environment,
+    )?;
+    invoke_json(
+        &config_args,
+        &json!({"action":"set_brief_options","max_delivery_items":2}),
+        &environment,
+    )?;
+    let run: RunResult = decode(invoke_json(
+        &brief_args,
+        &json!({"action":"run_brief"}),
+        &environment,
+    )?)?;
+    assert_eq!(run.candidate_slots, 2);
+    assert!(run.must_include.is_empty());
+    assert_eq!(run.candidates.len(), 3);
+    for item in &run.candidates {
+        let section = if item.title == "Project news" {
+            "technology"
+        } else {
+            "releases"
+        };
+        assert_eq!(item.section, section);
+    }
+    let mut source = configured
+        .pointer("/sources/0")
+        .context("configured source")?
+        .clone();
+    source.as_object_mut().context("source fields")?.extend([
+        ("release_url_prefixes".to_owned(), json!([])),
+        ("section".to_owned(), json!("blogs")),
+    ]);
+    invoke_json(
+        &config_args,
+        &json!({"action":"upsert_source","source":source}),
+        &environment,
+    )?;
+    let rejected: DeliveryResult = decode(invoke_json(
+        &brief_args,
+        &json!({"action":"prepare_delivery","run_id":run.run_id,"candidate_indexes":[0,1,2]}),
+        &environment,
+    )?)?;
+    assert!(rejected.rejected);
+    assert!(rejected.rejection_reason.contains("optional limit is 2"));
+    let indexes = run
+        .candidates
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| item.title != "Version two")
+        .map(|(index, _)| index)
+        .collect::<Vec<_>>();
+    let prepared: DeliveryResult = decode(invoke_json(
+        &brief_args,
+        &json!({"action":"prepare_delivery","run_id":run.run_id,"candidate_indexes":indexes}),
+        &environment,
+    )?)?;
+    assert!(!prepared.rejected);
+    assert_eq!(
+        prepared.message,
+        "## Releases\n\n- [Security releases](<https://example.test/project/security/patches>)\n\n## News\n\n- [Project news](<https://example.test/project/news>)"
+    );
+    assert!(prepared.html.contains("1 release, 1 news story."));
+    let releases = prepared
+        .html
+        .find(">Releases</h2>")
+        .context("Releases heading")?;
+    let news = prepared.html.find(">News</h2>").context("News heading")?;
+    assert!(releases < news);
     Ok(())
 }
 

@@ -2,6 +2,11 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
+## v0.15.0
+
+- Route mixed RSS release and security posts into Releases using configurable `release_url_prefixes`; preserve other posts in their source section and keep selection budgets unchanged.
+- Advertise `rss-release-routing/v1` and upgrade the exact schema-1 database format to schema 2 without resetting configuration, markers, history, or prepared plans.
+
 ## v0.14.0
 
 - Separate Releases, Blogs, News, Forums, and Sports in HTML, Markdown, and plain text. Count each category separately and omit empty sections.
@@ -50,6 +55,10 @@ Public release notes are mirrored in `docs/release-notes/`.
 - Apply the console runner deadline to stdin writes and output collection, and accept bracketed IPv6 Host headers with numeric ports.
 
 ## Releases
+
+- [v0.15.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.15.0)
+  routes mixed RSS software updates into Releases using configured URL prefixes.
+  See the [release notes](docs/release-notes/v0.15.0.md) before the additive schema upgrade.
 
 - [v0.14.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.14.0)
   retires Google News resolution and separates brief categories with a shared

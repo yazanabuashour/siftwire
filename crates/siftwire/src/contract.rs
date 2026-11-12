@@ -10,6 +10,7 @@ pub const CAPABILITY_PREPARED_DELIVERY: &str = "prepared-delivery/v1";
 pub const CAPABILITY_SPORTS_UPDATES: &str = "sports-updates/v1";
 pub const CAPABILITY_CURRENT_NEWS: &str = "current-news/v1";
 pub const CAPABILITY_RSS_RELEASE_ROUTING: &str = "rss-release-routing/v1";
+pub const CAPABILITY_READER_PRIORITIES: &str = "reader-priorities/v1";
 
 fn capabilities() -> Vec<String> {
     vec![
@@ -17,6 +18,7 @@ fn capabilities() -> Vec<String> {
         CAPABILITY_SPORTS_UPDATES.to_owned(),
         CAPABILITY_CURRENT_NEWS.to_owned(),
         CAPABILITY_RSS_RELEASE_ROUTING.to_owned(),
+        CAPABILITY_READER_PRIORITIES.to_owned(),
     ]
 }
 
@@ -58,6 +60,7 @@ pub struct ConfigRequest {
     pub sports_pre_game_days: Option<i64>,
     pub sports_post_game_days: Option<i64>,
     pub sports_timezone: Option<String>,
+    pub reader_priorities: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -127,6 +130,8 @@ pub struct BriefResult {
     pub sports_updates: Vec<SportsUpdate>,
     #[serde(skip_serializing_if = "String::is_empty")]
     pub health_footnote: String,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub reader_priorities: String,
     pub health_delta: HealthDelta,
     #[serde(skip_serializing_if = "is_default")]
     pub max_delivery_items: i64,

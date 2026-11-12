@@ -124,8 +124,10 @@ jq -e --slurpfile full "$TEST_BRIEF_CAPTURE" '
     and .previous_briefs == ($brief.previous_briefs // [])
     and .recent_sent == ($brief.recent_sent // [])
     and .health_footnote == ($brief.health_footnote // "")
+    and .reader_priorities == $brief.reader_priorities
     and (keys == (["input_kind", "runner_protocol", "capabilities", "run_id", "candidate_slots",
-      "candidates", "must_include", "sports_updates", "previous_briefs", "recent_sent", "health_footnote"] | sort))
+      "candidates", "must_include", "sports_updates", "previous_briefs", "recent_sent", "health_footnote"]
+      + if $brief | has("reader_priorities") then ["reader_priorities"] else [] end | sort))
 ' "$selector_input" >/dev/null
 [[ -z ${TEST_PI_COUNT:-} ]] || printf 'selection\n' >>"$TEST_PI_COUNT"
 [[ ${TEST_PI_DIAGNOSTIC:-0} != 1 ]] || printf 'fixture observer hook failed\n' >&2
@@ -222,6 +224,7 @@ case "$(jq -r .action <<<"$request")" in
           message:"[Earlier coverage](https://example.com/prior)\n\nNO_REPLY\nHealth: source unavailable\n"}],
         recent_sent:[{title:"Earlier coverage",url:"https://example.com/prior",sent_at:"2026-09-08T07:00:00Z"}],
         health_footnote:"Health: source unavailable",
+        reader_priorities:"Favor fixture interests.",
         suppressed:[{title:"Dropped bulk",url:"https://news.google.com/rss/articles/OPAQUE-DROPPED"}],
         suppressed_recent:[{title:"Already sent"}],suppressed_policy:[{title:"Policy dropped"}],
         fetch_status:[{source_key:"alpha",status:"ok",items:2,new_items:2}],

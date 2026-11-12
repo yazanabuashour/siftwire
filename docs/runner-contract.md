@@ -23,8 +23,10 @@ separate `source` command.
 Every `config` and `brief` result identifies `runner_protocol` and
 `capabilities`. Consumers must require the protocol and capabilities they use
 before acting. This checkout uses `siftwire-runner/v6` with `prepared-delivery/v1`,
-`sports-updates/v1`, `current-news/v1`, and `rss-release-routing/v1`. Require
-`rss-release-routing/v1` before configuring RSS release sections or URL prefixes.
+`sports-updates/v1`, `current-news/v1`, `rss-release-routing/v1`, and
+`reader-priorities/v1`. Require `rss-release-routing/v1` before configuring RSS
+release sections or URL prefixes, and `reader-priorities/v1` before setting
+`reader_priorities`.
 The binary release version does not replace capability checks.
 
 ## Upgrade from v5
@@ -90,7 +92,7 @@ The `action` field accepts these values:
 | `upsert_source`           | Add or replace one normalized source.                                    |
 | `delete_source`           | Delete one source by key.                                                |
 | `replace_outlet_policies` | Transactionally replace all outlet policies. An empty array clears them. |
-| `set_brief_options`       | Set optional-item limits, sports windows, and the sports time zone.      |
+| `set_brief_options`       | Set optional-item limits, sports windows, the sports time zone, and reader priorities. |
 
 ### Results
 
@@ -170,7 +172,10 @@ delivery sections together. Required items and sports do not consume this allowa
 `candidate_slots` reports the saved optional allowance for the run.
 `sports_pre_game_days` defaults to 7, `sports_post_game_days` defaults to 3, and
 `sports_timezone` defaults to the IANA value `America/Chicago`.
-`set_brief_options` updates any supplied subset in one transaction.
+`reader_priorities` is free text describing the reader's interests; an empty
+string clears it. Brief results include it when set, and the automation selector
+receives it with the candidates. `set_brief_options` updates any supplied subset
+in one transaction.
 
 ### Publisher policies
 
@@ -220,7 +225,7 @@ on the action:
 | Purpose | Fields |
 | --- | --- |
 | Rejection and run identity | `rejection_reason`, `run_id` |
-| Selection | `must_include`, `candidates`, `max_delivery_items` |
+| Selection | `must_include`, `candidates`, `max_delivery_items`, `reader_priorities` |
 | Recent context | `previous_briefs`, `recent_sent`, `delivery_message_scope` |
 | Suppression | `suppressed`, `suppressed_recent`, `suppressed_policy` |
 | Fetch and health | `fetch_status`, `health_footnote` |

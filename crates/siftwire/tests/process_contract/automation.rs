@@ -60,9 +60,10 @@ fn automation_replaces_itself_with_the_embedded_launcher() -> Result<()> {
     let output = invoke(&["automation"], None, &environment)?;
     assert_eq!(output.status.code(), Some(7), "override exit: {output:?}");
     assert!(
-        fs::read_to_string(&capture)?.starts_with("custom-binary\ncustom-prompt\n"),
-        "operator overrides must reach the launcher"
+        fs::read_to_string(&capture)?
+            .starts_with(&format!("custom-binary\n{}\n", prompt.display())),
+        "the binary override reaches the launcher; the embedded prompt always does"
     );
-    assert!(!directory.exists(), "override must not install the prompt");
+    assert_eq!(fs::read_to_string(&prompt)?, PROMPT, "reinstalled prompt");
     Ok(())
 }

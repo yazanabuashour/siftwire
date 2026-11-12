@@ -23,8 +23,9 @@ use crate::storage::{
     DEFAULT_MAX_DELIVERY_ITEMS, DEFAULT_SPORTS_POST_GAME_DAYS, DEFAULT_SPORTS_PRE_GAME_DAYS,
     DEFAULT_SPORTS_TIMEZONE, Delivery, FetchLog, MAX_DELIVERY_ITEMS_UPPER_BOUND,
     RUN_ITEM_CANDIDATE, RUN_ITEM_DROPPED, RUN_ITEM_MUST_INCLUDE, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
-    RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS, RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS,
-    RUNTIME_CONFIG_SPORTS_TIMEZONE, RunDeliveryContext, RunItemRow, Store,
+    RUNTIME_CONFIG_READER_PRIORITIES, RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
+    RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS, RUNTIME_CONFIG_SPORTS_TIMEZONE, RunDeliveryContext,
+    RunItemRow, Store,
 };
 
 use super::delivery;
@@ -132,6 +133,10 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
         sports_section,
         sports_updates,
         health_footnote,
+        reader_priorities: runtime_config
+            .get(RUNTIME_CONFIG_READER_PRIORITIES)
+            .map(|value| value.trim().to_owned())
+            .unwrap_or_default(),
         health_delta,
         max_delivery_items: options.max_delivery_items,
         candidate_slots,

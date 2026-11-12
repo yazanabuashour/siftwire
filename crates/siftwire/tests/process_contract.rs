@@ -60,6 +60,8 @@ struct RunResult {
     #[serde(default)]
     candidate_slots: usize,
     #[serde(default)]
+    reader_priorities: String,
+    #[serde(default)]
     suppressed_recent: Vec<serde_json::Value>,
 }
 
@@ -188,6 +190,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         "current-news/v1",
         "prepared-delivery/v1",
         "rss-release-routing/v1",
+        "reader-priorities/v1",
     ] {
         assert!(
             configured
@@ -209,6 +212,7 @@ fn config_and_delivery_through_process_contract() -> Result<()> {
         "current-news/v1",
         "prepared-delivery/v1",
         "rss-release-routing/v1",
+        "reader-priorities/v1",
     ] {
         assert!(
             run.capabilities.iter().any(|value| value == capability),
@@ -554,7 +558,8 @@ fn sports_updates_use_their_own_recurring_section() -> Result<()> {
             "max_delivery_items": 5,
             "sports_pre_game_days": 7,
             "sports_post_game_days": 3,
-            "sports_timezone": "UTC"
+            "sports_timezone": "UTC",
+            "reader_priorities": "  Favor team news.\n"
         }),
         &environment,
     )?)?;
@@ -596,6 +601,7 @@ fn sports_updates_use_their_own_recurring_section() -> Result<()> {
         run.candidate_slots, 5,
         "sports consumed normal candidate capacity"
     );
+    assert_eq!(run.reader_priorities, "Favor team news.");
     assert_eq!(run.sports_updates.len(), 2, "sports updates are incomplete");
     assert!(run.sports_section.contains("### Upcoming fixtures"));
     assert!(run.sports_section.contains("### Recent results"));

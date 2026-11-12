@@ -43,18 +43,16 @@ Each variable below is optional.
 | --------------------------------------------------------- | ------------------------------------------------------ |
 | `SIFTWIRE_STATE_DIR`, `SIFTWIRE_RUN_ROOT`                 | Move the state root or the run directories.            |
 | `SIFTWIRE_BIN`                                            | Run another binary. The default is the binary started. |
-| `SIFTWIRE_RENDER_PROMPT`                                  | Use another selector prompt.                           |
 | `MAILGATE_BIN`                                            | Change the email transport command.                    |
 | `SIFTWIRE_NOTES_*`                                        | [Publish to Notes](#publish-to-notes).                 |
 
-Pi runs from the prompt's directory with `--approve` for that directory only, so
-point `SIFTWIRE_RENDER_PROMPT` at a directory you trust. Do not load the full
-SiftWire skill into selection; ordinary research skills stay available.
+Pi runs from the embedded prompt's private directory with `--approve` for that
+directory only. Do not load the full SiftWire skill into selection; ordinary
+research skills stay available.
 
-The embedded prompt holds the selection contract and general evidence rules, and
-no reader priorities. To add yours, copy
-`crates/siftwire/automation/siftwire-render.md`, keep its output contract and
-authority rules, and set `SIFTWIRE_RENDER_PROMPT` to your copy.
+The embedded prompt holds the selection contract and general editorial rules.
+Your interests are configuration: store them with `set_brief_options`
+`reader_priorities`, and the selector receives them with each run's candidates.
 
 The launcher removes Resend credentials before starting SiftWire or Pi.
 Mailgate loads the Resend key in its own process.
@@ -282,7 +280,7 @@ them.
    ```
 
 A release that embeds the launcher replaces the previous launcher and embedded
-prompt with step 2. A prompt set through `SIFTWIRE_RENDER_PROMPT` stays in place. An upgrade that crosses `siftwire-runner` needs matching consumers; a
+prompt with step 2. An upgrade that crosses `siftwire-runner` needs matching consumers; a
 fresh database loses delivery history and latest-seen markers.
 
 ### Move an older host onto the embedded launcher
@@ -292,12 +290,11 @@ launcher runs new binaries, but `siftwire automation` cannot start old ones.
 
 1. Install the new binary. Do not change the unit. A timer firing now runs the old
    launcher against the new binary.
-2. Set `ExecStart=%h/.local/bin/siftwire automation`. To keep the host's prompt,
-   also set `SIFTWIRE_RENDER_PROMPT` to it. Reload systemd and start one run. A pending delivery or saved selection from the old launcher finishes
+2. Set `ExecStart=%h/.local/bin/siftwire automation`. Move the host prompt's
+   reader priorities into `reader_priorities`. Reload systemd and start one run. A pending delivery or saved selection from the old launcher finishes
    here, without a resend, because both launchers share the state root, lock, and
    record schemas.
-3. After a clean scheduled run, remove the old launcher. Remove its prompt file
-   too, unless `SIFTWIRE_RENDER_PROMPT` uses it.
+3. After a clean scheduled run, remove the old launcher and its prompt file.
 
 To roll back before step 3, restore the old `ExecStart` first, then the old binary
 if needed. The reverse order fails with exit 2 on `unknown siftwire command`

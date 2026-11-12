@@ -11,7 +11,7 @@ notes_api_url="${SIFTWIRE_NOTES_API_URL:-}"
 notes_public_url="${SIFTWIRE_NOTES_PUBLIC_URL:-}"
 notes_token_file="${SIFTWIRE_NOTES_TOKEN_FILE:-}"
 notes_start_date="${SIFTWIRE_NOTES_START_DATE:-}"
-render_prompt="${SIFTWIRE_RENDER_PROMPT:?start this launcher through siftwire automation, or set SIFTWIRE_RENDER_PROMPT}"
+render_prompt="${SIFTWIRE_RENDER_PROMPT:?start this launcher through siftwire automation}"
 mailgate_bin="${MAILGATE_BIN:-mailgate}"
 pending_dir="$state_root/outbox/pending"
 sent_dir="$state_root/outbox/sent"
@@ -279,7 +279,8 @@ validate_brief_result() {
       if has_duplicate_url(.candidates) then "duplicate candidate URL" else empty end,
       if (.max_delivery_items | type != "number" or . < 1) then "max_delivery_items is missing or invalid" else empty end,
       (.candidate_slots as $slots | if (($slots | type) != "number" or $slots < 0 or $slots != ($slots | floor) or $slots > .max_delivery_items) then "candidate_slots is missing or invalid" else empty end),
-      if ((.health_footnote // "") | type != "string") then "health_footnote is not a string" else empty end
+      if ((.health_footnote // "") | type != "string") then "health_footnote is not a string" else empty end,
+      if ((.reader_priorities // "") | type != "string") then "reader_priorities is not a string" else empty end
     ) // empty
   ' <<<"$document")" || {
     printf 'result is not valid JSON'
@@ -548,7 +549,8 @@ else
       with_entries(select(.key | IN("title", "summary", "url", "source_key", "source_label",
         "kind", "section", "threshold", "priority_rank", "published_at", "outlet")));
     with_entries(select(.key | IN("runner_protocol", "capabilities", "run_id", "candidate_slots",
-      "must_include", "candidates", "sports_updates", "previous_briefs", "recent_sent", "health_footnote")))
+      "must_include", "candidates", "sports_updates", "previous_briefs", "recent_sent", "health_footnote",
+      "reader_priorities")))
     | .input_kind = "editorial_projection"
     | .must_include |= map(editorial_item)
     | .candidates |= (to_entries | map(.key as $index | .value | editorial_item + {candidate_index:$index}))

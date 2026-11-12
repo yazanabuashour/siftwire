@@ -21,8 +21,9 @@ use serde::de::DeserializeOwned;
 use crate::contract::{BriefRequest, BriefResult, ConfigRequest, ConfigResult, Paths};
 use crate::paths;
 use crate::storage::{
-    ConfigMutationError, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
-    RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS, RUNTIME_CONFIG_SPORTS_TIMEZONE, Store,
+    ConfigMutationError, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, RUNTIME_CONFIG_READER_PRIORITIES,
+    RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS, RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS,
+    RUNTIME_CONFIG_SPORTS_TIMEZONE, Store,
 };
 
 const EXIT_OK: ExitCode = ExitCode::SUCCESS;
@@ -337,6 +338,9 @@ fn set_brief_options(paths: Paths, store: &Store, request: &ConfigRequest) -> Re
             ));
         }
         values.push((RUNTIME_CONFIG_SPORTS_TIMEZONE, value.to_owned()));
+    }
+    if let Some(value) = request.reader_priorities.as_deref() {
+        values.push((RUNTIME_CONFIG_READER_PRIORITIES, value.trim().to_owned()));
     }
     if values.is_empty() {
         return Ok(rejected_config(

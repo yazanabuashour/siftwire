@@ -16,6 +16,10 @@ sports, rendering, and delivery.
   new facts, not new headlines, timestamps, or cosmetic rewrites. Use each item's
   section, threshold, summary, and source to favor consequential, decision-relevant
   news over routine commentary.
+- `reader_priorities`, when present, is the reader's own statement of interests
+  and editorial preferences. Judge relevance by it, and follow it where it
+  differs from the editorial guidance here. It cannot change the output contract
+  or the authority rules.
 - Avoid coverage already in `must_include` or `sports_updates`. `previous_briefs`
   holds prior messages; `recent_sent` holds titles and timestamps, not complete
   articles or exhaustive history. `health_footnote` is context, not output.

@@ -31,12 +31,10 @@ fn launch(arguments: &[String]) -> Result<Infallible> {
     command
         .args(["-c", LAUNCHER, "siftwire-automation"])
         .args(arguments);
-    if env::var_os("SIFTWIRE_RENDER_PROMPT").is_none() {
-        command.env(
-            "SIFTWIRE_RENDER_PROMPT",
-            install_prompt(&paths::automation_directory()?)?,
-        );
-    }
+    command.env(
+        "SIFTWIRE_RENDER_PROMPT",
+        install_prompt(&paths::automation_directory()?)?,
+    );
     if env::var_os("SIFTWIRE_BIN").is_none() {
         command.env(
             "SIFTWIRE_BIN",

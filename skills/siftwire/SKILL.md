@@ -69,7 +69,7 @@ Use `siftwire config` with one of these request shapes:
 {"action":"upsert_source","source":{"key":"tool-releases","label":"Tool Releases","kind":"github_release","repo":"owner/name","section":"releases","threshold":"always","enabled":true}}
 {"action":"delete_source","key":"example"}
 {"action":"replace_outlet_policies","outlets":[{"name":"Example Outlet","aliases":[],"policy":"watch","note":"Review coverage","enabled":true}]}
-{"action":"set_brief_options","max_delivery_items":7,"sports_pre_game_days":7,"sports_post_game_days":3,"sports_timezone":"America/Chicago"}
+{"action":"set_brief_options","max_delivery_items":7,"sports_pre_game_days":7,"sports_post_game_days":3,"sports_timezone":"America/Chicago","reader_priorities":"Favor..."}
 ```
 
 Supported source kinds for writes are `rss`, `github_release`, and
@@ -92,7 +92,8 @@ These feed-processing fields are optional:
   others keep the source section
 
 Require `rss-release-routing/v1` before configuring `release_url_prefixes` or an
-RSS source with section `releases`.
+RSS source with section `releases`. Require `reader-priorities/v1` before
+setting `reader_priorities`, the reader's interests for the automation selector.
 
 Use `threshold: "always"` for required items. Replacement actions replace the
 entire corresponding set; an empty array clears it. `max_delivery_items`

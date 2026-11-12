@@ -36,6 +36,7 @@ pub use run_items::{
 };
 
 pub const RUNTIME_CONFIG_MAX_DELIVERY_ITEMS: &str = "max_delivery_items";
+pub const RUNTIME_CONFIG_READER_PRIORITIES: &str = "reader_priorities";
 pub const RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS: &str = "sports_post_game_days";
 pub const RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS: &str = "sports_pre_game_days";
 pub const RUNTIME_CONFIG_SPORTS_TIMEZONE: &str = "sports_timezone";

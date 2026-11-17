@@ -1,7 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use chrono::{DateTime, Utc};
-
 use crate::contract::{BriefItem, CurrentNewsStatus, FetchStatus, HealthDelta};
 use crate::domain::Source;
 use crate::storage::FetchLog;
@@ -97,33 +95,6 @@ pub fn add_news_date_warning(
             ),
         );
     }
-}
-
-pub fn add_stale_heartbeat_warning(
-    runtime_config: &BTreeMap<String, String>,
-    current_warnings: &mut BTreeMap<String, String>,
-    now: DateTime<Utc>,
-) {
-    let Some(last_check) = runtime_config
-        .get("last_check")
-        .map(|value| value.trim())
-        .filter(|value| !value.is_empty())
-    else {
-        return;
-    };
-    let Ok(checked_at) = DateTime::parse_from_rfc3339(last_check) else {
-        return;
-    };
-    let elapsed = now.signed_duration_since(checked_at.with_timezone(&Utc));
-    if elapsed.num_hours() <= 4 {
-        return;
-    }
-    let hours = elapsed.num_hours();
-    let minutes = elapsed.num_minutes().rem_euclid(60);
-    let _previous = current_warnings.insert(
-        "runtime:last_check".to_owned(),
-        format!("`last_check` was {hours}h {minutes}m ago - heartbeat may be stalled"),
-    );
 }
 
 #[must_use]

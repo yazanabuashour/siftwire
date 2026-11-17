@@ -14,8 +14,7 @@ mod selection;
 pub use dedup::{CollectedItem, classify_and_dedupe};
 pub use fetcher::Fetcher;
 pub use health::{
-    add_recurring_failure_warnings, add_stale_heartbeat_warning, brief_summary,
-    build_health_footnote, enabled_source_keys,
+    add_recurring_failure_warnings, brief_summary, build_health_footnote, enabled_source_keys,
 };
 pub use model::FetchOutput;
 pub use process::process_source;

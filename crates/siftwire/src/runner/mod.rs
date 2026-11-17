@@ -5,6 +5,7 @@ mod email;
 mod evidence;
 mod format;
 mod notes;
+mod options;
 mod runs_cli;
 mod sections;
 
@@ -13,18 +14,13 @@ use std::io::{self, Read, Write};
 use std::process::ExitCode;
 
 use anyhow::{Result, bail};
-use chrono::{TimeDelta, Utc};
-use chrono_tz::Tz;
+use chrono::Utc;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
-use crate::contract::{BriefRequest, BriefResult, ConfigRequest, ConfigResult, Paths};
+use crate::contract::{ConfigRequest, ConfigResult, Paths};
 use crate::paths;
-use crate::storage::{
-    ConfigMutationError, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, RUNTIME_CONFIG_READER_PRIORITIES,
-    RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS, RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS,
-    RUNTIME_CONFIG_SPORTS_TIMEZONE, Store,
-};
+use crate::storage::{ConfigMutationError, Store};
 
 const EXIT_OK: ExitCode = ExitCode::SUCCESS;
 const EXIT_FAILURE: ExitCode = ExitCode::FAILURE;
@@ -46,8 +42,10 @@ pub fn run_process() -> ExitCode {
             println!("siftwire v{}", env!("CARGO_PKG_VERSION"));
             EXIT_OK
         }
-        "config" => run_config_process(&rest),
-        "brief" => run_brief_process(&rest),
+        "config" => run_json_task(&rest, "config", run_config_action),
+        "brief" => run_json_task(&rest, "brief", |paths, store, request| {
+            brief::run_action(paths, store, &request)
+        }),
         "runs" => runs_cli::run(&rest),
         "automation" => automation::run(&rest),
         "notes" => notes::run(&rest),
@@ -69,7 +67,11 @@ fn emit_json<T: serde::Serialize>(value: &T) -> ExitCode {
     }
 }
 
-fn run_config_process(arguments: &[String]) -> ExitCode {
+fn run_json_task<Q: DeserializeOwned, R: Serialize>(
+    arguments: &[String],
+    label: &str,
+    action: impl FnOnce(Paths, &Store, Q) -> Result<R>,
+) -> ExitCode {
     let database = match parse_database_argument(arguments) {
         Ok(value) => value,
         Err(error) => {
@@ -77,45 +79,18 @@ fn run_config_process(arguments: &[String]) -> ExitCode {
             return ExitCode::from(EXIT_USAGE_CODE);
         }
     };
-    let request = match decode_request::<ConfigRequest>() {
+    let request = match decode_request() {
         Ok(value) => value,
         Err(error) => {
-            eprintln!("decode config request: {error}");
+            eprintln!("decode {label} request: {error}");
             return EXIT_FAILURE;
         }
     };
-    match open_store(database.as_deref())
-        .and_then(|(paths, store)| run_config_action(paths, &store, request))
+    match open_store(database.as_deref()).and_then(|(paths, store)| action(paths, &store, request))
     {
-        Ok(result) => write_result(&result, "config"),
+        Ok(result) => write_result(&result, label),
         Err(error) => {
-            eprintln!("run config task: {error:#}");
-            EXIT_FAILURE
-        }
-    }
-}
-
-fn run_brief_process(arguments: &[String]) -> ExitCode {
-    let database = match parse_database_argument(arguments) {
-        Ok(value) => value,
-        Err(error) => {
-            eprintln!("{error}");
-            return ExitCode::from(EXIT_USAGE_CODE);
-        }
-    };
-    let request = match decode_request::<BriefRequest>() {
-        Ok(value) => value,
-        Err(error) => {
-            eprintln!("decode brief request: {error}");
-            return EXIT_FAILURE;
-        }
-    };
-    match open_store(database.as_deref())
-        .and_then(|(paths, store)| run_brief_action(paths, &store, &request))
-    {
-        Ok(result) => write_result(&result, "brief"),
-        Err(error) => {
-            eprintln!("run brief task: {error:#}");
+            eprintln!("run {label} task: {error:#}");
             EXIT_FAILURE
         }
     }
@@ -305,49 +280,10 @@ fn replace_outlets(paths: Paths, store: &Store, request: ConfigRequest) -> Resul
 }
 
 fn set_brief_options(paths: Paths, store: &Store, request: &ConfigRequest) -> Result<ConfigResult> {
-    let mut values = Vec::new();
-    if let Some(value) = request.max_delivery_items {
-        if let Err(error) = validate_max_delivery_items(value) {
-            return Ok(rejected_config(paths, error.to_string()));
-        }
-        values.push((RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, value.to_string()));
-    }
-    for (key, value) in [
-        (
-            RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS,
-            request.sports_pre_game_days,
-        ),
-        (
-            RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
-            request.sports_post_game_days,
-        ),
-    ] {
-        if let Some(value) = value {
-            if let Err(error) = validate_sports_days(key, value) {
-                return Ok(rejected_config(paths, error.to_string()));
-            }
-            values.push((key, value.to_string()));
-        }
-    }
-    if let Some(value) = request.sports_timezone.as_deref() {
-        let value = value.trim();
-        if value.is_empty() || value.parse::<Tz>().is_err() {
-            return Ok(rejected_config(
-                paths,
-                format!("{RUNTIME_CONFIG_SPORTS_TIMEZONE} must be an IANA time zone"),
-            ));
-        }
-        values.push((RUNTIME_CONFIG_SPORTS_TIMEZONE, value.to_owned()));
-    }
-    if let Some(value) = request.reader_priorities.as_deref() {
-        values.push((RUNTIME_CONFIG_READER_PRIORITIES, value.trim().to_owned()));
-    }
-    if values.is_empty() {
-        return Ok(rejected_config(
-            paths,
-            "set_brief_options requires at least one option".to_owned(),
-        ));
-    }
+    let values = match options::updates(request, Utc::now()) {
+        Ok(values) => values,
+        Err(error) => return Ok(rejected_config(paths, error.to_string())),
+    };
     store.set_runtime_config_values(&values)?;
     Ok(ConfigResult {
         paths,
@@ -386,34 +322,4 @@ fn usage(stdout: bool) {
     } else {
         eprintln!("{text}");
     }
-}
-
-fn validate_max_delivery_items(value: i64) -> Result<()> {
-    if !(1..=crate::storage::MAX_DELIVERY_ITEMS_UPPER_BOUND).contains(&value) {
-        bail!(
-            "{} must be between 1 and {}",
-            RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
-            crate::storage::MAX_DELIVERY_ITEMS_UPPER_BOUND
-        );
-    }
-    Ok(())
-}
-
-fn validate_sports_days(key: &str, value: i64) -> Result<()> {
-    let window = (value >= 0).then(|| TimeDelta::try_days(value)).flatten();
-    let valid = window.is_some_and(|window| {
-        if key == RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS {
-            Utc::now().checked_add_signed(window).is_some()
-        } else {
-            Utc::now().checked_sub_signed(window).is_some()
-        }
-    });
-    if !valid {
-        bail!("{key} must be a non-negative whole number of days that fits the date range");
-    }
-    Ok(())
-}
-
-fn run_brief_action(paths: Paths, store: &Store, request: &BriefRequest) -> Result<BriefResult> {
-    brief::run_action(paths, store, request)
 }

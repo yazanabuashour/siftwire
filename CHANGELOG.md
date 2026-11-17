@@ -2,6 +2,10 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
+## v0.16.3
+
+- Stop warning that a schedule is stalled based only on the time between collections. The host owns the schedule; `last_check` and feed health remain available.
+
 ## v0.16.2
 
 - Update the development evaluator and its validation tools. Production runner requests, the skill, and the database schema are unchanged.
@@ -69,6 +73,7 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Releases
 
+- [v0.16.3](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.3)
 - [v0.16.2](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.2)
 - [v0.16.1](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.1)
 - [v0.16.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.0)

@@ -22,7 +22,7 @@ contents. Coverage depends on what your sources publish and retain.
 If you are upgrading from v0.8.0 or earlier, read the
 [compatibility reset](docs/runner-v5-reset.md) first: you need a fresh database
 and matching consumers. Upgrading from v0.9.x preserves your database and
-configuration. v0.16.2 uses [runner v6](docs/runner-contract.md#upgrade-from-v5)
+configuration. v0.16.3 uses [runner v6](docs/runner-contract.md#upgrade-from-v5)
 with RSS release routing. If your database still uses schema 1, back it up before the additive
 [schema upgrade](docs/runner-contract.md#storage-selection). Update process
 consumers together when moving from v5.
@@ -34,16 +34,16 @@ sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/latest/d
 siftwire --version
 ```
 
-To pin the latest documented release, v0.16.2:
+To pin the latest documented release, v0.16.3:
 
 ```bash
-SIFTWIRE_VERSION=v0.16.2 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.16.2/install.sh)"
+SIFTWIRE_VERSION=v0.16.3 sh -c "$(curl -fsSL https://github.com/yazanabuashour/siftwire/releases/download/v0.16.3/install.sh)"
 siftwire --version
 ```
 
 Register the matching `skills/siftwire/SKILL.md` with your agent's skill system.
-For v0.16.2, use the `v0.16.2` repository tag or the release asset
-`siftwire_0.16.2_skill.tar.gz`. You need both the runner and its matching skill;
+For v0.16.3, use the `v0.16.3` repository tag or the release asset
+`siftwire_0.16.3_skill.tar.gz`. You need both the runner and its matching skill;
 no particular agent or skill directory is required.
 
 When upgrading, update the runner, skill, and process consumers together.

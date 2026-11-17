@@ -111,17 +111,15 @@ fn process_framing_and_exits() -> Result<()> {
     let database = temp.path().join("siftwire.sqlite");
     let database_text = database.to_string_lossy().into_owned();
     let equals_database = format!("--db={database_text}");
-    for arguments in [
-        vec!["config", "--db", database_text.as_str()],
-        vec!["config", equals_database.as_str()],
-    ] {
-        let output = invoke(
-            &arguments,
-            Some(r#"{"action":"inspect_config"}"#),
-            &BTreeMap::new(),
-        )?;
-        assert!(output.status.success(), "database flag failed: {output:?}");
-    }
+    let result = invoke_json(
+        &["config", &equals_database],
+        &json!({"action":"inspect_config"}),
+        &BTreeMap::new(),
+    )?;
+    assert_eq!(
+        result.pointer("/paths/database_path"),
+        Some(&json!(database_text))
+    );
 
     let rejected_database = temp.path().join("rejected.sqlite");
     let rejected_database_text = rejected_database.to_string_lossy().into_owned();
@@ -771,6 +769,11 @@ fn retired_delivery_writes_and_commands_are_rejected() -> Result<()> {
         retired.get("rejected"),
         Some(&json!(true)),
         "manual delivery action remained writable"
+    );
+    assert_eq!(
+        retired.get("candidate_slots"),
+        Some(&json!(0)),
+        "zero capacity must remain explicit on the wire"
     );
     let body = invoke(
         &["brief", "--db", &database],

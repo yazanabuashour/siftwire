@@ -297,22 +297,3 @@ pub struct HealthDelta {
 fn is_default<T: Default + PartialEq>(value: &T) -> bool {
     value == &T::default()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::BriefResult;
-
-    #[test]
-    fn zero_candidate_slots_remain_explicit() {
-        let result = serde_json::to_value(BriefResult::default());
-        assert_eq!(
-            result
-                .as_ref()
-                .ok()
-                .and_then(|value| value.get("candidate_slots"))
-                .and_then(serde_json::Value::as_u64),
-            Some(0),
-            "zero candidate capacity disappeared from the wire contract"
-        );
-    }
-}

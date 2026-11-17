@@ -81,6 +81,7 @@ A `config` request accepts these fields:
 - `sports_pre_game_days`
 - `sports_post_game_days`
 - `sports_timezone`
+- `reader_priorities`
 
 The `action` field accepts these values:
 
@@ -256,6 +257,8 @@ They may contain publisher markup. The runner omits absent summaries.
 `health_footnote` lists current failed checks and empty optional news feeds as
 well as health transitions. A successful empty feed does not establish an
 absence of news. Continuing failures remain visible even without a new warning.
+The runner records `runtime_config.last_check` for durable collections. It does not
+infer a missed run from the gap between checks; monitor the host schedule separately.
 
 ### Sports results
 

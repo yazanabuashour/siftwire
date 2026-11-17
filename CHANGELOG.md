@@ -2,6 +2,10 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
+## v0.16.1
+
+- Refresh the feed parser, bundled SQLite driver, and HTTP client without changing the runner protocol or database schema.
+
 ## v0.16.0
 
 - Store the reader's interests as the `reader_priorities` brief option, advertised as `reader-priorities/v1`. Brief results carry it and the automation selector receives it with the candidates; the embedded prompt follows it over its general editorial guidance.
@@ -61,6 +65,7 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Releases
 
+- [v0.16.1](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.1)
 - [v0.16.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.0)
   stores reader interests as configuration and always selects with the embedded prompt.
   See the [release notes](docs/release-notes/v0.16.0.md) to move a host prompt into `reader_priorities`.

@@ -211,7 +211,7 @@ fn reopening_preserves_configuration_state_and_delivery_evidence() -> Result<()>
         2
     );
     let source = store.list_sources(true)?.remove(0);
-    assert!(source.release_url_prefixes.is_empty());
+    assert_eq!(source.release_url_prefixes, Vec::<String>::new());
     store.upsert_source(Source {
         threshold: "medium".to_owned(),
         release_url_prefixes: vec!["https://example.test/releases/".to_owned()],
@@ -509,14 +509,14 @@ fn health_delta_previews_persists_and_resolves_by_warning_key() -> Result<()> {
     )]);
     let preview = store.health_delta(&first, false)?;
     assert_eq!(preview.new_warnings.len(), 1);
-    assert!(preview.resolved_warnings.is_empty());
+    assert_eq!(preview.resolved_warnings, Vec::<String>::new());
     assert_eq!(
         store.health_delta(&first, true)?.new_warnings,
         preview.new_warnings
     );
     let unchanged = store.health_delta(&first, true)?;
-    assert!(unchanged.new_warnings.is_empty());
-    assert!(unchanged.resolved_warnings.is_empty());
+    assert_eq!(unchanged.new_warnings, Vec::<String>::new());
+    assert_eq!(unchanged.resolved_warnings, Vec::<String>::new());
     let second = BTreeMap::from([(
         "feed:b".to_owned(),
         "Feed `b` failed this run (HTTP 502)".to_owned(),

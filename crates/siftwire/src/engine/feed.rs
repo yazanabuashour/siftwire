@@ -2,6 +2,7 @@ use anyhow::{Context, Result, bail, ensure};
 use chrono::SecondsFormat;
 use feed_rs::model::{Entry, FeedType, Link};
 use quick_xml::NsReader;
+use quick_xml::encoding::DecodingReader;
 use quick_xml::events::Event;
 use quick_xml::name::{Namespace, QName, ResolveResult};
 use regex::Regex;
@@ -116,17 +117,29 @@ fn entry_link(links: &[Link]) -> String {
         .map_or_else(String::new, |link| link.href.trim().to_owned())
 }
 
-const ATOM_NAMESPACE: Namespace<'_> = Namespace(b"http://www.w3.org/2005/Atom");
-const RSS_NAMESPACE: Namespace<'_> = Namespace(b"http://purl.org/rss/1.0/");
-const DC_NAMESPACE: Namespace<'_> = Namespace(b"http://purl.org/dc/elements/1.1/");
+const ATOM_NAMESPACE: Namespace<'_> = Namespace("http://www.w3.org/2005/Atom");
+const RSS_NAMESPACE: Namespace<'_> = Namespace("http://purl.org/rss/1.0/");
+const DC_NAMESPACE: Namespace<'_> = Namespace("http://purl.org/dc/elements/1.1/");
+
+type PublicationReader<'a> = NsReader<DecodingReader<&'a [u8]>>;
 
 fn publication_dates(body: &[u8], kind: &FeedType) -> Result<Vec<String>> {
-    let mut reader = NsReader::from_reader(body);
+    let mut decoder = DecodingReader::new(body);
+    let prolog = body.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(body);
+    if prolog.starts_with(b"<?xml")
+        && let Event::Decl(declaration) = quick_xml::Reader::from_reader(prolog).read_event()?
+        && let Some(encoding) = declaration.encoder()
+    {
+        decoder.set_encoding(encoding);
+    }
+    let mut reader = NsReader::from_reader(decoder);
     reader.config_mut().expand_empty_elements = true;
+    let mut buf = Vec::new();
     loop {
-        match reader.read_resolved_event()? {
+        buf.clear();
+        match reader.read_resolved_event_into(&mut buf)? {
             (namespace, Event::Start(root)) => {
-                if *kind == FeedType::Atom && root.local_name().as_ref() == b"entry" {
+                if *kind == FeedType::Atom && root.local_name().as_ref() == "entry" {
                     let declared = publication_namespace(&namespace, kind);
                     return Ok(entry_publication(&mut reader, kind, declared)?
                         .into_iter()
@@ -154,17 +167,20 @@ fn publication_namespace(namespace: &ResolveResult<'_>, kind: &FeedType) -> bool
 }
 
 fn container_publications(
-    reader: &mut NsReader<&[u8]>,
+    reader: &mut PublicationReader<'_>,
     kind: &FeedType,
     find_channel: bool,
 ) -> Result<Vec<String>> {
     let mut dates = Vec::new();
+    let mut buf = Vec::new();
+    let mut skip = Vec::new();
     loop {
-        match reader.read_resolved_event()? {
+        buf.clear();
+        match reader.read_resolved_event_into(&mut buf)? {
             (namespace, Event::Start(element)) => {
                 let name = element.local_name();
                 // feed-rs chooses the first direct channel by local name, regardless of namespace.
-                if find_channel && name.as_ref() == b"channel" {
+                if find_channel && name.as_ref() == "channel" {
                     return container_publications(reader, kind, false);
                 }
                 let declared = publication_namespace(&namespace, kind);
@@ -174,17 +190,17 @@ fn container_publications(
                         namespace,
                         ResolveResult::Unbound | ResolveResult::Unknown(_)
                     );
-                let entry_name: &[u8] = if *kind == FeedType::Atom {
-                    b"entry"
+                let entry_name = if *kind == FeedType::Atom {
+                    "entry"
                 } else {
-                    b"item"
+                    "item"
                 };
                 if !find_channel && feed_namespace && name.as_ref() == entry_name {
                     if let Some(date) = entry_publication(reader, kind, declared)? {
                         dates.push(date);
                     }
                 } else {
-                    reader.read_to_end(element.name())?;
+                    reader.read_to_end_into(element.name(), &mut skip)?;
                 }
             }
             (_, Event::End(_) | Event::Eof) => return Ok(dates),
@@ -194,39 +210,42 @@ fn container_publications(
 }
 
 fn entry_publication(
-    reader: &mut NsReader<&[u8]>,
+    reader: &mut PublicationReader<'_>,
     kind: &FeedType,
     declared: bool,
 ) -> Result<Option<String>> {
     let mut publication = None;
     let mut dublin_core = None;
     let mut has_link = false;
+    let mut buf = Vec::new();
+    let mut skip = Vec::new();
     loop {
-        match reader.read_resolved_event()? {
+        buf.clear();
+        match reader.read_resolved_event_into(&mut buf)? {
             (namespace, Event::Start(element)) => {
                 let name = element.local_name();
                 let native = publication_namespace(&namespace, kind);
-                let date_name: &[u8] = if *kind == FeedType::Atom {
-                    b"published"
+                let date_name = if *kind == FeedType::Atom {
+                    "published"
                 } else {
-                    b"pubDate"
+                    "pubDate"
                 };
                 if native && name.as_ref() == date_name {
                     let value = publication_text(reader)?;
                     publication.get_or_insert(value);
                 } else if *kind != FeedType::Atom
                     && namespace == ResolveResult::Bound(DC_NAMESPACE)
-                    && name.as_ref() == b"date"
+                    && name.as_ref() == "date"
                 {
                     let value = publication_text(reader)?;
                     dublin_core.get_or_insert(value);
                 } else if *kind == FeedType::RSS1
                     && (native || matches!(namespace, ResolveResult::Unknown(_)))
-                    && name.as_ref() == b"link"
+                    && name.as_ref() == "link"
                 {
                     has_link |= feed_link_has_text(reader, element.name())?;
                 } else {
-                    reader.read_to_end(element.name())?;
+                    reader.read_to_end_into(element.name(), &mut skip)?;
                 }
             }
             (_, Event::End(_)) => {
@@ -245,30 +264,32 @@ fn entry_publication(
     }
 }
 
-fn publication_text(reader: &mut NsReader<&[u8]>) -> Result<String> {
+fn publication_text(reader: &mut PublicationReader<'_>) -> Result<String> {
     let mut value = String::new();
     let mut nested = false;
+    let mut buf = Vec::new();
+    let mut skip = Vec::new();
     loop {
-        match reader.read_event()? {
-            Event::Text(text) => value.push_str(&text.decode()?),
-            Event::CData(text) => value.push_str(&text.decode()?),
+        buf.clear();
+        match reader.read_event_into(&mut buf)? {
+            Event::Text(text) => value.push_str(&text),
+            Event::CData(text) => value.push_str(&text),
             Event::GeneralRef(reference) => {
                 if let Some(character) = reference.resolve_char_ref()? {
                     value.push(character);
+                } else if let Some(resolved) =
+                    quick_xml::escape::resolve_predefined_entity(&reference)
+                {
+                    value.push_str(resolved);
                 } else {
-                    let name = reference.decode()?;
-                    if let Some(resolved) = quick_xml::escape::resolve_predefined_entity(&name) {
-                        value.push_str(resolved);
-                    } else {
-                        value.push('&');
-                        value.push_str(&name);
-                        value.push(';');
-                    }
+                    value.push('&');
+                    value.push_str(&reference);
+                    value.push(';');
                 }
             }
             Event::Start(element) => {
                 nested = true;
-                reader.read_to_end(element.name())?;
+                reader.read_to_end_into(element.name(), &mut skip)?;
             }
             Event::End(_) => {
                 return Ok(if nested {
@@ -287,15 +308,18 @@ fn publication_text(reader: &mut NsReader<&[u8]>) -> Result<String> {
     }
 }
 
-fn feed_link_has_text(reader: &mut NsReader<&[u8]>, end: QName<'_>) -> Result<bool> {
+fn feed_link_has_text(reader: &mut PublicationReader<'_>, end: QName<'_>) -> Result<bool> {
     // Match feed-rs child_as_text: only a leading nonempty text/CDATA/reference creates a link.
+    let mut buf = Vec::new();
+    let mut skip = Vec::new();
     loop {
-        let has_text = match reader.read_event()? {
+        buf.clear();
+        let has_text = match reader.read_event_into(&mut buf)? {
             Event::Text(text) if !text.is_empty() => true,
             Event::CData(text) if !text.is_empty() => true,
             Event::GeneralRef(_) => true,
             Event::Start(element) => {
-                reader.read_to_end(element.name())?;
+                reader.read_to_end_into(element.name(), &mut skip)?;
                 false
             }
             Event::End(_) => return Ok(false),
@@ -308,7 +332,7 @@ fn feed_link_has_text(reader: &mut NsReader<&[u8]>, end: QName<'_>) -> Result<bo
             | Event::PI(_)
             | Event::DocType(_) => continue,
         };
-        reader.read_to_end(end)?;
+        reader.read_to_end_into(end, &mut buf)?;
         return Ok(has_text);
     }
 }

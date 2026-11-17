@@ -443,7 +443,7 @@ fn archive_cli_pages_past_default_chunk_and_keeps_search_literal() -> Result<()>
         &BTreeMap::new(),
     )?;
     assert_eq!(unknown.status.code(), Some(1));
-    assert!(unknown.stdout.is_empty());
+    assert_eq!(unknown.stdout, b"");
     assert!(text(&unknown.stderr).contains("run not found"));
     Ok(())
 }

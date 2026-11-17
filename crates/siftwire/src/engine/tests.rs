@@ -687,6 +687,16 @@ fn current_news_preserves_declared_feed_encoding() -> Result<()> {
         item.published_at, "Thu, 23 Apr 2026 11:00:00 GMT",
         "declared encoding was not applied to publication text"
     );
+
+    let xml = b"<?xml version='1.0' encoding='Shift_JIS'?><rss xmlns:\xC3\xAA='http://purl.org/dc/elements/1.1/' version='2.0'>\
+        <channel><title>Fixture</title><item><title>Prefixed date</title>\
+        <\xC3\xAA:date>2026-04-23T11:00:00Z</\xC3\xAA:date></item></channel></rss>";
+    let items = parse_feed(&source("encoded"), xml)?;
+    assert_eq!(
+        items.first().context("prefixed item")?.published_at,
+        "2026-04-23T11:00:00Z",
+        "declared encoding must apply to namespace prefixes as well as text"
+    );
     Ok(())
 }
 

@@ -39,8 +39,7 @@ test("only the explicit native skill loads; bash replaces inherited environment 
   })
 
   try {
-    const prompt = session.agent.state.systemPrompt
-    expect(prompt).toContain("You are an expert coding assistant")
+    const prompt = session.systemPrompt
     expect(prompt).toContain("<name>siftwire</name>")
     expect(prompt).toContain(input.skill_path)
     expect(prompt).not.toContain(poison)

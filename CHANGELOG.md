@@ -2,6 +2,10 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
+## v0.16.2
+
+- Update the development evaluator and its validation tools. Production runner requests, the skill, and the database schema are unchanged.
+
 ## v0.16.1
 
 - Refresh the feed parser, bundled SQLite driver, and HTTP client without changing the runner protocol or database schema.
@@ -65,6 +69,7 @@ Public release notes are mirrored in `docs/release-notes/`.
 
 ## Releases
 
+- [v0.16.2](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.2)
 - [v0.16.1](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.1)
 - [v0.16.0](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.0)
   stores reader interests as configuration and always selects with the embedded prompt.

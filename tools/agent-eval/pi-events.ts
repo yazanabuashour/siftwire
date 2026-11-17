@@ -59,6 +59,8 @@ export class TurnCollector {
         this.ended = true
         break
       case "agent_settled":
+        if (event.aborted) throw new LifecycleError("Pi aborted the prompt")
+
         if (this.active || !this.ended || this.settled)
           throw new LifecycleError("Invalid agent settlement")
         this.settled = true
@@ -72,7 +74,9 @@ export class TurnCollector {
 
         if (
           event.message.provider !== this.model.provider ||
-          event.message.model !== this.model.id
+          event.message.model !== this.model.id ||
+          (event.message.responseModel !== undefined &&
+            event.message.responseModel !== this.model.id)
         ) {
           throw new LifecycleError("Assistant provider/model changed")
         }

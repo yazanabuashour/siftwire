@@ -45,7 +45,7 @@ function collector(): TurnCollector {
 
 function settle(turn: TurnCollector): void {
   turn.observe({ type: "agent_end", messages: [], willRetry: false })
-  turn.observe({ type: "agent_settled" })
+  turn.observe({ type: "agent_settled", aborted: false })
 }
 
 test("native translation counts failed attempts and rejects unsuccessful final output or changed models", () => {
@@ -56,6 +56,13 @@ test("native translation counts failed attempts and rejects unsuccessful final o
   retried.observe(assistant())
   settle(retried)
   expect(retried.finish().assistant_calls).toBe(2)
+
+  const aborted = collector()
+  aborted.observe(assistant())
+  aborted.observe({ type: "agent_end", messages: [], willRetry: false })
+  expect(() =>
+    aborted.observe({ type: "agent_settled", aborted: true }),
+  ).toThrow("aborted")
 
   const invalid: Partial<Assistant>[] = [
     ...(["length", "error", "aborted", "toolUse"] as const).map(
@@ -73,6 +80,9 @@ test("native translation counts failed attempts and rejects unsuccessful final o
     expect(() => turn.finish()).toThrow()
   }
 
+  expect(() =>
+    collector().observe(assistant({ responseModel: "other" })),
+  ).toThrow("provider/model")
   expect(() => collector().observe(assistant({ model: "other" }))).toThrow(
     "provider/model",
   )

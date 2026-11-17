@@ -180,7 +180,7 @@ export async function createEvalSession(
     modelRuntime: runtime,
     model,
     thinkingLevel: "medium",
-    settingsManager: SettingsManager.inMemory(),
+    settingsManager: SettingsManager.inMemory({ cacheWarming: "off" }),
     resourceLoader: createResources(input, agentDir),
     sessionManager: SessionManager.inMemory(input.workspace),
     tools: ["read", "bash"],
@@ -310,6 +310,7 @@ async function runEvaluation(
     } finally {
       signal.removeEventListener("abort", abort)
       session.dispose()
+      await session.modelRuntime.settleCredentialWrites()
     }
   } finally {
     NodeFS.closeSync(log)

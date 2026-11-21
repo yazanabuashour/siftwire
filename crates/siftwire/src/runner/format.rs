@@ -11,7 +11,7 @@ pub(super) fn print_table(header: &[&str], rows: &[Vec<String>]) {
             let widest = rows
                 .iter()
                 .filter_map(|row| row.get(column))
-                .map(|cell| cell.chars().count())
+                .map(|value| value.chars().count())
                 .max()
                 .unwrap_or(0);
             cell.chars().count().max(widest)

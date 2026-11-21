@@ -92,8 +92,8 @@ impl Default for PublicResolver {
 }
 
 impl<R: fmt::Debug> fmt::Debug for PublicResolver<R> {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.debug_struct("PublicResolver").finish()
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PublicResolver").finish()
     }
 }
 

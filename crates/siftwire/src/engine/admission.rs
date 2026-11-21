@@ -18,9 +18,9 @@ pub(super) fn rejection_reason(source: &Source, item: &BriefItem) -> Option<&'st
 
 fn has_embedded_loader(value: &str) -> bool {
     Url::parse(value).is_ok_and(|url| {
-        url.query_pairs().any(|(_key, value)| {
-            let value = value.trim().to_ascii_lowercase();
-            value.starts_with("data:") || value.starts_with("javascript:")
+        url.query_pairs().any(|(_key, parameter)| {
+            let parameter = parameter.trim().to_ascii_lowercase();
+            parameter.starts_with("data:") || parameter.starts_with("javascript:")
         })
     })
 }

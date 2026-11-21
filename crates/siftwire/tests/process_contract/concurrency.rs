@@ -125,16 +125,19 @@ fn overlapping_collections_do_not_repeat_or_regress_required_markers() -> Result
         writer.write_all(feed("old").as_bytes())?;
         drop(writer);
         let first_result = first.finish()?;
-        let mut writer = second.writer(&next_feed)?;
-        let probe = fs::File::open(&database)?;
+        let mut alias_writer = second.writer(&next_feed)?;
+        let alias_probe = fs::File::open(&database)?;
         assert_eq!(
-            probe.try_lock_exclusive().err().map(|error| error.kind()),
+            alias_probe
+                .try_lock_exclusive()
+                .err()
+                .map(|error| error.kind()),
             Some(std::io::ErrorKind::WouldBlock),
             "alias collection did not lock the database inode"
         );
-        drop(probe);
-        writer.write_all(feed(second_title).as_bytes())?;
-        drop(writer);
+        drop(alias_probe);
+        alias_writer.write_all(feed(second_title).as_bytes())?;
+        drop(alias_writer);
         let second_result = second.finish()?;
         assert_eq!(
             first_result.pointer("/must_include/0/title"),
@@ -160,8 +163,8 @@ fn overlapping_collections_do_not_repeat_or_regress_required_markers() -> Result
             "older collection regressed the marker"
         );
         drop(db);
-        let probe = fs::File::open(&database)?;
-        probe
+        let final_probe = fs::File::open(&database)?;
+        final_probe
             .try_lock_exclusive()
             .context("finished collections retained their lock")?;
     }

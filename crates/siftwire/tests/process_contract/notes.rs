@@ -409,10 +409,10 @@ fn notes_publish_lands_one_commit_and_replays_to_nothing() -> Result<()> {
         "{manifest}"
     );
 
-    let (output, report) = fixture.publish("2026-11-06")?;
-    assert!(output.status.success(), "{output:?}");
-    assert_eq!(report["already_published"], 1, "{report}");
-    assert_eq!(report["published"], json!([]));
+    let (replay_output, replay_report) = fixture.publish("2026-11-06")?;
+    assert!(replay_output.status.success(), "{replay_output:?}");
+    assert_eq!(replay_report["already_published"], 1, "{replay_report}");
+    assert_eq!(replay_report["published"], json!([]));
     assert_eq!(fixture.notes.vault().commits, 1, "a replay writes nothing");
     Ok(())
 }
@@ -435,24 +435,28 @@ fn notes_failures_stay_pending_and_a_retry_converges() -> Result<()> {
     );
     assert_eq!(fixture.notes.vault().commits, 0);
 
-    let (output, report) = fixture.publish("2026-11-07")?;
-    assert!(output.status.success(), "{output:?}");
+    let (first_output, report) = fixture.publish("2026-11-07")?;
+    assert!(first_output.status.success(), "{first_output:?}");
     assert_eq!(report["published"][0]["edition_id"], "brief-2026-11-07-am");
 
     let (second, _) = fixture.brief("second", "2026-11-08T01:00:00Z")?;
     fixture.notes.vault().drop_next_save_response = true;
-    let (output, report) = fixture.publish("2026-11-07")?;
-    assert_eq!(output.status.code(), Some(1), "{output:?}");
-    assert_eq!(report["pending"], json!([second]), "{report}");
+    let (lost_response, lost_response_report) = fixture.publish("2026-11-07")?;
+    assert_eq!(lost_response.status.code(), Some(1), "{lost_response:?}");
+    assert_eq!(
+        lost_response_report["pending"],
+        json!([second]),
+        "{lost_response_report}"
+    );
     assert_eq!(
         fixture.notes.vault().commits,
         2,
         "the lost save still landed"
     );
 
-    let (output, report) = fixture.publish("2026-11-07")?;
-    assert!(output.status.success(), "{output:?}");
-    assert_eq!(report["already_published"], 2, "{report}");
+    let (retry_output, retry_report) = fixture.publish("2026-11-07")?;
+    assert!(retry_output.status.success(), "{retry_output:?}");
+    assert_eq!(retry_report["already_published"], 2, "{retry_report}");
     assert_eq!(
         fixture.notes.vault().commits,
         2,
@@ -489,11 +493,11 @@ fn notes_corrections_take_a_new_path_and_never_replace_content() -> Result<()> {
         foreign.clone(),
     );
     let (_, next) = fixture.brief("next", "2026-11-08T13:00:00Z")?;
-    let (output, report) = fixture.publish("2026-11-07")?;
-    assert!(output.status.success(), "{output:?}");
+    let (collision_output, collision_report) = fixture.publish("2026-11-07")?;
+    assert!(collision_output.status.success(), "{collision_output:?}");
     assert_eq!(
-        report["published"][0]["edition_id"], "brief-2026-11-08-am-r2",
-        "{report}"
+        collision_report["published"][0]["edition_id"], "brief-2026-11-08-am-r2",
+        "{collision_report}"
     );
     assert_eq!(
         fixture.notes.file("html/brief-2026-11-08-am/index.html"),
@@ -526,15 +530,19 @@ fn notes_publish_honors_the_start_date_and_keeps_a_damaged_index() -> Result<()>
         .vault()
         .files
         .insert(INDEX.to_owned(), "hand-written\n".to_owned());
-    let output = fixture.publish_with(&fixture.request("2026-11-07"))?;
-    assert_eq!(output.status.code(), Some(1), "{output:?}");
-    assert!(
-        output.stdout.is_empty(),
-        "an unread index proves nothing: {output:?}"
+    let damaged_index_output = fixture.publish_with(&fixture.request("2026-11-07"))?;
+    assert_eq!(
+        damaged_index_output.status.code(),
+        Some(1),
+        "{damaged_index_output:?}"
     );
     assert!(
-        text(&output.stderr).contains("no JSON manifest"),
-        "{output:?}"
+        damaged_index_output.stdout.is_empty(),
+        "an unread index proves nothing: {damaged_index_output:?}"
+    );
+    assert!(
+        text(&damaged_index_output.stderr).contains("no JSON manifest"),
+        "{damaged_index_output:?}"
     );
     assert_eq!(fixture.notes.file(INDEX).as_deref(), Some("hand-written\n"));
     assert_eq!(fixture.notes.vault().commits, 0);
@@ -603,8 +611,12 @@ fn notes_publish_rejections_and_wrong_tokens_stay_visible() -> Result<()> {
         "UPDATE delivery_plan SET html_body = 'fixture-rejected-page'",
         [],
     )?;
-    let (output, report) = fixture.publish("2026-11-07")?;
-    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    let (rejected_output, report) = fixture.publish("2026-11-07")?;
+    assert_eq!(
+        rejected_output.status.code(),
+        Some(1),
+        "{rejected_output:?}"
+    );
     assert!(
         report["error"]
             .as_str()

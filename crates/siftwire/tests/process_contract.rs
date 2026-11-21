@@ -460,7 +460,7 @@ fn assert_runs_report_selection_evidence(
     );
     let stored_message = detail
         .pointer("/run/message")
-        .and_then(|message| message.as_str())
+        .and_then(|value| value.as_str())
         .context("run delivery message missing")?;
     assert_eq!(stored_message, message, "delivered message differs");
     let delivery_statuses: Vec<&str> = detail

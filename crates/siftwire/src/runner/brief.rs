@@ -144,7 +144,7 @@ fn recent_sent_items(
 struct Accumulator {
     collected: Vec<crate::engine::CollectedItem>,
     sports_updates: Vec<SportsUpdate>,
-    suppressed_policy: Vec<crate::contract::SuppressedPolicyItem>,
+    suppressed_policy: Vec<SuppressedPolicyItem>,
     statuses: Vec<FetchStatus>,
     warnings: BTreeMap<String, String>,
 }
@@ -221,8 +221,8 @@ fn record_source(
     };
     let outcome = process_source(source, output, run.policies, state.as_ref(), run.now);
     if !run.dry_run {
-        if let Some(state) = &outcome.next_state {
-            run.store.upsert_source_state(state)?;
+        if let Some(next_state) = &outcome.next_state {
+            run.store.upsert_source_state(next_state)?;
         }
         let status = &outcome.status;
         run.store.insert_fetch_log(&FetchLog {

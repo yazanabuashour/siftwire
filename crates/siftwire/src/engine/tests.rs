@@ -423,7 +423,7 @@ fn health_footnotes_report_current_gaps_and_durable_changes() {
         crate::contract::FetchStatus {
             source_key: "empty".to_owned(),
             status: "ok".to_owned(),
-            current_news: Some(crate::contract::CurrentNewsStatus::default()),
+            current_news: Some(CurrentNewsStatus::default()),
             ..crate::contract::FetchStatus::default()
         },
     ];
@@ -688,12 +688,15 @@ fn current_news_preserves_declared_feed_encoding() -> Result<()> {
         "declared encoding was not applied to publication text"
     );
 
-    let xml = b"<?xml version='1.0' encoding='Shift_JIS'?><rss xmlns:\xC3\xAA='http://purl.org/dc/elements/1.1/' version='2.0'>\
+    let prefixed_xml = b"<?xml version='1.0' encoding='Shift_JIS'?><rss xmlns:\xC3\xAA='http://purl.org/dc/elements/1.1/' version='2.0'>\
         <channel><title>Fixture</title><item><title>Prefixed date</title>\
         <\xC3\xAA:date>2026-04-23T11:00:00Z</\xC3\xAA:date></item></channel></rss>";
-    let items = parse_feed(&source("encoded"), xml)?;
+    let prefixed_items = parse_feed(&source("encoded"), prefixed_xml)?;
     assert_eq!(
-        items.first().context("prefixed item")?.published_at,
+        prefixed_items
+            .first()
+            .context("prefixed item")?
+            .published_at,
         "2026-04-23T11:00:00Z",
         "declared encoding must apply to namespace prefixes as well as text"
     );
@@ -775,7 +778,7 @@ fn current_news_atom_requires_publication_while_required_keeps_updated() -> Resu
         latest_identity: "invalid".to_owned(),
         ..SourceState::default()
     };
-    let processed = process_source(
+    let required_outcome = process_source(
         &required,
         Ok(FetchOutput {
             items: required_items,
@@ -786,16 +789,18 @@ fn current_news_atom_requires_publication_while_required_keeps_updated() -> Resu
         now,
     );
     assert!(
-        processed.status.current_news.is_none(),
+        required_outcome.status.current_news.is_none(),
         "Required entered current-news selection"
     );
     assert_eq!(
-        processed.collected.len(),
+        required_outcome.collected.len(),
         2,
         "Required marker selection changed"
     );
-    assert_eq!(processed.status.new_items, Some(2));
-    let next = processed.next_state.context("Required next marker")?;
+    assert_eq!(required_outcome.status.new_items, Some(2));
+    let next = required_outcome
+        .next_state
+        .context("Required next marker")?;
     assert_eq!(next.latest_identity, "old");
     assert_eq!(next.latest_feed_identity, "old");
     assert_eq!(next.checked_at, now);

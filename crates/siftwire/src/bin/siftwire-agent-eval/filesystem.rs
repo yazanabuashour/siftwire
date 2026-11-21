@@ -25,14 +25,14 @@ pub fn write_file(path: &Path, content: &[u8], mode: u32) -> io::Result<()> {
     let mut options = OpenOptions::new();
     options.write(true).create(true).truncate(true).mode(mode);
     let mut file = options.open(path)?;
-    std::io::Write::write_all(&mut file, content)
+    io::Write::write_all(&mut file, content)
 }
 
 pub fn create_new_file(path: &Path, content: &[u8], mode: u32) -> io::Result<File> {
     let mut options = OpenOptions::new();
     options.write(true).create_new(true).mode(mode);
     let mut file = options.open(path)?;
-    std::io::Write::write_all(&mut file, content)?;
+    io::Write::write_all(&mut file, content)?;
     Ok(file)
 }
 

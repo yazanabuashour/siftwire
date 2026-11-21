@@ -263,8 +263,8 @@ fn fetch_evidence_preserves_new_snapshots_on_reopen() -> Result<()> {
         ..FetchLog::default()
     })?;
     drop(store);
-    let store = Store::open(&database)?;
-    let logs = store.recent_fetch_logs(10)?;
+    let reopened = Store::open(&database)?;
+    let logs = reopened.recent_fetch_logs(10)?;
     assert_eq!(logs.len(), 1);
     assert_eq!(logs.first().context("fetch log")?.new_item_count, None);
     assert_eq!(

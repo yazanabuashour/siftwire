@@ -57,8 +57,12 @@ fn automation_replaces_itself_with_the_embedded_launcher() -> Result<()> {
     fs::remove_dir_all(directory)?;
     environment.insert("SIFTWIRE_BIN", "custom-binary");
     environment.insert("SIFTWIRE_RENDER_PROMPT", "custom-prompt");
-    let output = invoke(&["automation"], None, &environment)?;
-    assert_eq!(output.status.code(), Some(7), "override exit: {output:?}");
+    let override_output = invoke(&["automation"], None, &environment)?;
+    assert_eq!(
+        override_output.status.code(),
+        Some(7),
+        "override exit: {override_output:?}"
+    );
     assert!(
         fs::read_to_string(&capture)?
             .starts_with(&format!("custom-binary\n{}\n", prompt.display())),

@@ -6,18 +6,17 @@
   "repository": "github:yazanabuashour/siftwire",
   "type": "module",
   "scripts": {
-    "typecheck": "tsc -p tsconfig.tooling.json --noEmit",
+    "typecheck": "tsc --noEmit",
     "format": "oxfmt --check .",
     "format:write": "oxfmt .",
     "lint": "oxlint --deny-warnings --report-unused-disable-directives .",
     "check": "bash scripts/ci.sh"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "1.5.2",
+    "@earendil-works/pi-coding-agent": "1.6.0",
     "@oxlint/plugins": "1.94.0",
     "@types/node": "^26.6.6",
-    "@yazanabuashour/oxlint-config": "file:tools/typescript-lint-policy",
-    "bun-types": "^1.4.4",
+    "bun-types": "^1.4.5",
     "oxfmt": "0.79.0",
     "oxlint": "1.94.0",
     "oxlint-tsgolint": "7.0.2007",

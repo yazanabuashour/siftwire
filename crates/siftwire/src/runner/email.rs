@@ -78,7 +78,7 @@ fn document(
         })
         .collect::<Vec<_>>();
     if !context.sports_updates.is_empty() {
-        let groups = [("Upcoming", "upcoming"), ("Results", "final")]
+        let schedule_groups = [("Upcoming", "upcoming"), ("Results", "final")]
             .into_iter()
             .filter_map(|(heading, status)| {
                 let rows = context
@@ -95,7 +95,7 @@ fn document(
             .collect();
         sections.push(Section::Schedule {
             heading: "Sports".to_owned(),
-            groups,
+            groups: schedule_groups,
         });
     }
     Ok(Document {

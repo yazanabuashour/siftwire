@@ -396,8 +396,7 @@ fn validate_fetch_url(value: &str) -> Result<()> {
         bail!("is required");
     }
     let parsed = Url::parse(value)?;
-    if parsed.scheme() == "file"
-        && env::var(EVAL_ALLOW_FILE_URLS_ENV).is_ok_and(|value| value == "1")
+    if parsed.scheme() == "file" && env::var(EVAL_ALLOW_FILE_URLS_ENV).is_ok_and(|flag| flag == "1")
     {
         if parsed.path().is_empty() {
             bail!("file URL must include a path");

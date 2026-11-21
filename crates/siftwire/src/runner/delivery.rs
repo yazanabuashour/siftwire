@@ -283,7 +283,7 @@ fn append_sports_text_group(
     if matching.peek().is_none() {
         return;
     }
-    let _result = write!(output, "\n\n{heading}");
+    let _heading_result = write!(output, "\n\n{heading}");
     for update in matching {
         let when = update
             .starts_at

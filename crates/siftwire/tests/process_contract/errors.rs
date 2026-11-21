@@ -172,11 +172,11 @@ fn confirmation_history_failure_is_visible_and_retry_keeps_one_delivery() -> Res
             .context("final answer")?
             .contains("Previous brief (2025-01-01T00:00:00Z)\n\nhistory")
     );
-    let count: i64 = db.query_row(
+    let replay_count: i64 = db.query_row(
         "SELECT count(*) FROM delivery WHERE run_id = 'run'",
         [],
         |row| row.get(0),
     )?;
-    assert_eq!(count, 1, "same-plan retry duplicated delivery");
+    assert_eq!(replay_count, 1, "same-plan retry duplicated delivery");
     Ok(())
 }

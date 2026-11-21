@@ -186,7 +186,7 @@ fn removed_source_fields_and_choices_are_not_writable() -> Result<()> {
                 let _old = fields.insert("kind".to_owned(), serde_json::json!("sports_schedule"));
             }
             let _old = fields.insert(field.to_owned(), serde_json::json!(value));
-            let _old = fields.insert("enabled".to_owned(), serde_json::json!(enabled));
+            let _previous_enabled = fields.insert("enabled".to_owned(), serde_json::json!(enabled));
             let error = normalize_source(serde_json::from_value(input)?)
                 .err()
                 .context("removed choice accepted")?;
@@ -263,7 +263,7 @@ fn standings_filter_is_valid_only_for_riot_sources() -> Result<()> {
         "Riot Gateway diagnostic changed: {error}"
     );
 
-    let Err(error) = normalize_source(Source {
+    let Err(espn_error) = normalize_source(Source {
         schedule_format: super::SCHEDULE_FORMAT_ESPN.to_owned(),
         api_key: String::new(),
         ..riot
@@ -271,8 +271,8 @@ fn standings_filter_is_valid_only_for_riot_sources() -> Result<()> {
         bail!("ESPN source accepted the Riot standings filter");
     };
     assert!(
-        error.to_string().contains("applies only to the riot"),
-        "schedule filter diagnostic changed: {error}"
+        espn_error.to_string().contains("applies only to the riot"),
+        "schedule filter diagnostic changed: {espn_error}"
     );
     Ok(())
 }

@@ -396,8 +396,8 @@ fn decode_xml_entities(value: &str) -> String {
             reference.push(candidate);
         }
         if terminated {
-            if let Some(character) = decode_xml_reference(&reference) {
-                decoded.push(character);
+            if let Some(replacement) = decode_xml_reference(&reference) {
+                decoded.push(replacement);
             } else {
                 decoded.push('&');
                 decoded.push_str(&reference);

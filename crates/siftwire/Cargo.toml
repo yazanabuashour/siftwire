@@ -31,7 +31,8 @@ ureq = { version = "3.3", default-features = false, features = [
   "rustls",
 ] }
 unicode-normalization = "0.1"
-url = "2.5"
+# Changing URL serialization can invalidate persisted feed cursors.
+url = "=2.5.8"
 
 [dev-dependencies]
 tempfile = "3"

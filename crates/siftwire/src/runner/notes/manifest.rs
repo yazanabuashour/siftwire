@@ -183,9 +183,7 @@ impl Manifest {
     pub fn with_edition(&self, edition: Edition, now: DateTime<Utc>) -> Self {
         let mut editions = self.editions.clone();
         editions.push(edition);
-        editions.sort_by_key(|edition| {
-            std::cmp::Reverse((edition.date, edition.slot, edition.revision))
-        });
+        editions.sort_by_key(|entry| std::cmp::Reverse((entry.date, entry.slot, entry.revision)));
         Self {
             slots: open_slots(&editions, now),
             updated_at: now.to_rfc3339_opts(SecondsFormat::Secs, true),

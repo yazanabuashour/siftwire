@@ -102,10 +102,10 @@ impl DeliveryInsertError {
 }
 
 impl fmt::Display for DeliveryInsertError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Conflict => formatter.write_str(DELIVERY_MESSAGE_CONFLICT),
-            Self::Storage(error) => error.fmt(formatter),
+            Self::Conflict => f.write_str(DELIVERY_MESSAGE_CONFLICT),
+            Self::Storage(error) => error.fmt(f),
         }
     }
 }
@@ -132,9 +132,9 @@ pub enum ConfigMutationError {
 }
 
 impl fmt::Display for ConfigMutationError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Validation(error) | Self::Storage(error) => error.fmt(formatter),
+            Self::Validation(error) | Self::Storage(error) => error.fmt(f),
         }
     }
 }

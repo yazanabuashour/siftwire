@@ -146,13 +146,13 @@ impl Client {
             .send(body.as_slice())
             .with_context(|| format!("request Notes {route}"))?;
         let status = response.status().as_u16();
-        let body = response
+        let response_body = response
             .body_mut()
             .with_config()
             .limit(MAX_RESPONSE_BYTES)
             .read_to_vec()
             .with_context(|| format!("read Notes {route} response"))?;
-        Ok((status, body))
+        Ok((status, response_body))
     }
 }
 

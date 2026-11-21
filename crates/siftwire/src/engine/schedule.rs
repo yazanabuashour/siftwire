@@ -166,7 +166,7 @@ fn append_sports_group(
     if matching.peek().is_none() {
         return;
     }
-    let _result = write!(section, "\n\n### {heading}");
+    let _heading_result = write!(section, "\n\n### {heading}");
     for update in matching {
         let when = update
             .starts_at

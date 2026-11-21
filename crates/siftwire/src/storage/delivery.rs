@@ -190,7 +190,7 @@ fn insert_sent_item(
                 item.title,
                 item.url,
                 item.kind,
-                super::normalize_title_key(&item.title),
+                normalize_title_key(&item.title),
                 format_timestamp(item.sent_at),
             ],
         )

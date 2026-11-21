@@ -17,10 +17,9 @@ Evaluator TypeScript uses the checked-in compiler and lint policies under
 `tools/`. Update those snapshots with their producer's export command, not by
 editing generated code. Each snapshot's README describes the update procedure.
 
-`tsconfig.tooling.json` overrides `skipLibCheck` because the evaluator's Pi,
-Google GenAI, and gaxios dependency declarations are incompatible with the
-selected Node.js and Bun types. Remove the override once those declarations are
-compatible; project-owned tooling still receives strict typechecks and typed lint.
+Oxlint and TypeScript discover the same root `tsconfig.json`. It keeps
+`skipLibCheck` because Pi and gaxios declarations conflict with the selected
+Node.js and Bun types.
 
 ## Exercise the runner without personal state
 

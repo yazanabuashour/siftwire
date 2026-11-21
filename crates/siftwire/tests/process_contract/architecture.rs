@@ -80,7 +80,7 @@ fn config_preserves_raw_sources_cursors_and_historical_reporting() -> Result<()>
         detail.pointer("/must_include/0/delivery_status"),
         Some(&json!("not_delivered"))
     );
-    let inspected = invoke_json(&args, &json!({"action":"inspect_config"}), &environment)?;
+    let before_rejection = invoke_json(&args, &json!({"action":"inspect_config"}), &environment)?;
     let rejected = invoke_json(
         &args,
         &json!({"action":"replace_outlet_policies", "outlets":[
@@ -91,7 +91,7 @@ fn config_preserves_raw_sources_cursors_and_historical_reporting() -> Result<()>
     )?;
     assert_eq!(rejected.get("rejected"), Some(&json!(true)));
     let preserved = invoke_json(&args, &json!({"action":"inspect_config"}), &environment)?;
-    assert_eq!(preserved.get("outlets"), inspected.get("outlets"));
+    assert_eq!(preserved.get("outlets"), before_rejection.get("outlets"));
     Ok(())
 }
 

@@ -209,14 +209,14 @@ fn delivery_verification_matches_current_brief() -> Result<()> {
     let mut history = Checker::new(&database);
     history.recorded_delivery(answer);
     ensure!(history.finish().passed, "unchanged history rejected");
-    for changed in [
+    for rewritten in [
         answer.replace("One", "Rewritten"),
         answer.replace("NO_REPLY", "No news"),
     ] {
-        let mut checker = Checker::new(&database);
-        checker.recorded_delivery(&changed);
+        let mut rewritten_check = Checker::new(&database);
+        rewritten_check.recorded_delivery(&rewritten);
         ensure!(
-            !checker.finish().assistant_pass,
+            !rewritten_check.finish().assistant_pass,
             "rewritten body/history accepted"
         );
     }
@@ -226,19 +226,22 @@ fn delivery_verification_matches_current_brief() -> Result<()> {
         answer.to_owned(),
         "Current brief\n\nNewest\n\nPrevious brief (2026-04-23T01:00:00Z)\n\n- [One](<https://example.com/1>)\n\nPrevious brief (2026-04-22T01:00:00.123400Z)\n\nNO_REPLY".to_owned(),
     ];
-    let mut checker = Checker::new(&database);
-    checker.recorded_deliveries(&answers);
-    ensure!(checker.finish().passed, "correct history prefixes rejected");
+    let mut history_check = Checker::new(&database);
+    history_check.recorded_deliveries(&answers);
+    ensure!(
+        history_check.finish().passed,
+        "correct history prefixes rejected"
+    );
     for index in [0, 1] {
         let mut wrong = answers.clone();
         *wrong
             .get_mut(index)
             .ok_or_else(|| anyhow::anyhow!("early turn"))? = "Wrong nonblank answer".to_owned();
-        let mut checker = Checker::new(&database);
-        checker.recorded_deliveries(&wrong);
-        let result = checker.finish();
+        let mut wrong_turn_check = Checker::new(&database);
+        wrong_turn_check.recorded_deliveries(&wrong);
+        let wrong_turn_result = wrong_turn_check.finish();
         ensure!(
-            result.database_pass && !result.assistant_pass,
+            wrong_turn_result.database_pass && !wrong_turn_result.assistant_pass,
             "wrong early answer {index} accepted with correct final answer"
         );
     }
@@ -286,10 +289,10 @@ fn delivery_verification_matches_selected_evidence() -> Result<()> {
     ] {
         database.execute_batch("SAVEPOINT corruption")?;
         database.execute(mutation, [])?;
-        let mut checker = Checker::new(&database);
-        checker.selected_evidence();
+        let mut corruption_check = Checker::new(&database);
+        corruption_check.selected_evidence();
         ensure!(
-            !checker.finish().database_pass,
+            !corruption_check.finish().database_pass,
             "invalid evidence accepted: {mutation}"
         );
         database.execute_batch("ROLLBACK TO corruption; RELEASE corruption")?;

@@ -212,25 +212,40 @@ mod tests {
             "Source coverage - UNAVAILABLE: changing-feed.".to_owned(),
             "RESOLVED changing-feed".to_owned(),
         ];
-        let mut checker = Checker::new(&database);
-        verify_prior_health_failure(&mut checker, "feed-recovery-resolves-warning", &answers);
-        ensure!(checker.finish().passed, "initial failure report rejected");
+        let mut recovery_check = Checker::new(&database);
+        verify_prior_health_failure(
+            &mut recovery_check,
+            "feed-recovery-resolves-warning",
+            &answers,
+        );
+        ensure!(
+            recovery_check.finish().passed,
+            "initial failure report rejected"
+        );
         let wrong = vec![
             "changing-feed is healthy".to_owned(),
             "RESOLVED changing-feed".to_owned(),
         ];
-        let mut checker = Checker::new(&database);
-        verify_prior_health_failure(&mut checker, "feed-recovery-resolves-warning", &wrong);
-        let result = checker.finish();
+        let mut wrong_notice_check = Checker::new(&database);
+        verify_prior_health_failure(
+            &mut wrong_notice_check,
+            "feed-recovery-resolves-warning",
+            &wrong,
+        );
+        let result = wrong_notice_check.finish();
         ensure!(
             result.database_pass && !result.assistant_pass,
             "wrong initial report accepted"
         );
         database.execute("UPDATE fetch_log SET status = 'ok' WHERE id = 1", [])?;
-        let mut checker = Checker::new(&database);
-        verify_prior_health_failure(&mut checker, "feed-recovery-resolves-warning", &answers);
+        let mut missing_failure_check = Checker::new(&database);
+        verify_prior_health_failure(
+            &mut missing_failure_check,
+            "feed-recovery-resolves-warning",
+            &answers,
+        );
         ensure!(
-            !checker.finish().database_pass,
+            !missing_failure_check.finish().database_pass,
             "initial report lacked recorded failure"
         );
         Ok(())

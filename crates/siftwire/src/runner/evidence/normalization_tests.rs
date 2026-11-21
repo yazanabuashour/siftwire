@@ -109,26 +109,26 @@ fn references_disambiguate_identical_sports_links_and_preserve_large_ids() -> Re
             ..BriefRequest::default()
         },
     )?;
-    let mut detail = store.run_detail(&run_id)?.context("detail")?;
+    let mut delivered_detail = store.run_detail(&run_id)?.context("delivered detail")?;
     assert_eq!(
-        detail
+        delivered_detail
             .items
             .iter()
-            .map(|row| delivery_status(row, &detail))
+            .map(|row| delivery_status(row, &delivered_detail))
             .collect::<Vec<_>>(),
         [DeliveryStatus::Sent, DeliveryStatus::NotSelected]
     );
     assert_eq!(
-        detail.delivery_html.as_deref(),
+        delivered_detail.delivery_html.as_deref(),
         Some(prepared.html.as_str())
     );
-    detail.delivery_plan = None;
+    delivered_detail.delivery_plan = None;
     // Delivery evidence requires the confirmed plan, not parsed message links.
     assert_eq!(
-        detail
+        delivered_detail
             .items
             .iter()
-            .map(|row| delivery_status(row, &detail))
+            .map(|row| delivery_status(row, &delivered_detail))
             .collect::<Vec<_>>(),
         [DeliveryStatus::Unknown, DeliveryStatus::Unknown]
     );

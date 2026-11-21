@@ -57,8 +57,8 @@ pub fn run_process() -> ExitCode {
     }
 }
 
-fn emit_json<T: serde::Serialize>(value: &T) -> ExitCode {
-    match crate::runner::format::write_json(value) {
+fn emit_json<T: Serialize>(value: &T) -> ExitCode {
+    match format::write_json(value) {
         Ok(()) => EXIT_OK,
         Err(error) => {
             eprintln!("{error:#}");

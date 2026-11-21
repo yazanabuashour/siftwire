@@ -203,38 +203,38 @@ fn reopening_preserves_configuration_state_and_delivery_evidence() -> Result<()>
         "ALTER TABLE brief_source DROP COLUMN release_url_prefixes_json; PRAGMA user_version = 1;",
     )?;
     drop(store);
-    let store = Store::open(temp.path().join("siftwire.sqlite"))?;
+    let migrated = Store::open(temp.path().join("siftwire.sqlite"))?;
     assert_eq!(
-        store
+        migrated
             .connection
             .query_row("PRAGMA user_version", [], |row| row.get::<_, i64>(0))?,
         2
     );
-    let source = store.list_sources(true)?.remove(0);
+    let source = migrated.list_sources(true)?.remove(0);
     assert_eq!(source.release_url_prefixes, Vec::<String>::new());
-    store.upsert_source(Source {
+    migrated.upsert_source(Source {
         threshold: "medium".to_owned(),
         release_url_prefixes: vec!["https://example.test/releases/".to_owned()],
         ..source
     })?;
-    drop(store);
-    let store = Store::open(temp.path().join("siftwire.sqlite"))?;
+    drop(migrated);
+    let reopened = Store::open(temp.path().join("siftwire.sqlite"))?;
     assert_eq!(
-        store.list_sources(true)?.remove(0).release_url_prefixes,
+        reopened.list_sources(true)?.remove(0).release_url_prefixes,
         ["https://example.test/releases/"]
     );
     assert_eq!(
-        store
+        reopened
             .source_state("feed")?
             .context("preserved state")?
             .checked_at,
         state.checked_at
     );
-    let detail = store.run_detail(&run_id)?.context("preserved run")?;
+    let detail = reopened.run_detail(&run_id)?.context("preserved run")?;
     assert_eq!(serde_json::to_value(detail.items)?, items);
     assert_eq!(detail.summary.message.as_deref(), Some(message));
     assert_eq!(detail.delivery_html.as_deref(), Some(html));
-    let after: Vec<(String, String, String)> = store
+    let after: Vec<(String, String, String)> = reopened
         .connection
         .prepare("SELECT key_name, value_text, updated_at FROM runtime_config ORDER BY key_name")?
         .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
@@ -405,8 +405,8 @@ fn delivery_replay_returns_original_items_and_changed_messages_conflict() -> Res
     let inserted = store.insert_delivery(&plan)?;
     let inserted_item = inserted.first().context("inserted sent item")?;
     drop(store);
-    let store = Store::open(temp.path().join("siftwire.sqlite"))?;
-    let replay = store.insert_delivery(&DeliveryPlan {
+    let reopened = Store::open(temp.path().join("siftwire.sqlite"))?;
+    let replay = reopened.insert_delivery(&DeliveryPlan {
         items: vec![DeliveryItem {
             title: "Replacement".to_owned(),
             url: "https://example.test/replacement".to_owned(),
@@ -421,31 +421,31 @@ fn delivery_replay_returns_original_items_and_changed_messages_conflict() -> Res
     assert_eq!(replayed_item.kind, "rss");
     assert_eq!(replayed_item.sent_at, inserted_item.sent_at);
     assert_eq!(
-        store
+        reopened
             .recent_deliveries(1)?
             .first()
             .context("original delivery")?
             .delivered_at,
         inserted_item.sent_at
     );
-    let Err(conflict) = store.insert_delivery(&DeliveryPlan {
+    let Err(conflict) = reopened.insert_delivery(&DeliveryPlan {
         message: "changed message".to_owned(),
         ..plan.clone()
     }) else {
         bail!("changed delivery message was accepted");
     };
     assert!(conflict.is_conflict(), "{conflict}");
-    store.connection.execute(
+    reopened.connection.execute(
         "UPDATE delivery_once SET delivery_id = NULL WHERE run_id = ?1",
         [&plan.run_id],
     )?;
-    let error = store
+    let error = reopened
         .insert_delivery(&plan)
         .err()
         .context("incomplete claim accepted")?;
     assert!(!error.is_conflict());
     assert!(error.to_string().contains("incomplete"));
-    assert_eq!(store.recent_deliveries(10)?.len(), 1);
+    assert_eq!(reopened.recent_deliveries(10)?.len(), 1);
     Ok(())
 }
 
@@ -458,8 +458,8 @@ fn delivered_run_with_empty_plan_html_has_no_delivery_html() -> Result<()> {
     store.insert_delivery_plan(&plan)?;
     store.insert_delivery(&plan)?;
     drop(store);
-    let store = Store::open(temp.path().join("siftwire.sqlite"))?;
-    let detail = store.run_detail(&run_id)?.context("delivered run")?;
+    let reopened = Store::open(temp.path().join("siftwire.sqlite"))?;
+    let detail = reopened.run_detail(&run_id)?.context("delivered run")?;
     assert!(detail.summary.delivered_at.is_some());
     assert_eq!(detail.delivery_html, None);
     Ok(())
@@ -490,8 +490,8 @@ fn sports_delivery_evidence_does_not_enter_normal_recent_suppression() -> Result
         ],
     ))?;
     drop(store);
-    let store = Store::open(temp.path().join("siftwire.sqlite"))?;
-    let recent = store.recent_sent_items(chrono::DateTime::<Utc>::default())?;
+    let reopened = Store::open(temp.path().join("siftwire.sqlite"))?;
+    let recent = reopened.recent_sent_items(chrono::DateTime::<Utc>::default())?;
     assert_eq!(recent.len(), 1);
     assert_eq!(
         recent.first().map(|item| item.title.as_str()),

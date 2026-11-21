@@ -1,4 +1,5 @@
 import { afterEach, expect, test } from "bun:test"
+import * as NodeAssert from "node:assert/strict"
 import * as NodeFS from "node:fs"
 import * as NodePath from "node:path"
 import * as NodeProcess from "node:process"
@@ -104,12 +105,13 @@ test("invalid skills and non-exact models fail instead of discovering replacemen
     "eval-test/synthetic:high",
     "synthetic",
   ]) {
-    await expect(createEvalSession(input, agentDir, override)).rejects.toThrow()
+    await NodeAssert.rejects(createEvalSession(input, agentDir, override))
   }
 
   write(NodePath.join(agentDir, "settings.json"), "{}")
-  await expect(createEvalSession(input, agentDir)).rejects.toThrow(
-    "defaultProvider/defaultModel",
+  await NodeAssert.rejects(
+    createEvalSession(input, agentDir),
+    /defaultProvider\/defaultModel/,
   )
 
   const session = await createEvalSession(

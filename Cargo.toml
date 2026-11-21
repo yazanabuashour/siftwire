@@ -7,6 +7,7 @@ edition = "2024"
 rust-version = "1.91.1"
 license = "MIT"
 
+# BEGIN rust-lint-policy commit=71cb1dd6993833ca4ebb5c05661e19f5440aa2f3 sha256=a8ec2e2c02d8f16966044ddd25c98d7bb5eee43d0341e28ec3be5e22e1d09268
 [workspace.lints.rust]
 elided_lifetimes_in_paths = "deny"
 let_underscore_drop = "deny"
@@ -15,8 +16,8 @@ redundant_lifetimes = "deny"
 rust_2018_idioms = { level = "deny", priority = -1 }
 trivial_casts = "deny"
 trivial_numeric_casts = "deny"
-unit_bindings = "deny"
 unfulfilled_lint_expectations = "deny"
+unit_bindings = "deny"
 unsafe_code = "deny"
 unsafe_op_in_unsafe_fn = "deny"
 unused_lifetimes = "deny"
@@ -90,6 +91,7 @@ unwrap_used = "deny"
 verbose_file_reads = "deny"
 wildcard_dependencies = "deny"
 wildcard_enum_match_arm = "deny"
+# END rust-lint-policy
 
 [profile.release]
 strip = true

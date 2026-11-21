@@ -1,7 +1,10 @@
+# BEGIN rust-lint-policy commit=71cb1dd6993833ca4ebb5c05661e19f5440aa2f3 sha256=f4d7c67a72736ba9a4d64044b98f3d805782df31abd4972de75899a04da072f2
 too-many-lines-threshold = 100
-doc-valid-idents = ["SiftWire", ".."]
 
 disallowed-types = [
   { path = "std::any::Any", reason = "Use domain enums or boundary decoders instead of runtime type recovery." },
   { path = "core::any::Any", reason = "Use domain enums or boundary decoders instead of runtime type recovery." },
 ]
+# END rust-lint-policy
+
+doc-valid-idents = ["SiftWire", ".."]

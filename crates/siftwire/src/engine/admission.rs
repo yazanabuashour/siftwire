@@ -1,5 +1,5 @@
+use feed_url::Url;
 use unicode_normalization::UnicodeNormalization;
-use url::Url;
 
 use crate::contract::BriefItem;
 use crate::domain::Source;

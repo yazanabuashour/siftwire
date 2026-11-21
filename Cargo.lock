@@ -259,7 +259,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
- "url",
+ "url 2.5.8",
 ]
 
 [[package]]
@@ -317,7 +317,7 @@ dependencies = [
  "serde",
  "serde_json",
  "siphasher",
- "url",
+ "url 2.5.8",
  "uuid",
 ]
 
@@ -1100,7 +1100,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "siftwire"
-version = "0.16.3"
+version = "0.16.4"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1120,7 +1120,8 @@ dependencies = [
  "tempfile",
  "unicode-normalization",
  "ureq",
- "url",
+ "url 2.5.8",
+ "url 2.5.9",
 ]
 
 [[package]]
@@ -1329,6 +1330,18 @@ name = "url"
 version = "2.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff67a8a4397373c3ef660812acab3268222035010ab8680ec4215f38ba3d0eed"
+dependencies = [
+ "form_urlencoded",
+ "idna",
+ "percent-encoding",
+ "serde",
+ "serde_derive",
+]
+
+[[package]]
+name = "url"
+version = "2.5.9"
+source = "git+https://github.com/servo/rust-url.git?rev=ad1c66cbff6e318393d872641e30589ff9687b9c#ad1c66cbff6e318393d872641e30589ff9687b9c"
 dependencies = [
  "form_urlencoded",
  "idna",

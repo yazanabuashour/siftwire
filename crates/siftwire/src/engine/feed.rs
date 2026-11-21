@@ -14,7 +14,8 @@ use super::model::FetchedItem;
 pub fn parse_feed(source: &Source, body: &[u8]) -> Result<Vec<FetchedItem>> {
     let parser = feed_rs::parser::Builder::new()
         .sanitize_content(false)
-        .id_generator(|links, title, base_uri| missing_identity(links, title.as_ref(), base_uri))
+        // Leave missing IDs empty so fetched_item applies the saved-marker fallback.
+        .id_generator(|_, _, _| String::new())
         .build();
     let feed = parser
         .parse(body)
@@ -56,14 +57,10 @@ fn fetched_item(entry: &Entry, raw_date: Option<&str>, current_news: bool) -> Op
         return None;
     }
     let url = entry_link(&entry.links);
-    let identity = if entry.id.trim().is_empty() {
-        if url.is_empty() {
-            title.clone()
-        } else {
-            url.clone()
-        }
-    } else {
-        entry.id.trim().to_owned()
+    let identity = match entry.id.trim() {
+        "" if url.is_empty() => title.clone(),
+        "" => url.clone(),
+        id => id.to_owned(),
     };
     // Optional news never falls back from absent, empty or invalid publication metadata.
     let published_at = if current_news {
@@ -90,19 +87,6 @@ fn fetched_item(entry: &Entry, raw_date: Option<&str>, current_news: bool) -> Op
         identity,
         outlet: String::new(),
     })
-}
-
-fn missing_identity(
-    links: &[Link],
-    title: Option<&feed_rs::model::Text>,
-    _base_uri: Option<&str>,
-) -> String {
-    let link = entry_link(links);
-    if link.is_empty() {
-        title.map_or_else(String::new, |text| clean_text(&text.content))
-    } else {
-        link
-    }
 }
 
 fn entry_link(links: &[Link]) -> String {

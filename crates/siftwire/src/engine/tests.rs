@@ -188,6 +188,60 @@ fn latest_seen_selection_matches_saved_identities() {
 }
 
 #[test]
+fn guidless_rss_links_keep_saved_marker_boundaries() -> Result<()> {
+    let source = Source {
+        threshold: "always".to_owned(),
+        ..source("required")
+    };
+    let items = parse_feed(
+        &source,
+        br#"<rss version="2.0" xml:base="https://example.test/"><channel>
+        <item><title>Literal caret</title><link>story&#94;part</link></item>
+        <item><title>Escaped caret</title><link>story%5Epart</link></item>
+        </channel></rss>"#,
+    )?;
+    let literal = "https://example.test/story^part";
+    let escaped = "https://example.test/story%5Epart";
+    assert_eq!(
+        items.get(1).map(|item| item.identity.as_str()),
+        Some(escaped),
+        "the escaped identity must remain available to match the saved marker"
+    );
+    let state = |identity: &str| SourceState {
+        latest_identity: identity.to_owned(),
+        ..SourceState::default()
+    };
+    let next = process_source(
+        &source,
+        Ok(FetchOutput {
+            items: items.clone(),
+            ..FetchOutput::default()
+        }),
+        &[],
+        Some(&state(escaped)),
+        DateTime::<Utc>::default(),
+    );
+    assert_eq!(
+        next.collected
+            .iter()
+            .map(|item| item.brief_item.url.as_str())
+            .collect::<Vec<_>>(),
+        [literal],
+        "the new literal link must not be skipped by the escaped marker"
+    );
+    assert_eq!(
+        next.next_state.context("next marker")?.latest_identity,
+        literal,
+        "new markers must keep the format read by older runners"
+    );
+    assert!(
+        select_new_items(&items, Some(&state(literal))).is_empty(),
+        "the already-seen literal link must not resurface"
+    );
+    Ok(())
+}
+
+#[test]
 fn outlet_extraction_and_policy_matching_work_together() -> Result<()> {
     let mut title_source = source("title");
     title_source.outlet_extraction = "title_suffix".to_owned();

@@ -1,6 +1,6 @@
 [package]
 name = "siftwire"
-version = "0.16.3"
+version = "0.16.4"
 edition.workspace = true
 rust-version.workspace = true
 description = "Local-first brief runtime for agents"
@@ -16,6 +16,8 @@ chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 email-ui = { git = "https://github.com/yazanabuashour/email-ui.git", rev = "78f04a4ac98f7289936778673ae55b26a477ce5e" }
 feed-rs = "3.0"
+# Keep feed-rs on the parser that produced existing feed links and markers.
+feed-url = { package = "url", version = "=2.5.8" }
 fs2 = "0.4"
 getrandom = "0.4"
 path-clean = "1"
@@ -31,8 +33,10 @@ ureq = { version = "3.3", default-features = false, features = [
   "rustls",
 ] }
 unicode-normalization = "0.1"
-# Changing URL serialization can invalidate persisted feed cursors.
-url = "=2.5.8"
+# Use a distinct source so Cargo does not unify this with feed-url.
+url = { git = "https://github.com/servo/rust-url.git", rev = "ad1c66cbff6e318393d872641e30589ff9687b9c", version = "=2.5.9", features = [
+  "serde",
+] }
 
 [dev-dependencies]
 tempfile = "3"

@@ -91,7 +91,7 @@ impl Source {
     #[must_use]
     pub fn section_for_url(&self, value: &str) -> &str {
         if !self.release_url_prefixes.is_empty()
-            && Url::parse(value).is_ok_and(|url| {
+            && feed_url::Url::parse(value).is_ok_and(|url| {
                 self.release_url_prefixes
                     .iter()
                     .any(|prefix| url.as_str().starts_with(prefix))
@@ -116,7 +116,7 @@ fn normalize_release_url_prefixes(source: &mut Source) -> Result<()> {
         validate_fetch_url(value).map_err(|error| {
             anyhow::anyhow!("source {:?} release_url_prefixes: {error}", source.key)
         })?;
-        let url = Url::parse(value)?;
+        let url = feed_url::Url::parse(value)?;
         if !matches!(url.scheme(), "http" | "https")
             || url.query().is_some()
             || url.fragment().is_some()

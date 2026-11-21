@@ -321,7 +321,8 @@ fn markdown_link_text(value: &str) -> String {
 }
 
 pub(super) fn normalize_delivery_url(value: &str) -> Result<String> {
-    let url = Url::parse(value).context("delivery item URL is invalid")?;
+    // Keep published link spellings compatible with recorded feed and delivery URLs.
+    let url = feed_url::Url::parse(value).context("delivery item URL is invalid")?;
     if !matches!(url.scheme(), "http" | "https")
         || url.host().is_none()
         || !url.username().is_empty()
@@ -472,14 +473,18 @@ mod tests {
             },
             RunItemRow {
                 category: RUN_ITEM_CANDIDATE.to_owned(),
+                kind: "rss".to_owned(),
                 section: "forums".to_owned(),
                 title: "Forum update".to_owned(),
+                url: "https://example.test/story%5Epart".to_owned(),
                 ..RunItemRow::default()
             },
             RunItemRow {
                 category: RUN_ITEM_CANDIDATE.to_owned(),
+                kind: "rss".to_owned(),
                 section: "technology".to_owned(),
                 title: "News update".to_owned(),
+                url: "https://example.test/story^part".to_owned(),
                 ..RunItemRow::default()
             },
         ];
@@ -493,11 +498,13 @@ mod tests {
         )?;
         assert_eq!(
             plan.message,
-            "## Releases\n\n- Version two\n\n## Blogs\n\n- Linkless item\n\n## News\n\n- News update\n\n## Forums\n\n- Forum update"
+            "## Releases\n\n- Version two\n\n## Blogs\n\n- Linkless item\n\n## News\n\n- [News update](<https://example.test/story^part>)\n\n## Forums\n\n- [Forum update](<https://example.test/story%5Epart>)",
+            "delivery Markdown must keep distinct feed URLs"
         );
         assert_eq!(
             plan.text,
-            "Releases\n\n- Version two\n\nBlogs\n\n- Linkless item\n\nNews\n\n- News update\n\nForums\n\n- Forum update"
+            "Releases\n\n- Version two\n\nBlogs\n\n- Linkless item\n\nNews\n\n- News update\n  https://example.test/story^part\n\nForums\n\n- Forum update\n  https://example.test/story%5Epart",
+            "plain-text delivery must keep distinct feed URLs"
         );
         let mut remaining = plan.html.as_str();
         for heading in ["Releases", "Blogs", "News", "Forums"] {
@@ -517,6 +524,15 @@ mod tests {
         assert!(error.to_string().contains("optional limit is 1"));
         assert!(plan.html.contains(">Linkless item</span>"));
         assert!(!plan.html.contains("href=\"\""));
+        for url in [
+            "https://example.test/story^part",
+            "https://example.test/story%5Epart",
+        ] {
+            assert!(
+                plan.html.contains(&format!("href=\"{url}\"")),
+                "HTML lost feed URL {url}"
+            );
+        }
         Ok(())
     }
 

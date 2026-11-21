@@ -2,6 +2,11 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
+## v0.16.4
+
+- Upgrade general URL handling to `url` 2.5.9 without changing feed links, saved markers, or delivery history.
+- [Release notes](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.4) include rollback instructions.
+
 ## v0.16.3
 
 - Stop warning that a schedule is stalled based only on the time between collections. The host owns the schedule; `last_check` and feed health remain available.

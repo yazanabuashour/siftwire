@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use url::Url;
+use feed_url::Url;
 
 use crate::contract::{BriefItem, SuppressedItem};
 use crate::domain::{Reporting, Source};

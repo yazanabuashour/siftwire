@@ -94,3 +94,9 @@ wildcard_enum_match_arm = "deny"
 [profile.release]
 strip = true
 lto = "thin"
+
+# Match the published url crate's dependencies when building its source from Git.
+[patch."https://github.com/servo/rust-url.git"]
+form_urlencoded = { version = "1.2.3", registry = "crates-io" }
+idna = { version = "1.1.0", registry = "crates-io" }
+percent-encoding = { version = "2.3.2", registry = "crates-io" }

@@ -2,8 +2,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use anyhow::{Context, Result};
-use chrono::SecondsFormat;
-use chrono_tz::Tz;
+use jiff::tz::TimeZone;
 use url::Url;
 
 use crate::contract::{
@@ -238,22 +237,20 @@ fn render_bodies(
         })
         .collect::<Vec<_>>()
         .join("\n\n");
-    let timezone = context
-        .sports_timezone
-        .parse::<Tz>()
+    let timezone = crate::timezone::named(&context.sports_timezone)
         .context("stored sports timezone is invalid")?;
-    let sports_text = render_sports_text(&context.sports_updates, timezone);
-    let sports_markdown = render_sports_section(&context.sports_updates, timezone);
+    let sports_text = render_sports_text(&context.sports_updates, &timezone);
+    let sports_markdown = render_sports_section(&context.sports_updates, &timezone);
     let message = join_parts(&[&markdown_items, &sports_markdown, &context.health_footnote]);
     let text = join_parts(&[&text_items, &sports_text, &context.health_footnote]);
-    let html = super::email::render(selected, context, started_at, timezone)?;
+    let html = super::email::render(selected, context, started_at, &timezone)?;
     if message.is_empty() {
         return Ok(("NO_REPLY".to_owned(), "NO_REPLY".to_owned(), String::new()));
     }
     Ok((message, text, html))
 }
 
-fn render_sports_text(updates: &[SportsUpdate], timezone: Tz) -> String {
+fn render_sports_text(updates: &[SportsUpdate], timezone: &TimeZone) -> String {
     if updates.is_empty() {
         return String::new();
     }
@@ -274,7 +271,7 @@ fn append_sports_text_group(
     heading: &str,
     status: &str,
     updates: &[SportsUpdate],
-    timezone: Tz,
+    timezone: &TimeZone,
 ) {
     let mut matching = updates
         .iter()
@@ -285,10 +282,8 @@ fn append_sports_text_group(
     }
     let _heading_result = write!(output, "\n\n{heading}");
     for update in matching {
-        let when = update
-            .starts_at
-            .with_timezone(&timezone)
-            .format("%a %b %-d, %-I:%M %p %Z");
+        let local = update.starts_at.to_zoned_datetime(timezone.clone());
+        let when = local.strftime("%a %b %-d, %-I:%M %p %Z");
         let final_label = if status == "final" { ", final" } else { "" };
         if update.url.is_empty() {
             let _result = write!(
@@ -384,16 +379,14 @@ pub(super) fn sent_item(item: StoredSentItem) -> SentItem {
     SentItem {
         title: item.title,
         url: item.url,
-        sent_at: item.sent_at.to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        sent_at: crate::timestamp::wire(item.sent_at),
     }
 }
 
 pub(super) fn delivery_record(delivery: Delivery) -> DeliveryRecord {
     DeliveryRecord {
         run_id: delivery.run_id,
-        delivered_at: delivery
-            .delivered_at
-            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        delivered_at: crate::timestamp::wire(delivery.delivered_at),
         message: delivery.message,
     }
 }

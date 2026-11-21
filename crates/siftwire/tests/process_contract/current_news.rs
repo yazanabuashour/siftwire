@@ -1,3 +1,4 @@
+use jiff::{SignedDuration, Timestamp};
 use std::fmt::Write as _;
 
 use super::*;
@@ -184,16 +185,16 @@ fn run_news(database: &str, environment: &BTreeMap<&str, &str>) -> Result<serde_
 }
 
 fn write_news_feed(path: &std::path::Path, reordered: bool) -> Result<()> {
-    let now = chrono::Utc::now();
-    let published = now.to_rfc2822();
-    let stale = now
-        .checked_sub_signed(chrono::TimeDelta::days(2))
-        .context("stale date")?
-        .to_rfc2822();
-    let future = now
-        .checked_add_signed(chrono::TimeDelta::days(2))
-        .context("future date")?
-        .to_rfc2822();
+    let now = Timestamp::now();
+    let published = rss_date(now);
+    let stale = rss_date(
+        now.checked_sub(SignedDuration::from_hours(48))
+            .context("stale date")?,
+    );
+    let future = rss_date(
+        now.checked_add(SignedDuration::from_hours(48))
+            .context("future date")?,
+    );
     // Seven stories cross the old five-item path; story 6 stays beyond it even after reorder.
     let order = if reordered {
         [5, 4, 3, 2, 1, 0, 6]
@@ -273,21 +274,21 @@ fn assert_news_counts_and_archive(
     ] {
         assert_eq!(stats.get(field), Some(&json!(expected)), "wrong {field}");
     }
-    let since = chrono::DateTime::parse_from_rfc3339(
+    let since = str::parse::<Timestamp>(
         stats
             .get("since")
             .and_then(serde_json::Value::as_str)
             .context("window start")?,
     )?;
-    let until = chrono::DateTime::parse_from_rfc3339(
+    let until = str::parse::<Timestamp>(
         stats
             .get("until")
             .and_then(serde_json::Value::as_str)
             .context("window end")?,
     )?;
     assert_eq!(
-        until.signed_duration_since(since),
-        chrono::TimeDelta::hours(24),
+        until.duration_since(since),
+        SignedDuration::from_hours(24),
         "window is not rolling 24 hours"
     );
     let run_id = run

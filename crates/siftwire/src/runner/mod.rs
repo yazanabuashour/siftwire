@@ -1,3 +1,4 @@
+use jiff::Timestamp;
 mod automation;
 mod brief;
 mod delivery;
@@ -14,7 +15,6 @@ use std::io::{self, Read, Write};
 use std::process::ExitCode;
 
 use anyhow::{Result, bail};
-use chrono::Utc;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -280,7 +280,7 @@ fn replace_outlets(paths: Paths, store: &Store, request: ConfigRequest) -> Resul
 }
 
 fn set_brief_options(paths: Paths, store: &Store, request: &ConfigRequest) -> Result<ConfigResult> {
-    let values = match options::updates(request, Utc::now()) {
+    let values = match options::updates(request, Timestamp::now()) {
         Ok(values) => values,
         Err(error) => return Ok(rejected_config(paths, error.to_string())),
     };

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use rusqlite::{Transaction, params};
 
 use crate::domain::normalize_sources;
@@ -128,11 +128,7 @@ fn source_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Source> {
     })
 }
 
-fn upsert_source_tx(
-    transaction: &Transaction<'_>,
-    source: &Source,
-    now: DateTime<Utc>,
-) -> Result<()> {
+fn upsert_source_tx(transaction: &Transaction<'_>, source: &Source, now: Timestamp) -> Result<()> {
     let timestamp = format_timestamp(now);
     let release_url_prefixes = serde_json::to_string(&source.release_url_prefixes)
         .context("encode release URL prefixes")?;

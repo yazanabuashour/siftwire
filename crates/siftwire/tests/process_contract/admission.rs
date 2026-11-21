@@ -181,7 +181,7 @@ fn assert_polluted_delivery(
 
 fn polluted_feed(temp: &TempDir) -> Result<url::Url> {
     let path = temp.path().join("polluted.xml");
-    let published = chrono::Utc::now().to_rfc2822();
+    let published = rss_date(Timestamp::now());
     let mut body = String::from("<rss version=\"2.0\"><channel><title>Team news</title>");
     let promotions = [
         "^~[EN~DIRECT] Team Alpha - Team Beta en direct gratuity",

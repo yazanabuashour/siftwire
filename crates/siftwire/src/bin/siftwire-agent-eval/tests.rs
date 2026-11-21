@@ -1,3 +1,4 @@
+use jiff::Timestamp;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -95,7 +96,7 @@ fn eval_tool_environment_excludes_maintainer_state() {
 #[test]
 fn fixtures_rewrite_feed_missing_and_generated_urls() -> Result<()> {
     let root = test_directory("fixtures")?;
-    let started = chrono::Utc::now().timestamp();
+    let started = Timestamp::now().as_second();
     let prepared = fixtures::prepare(
         scenario(
             "configured-max-delivery-items",
@@ -131,7 +132,7 @@ fn fixtures_rewrite_feed_missing_and_generated_urls() -> Result<()> {
         scenario("brief-run-history", &["Use the synthetic history feeds."]),
         &root,
     )?;
-    let finished = chrono::Utc::now().timestamp();
+    let finished = Timestamp::now().as_second();
     for entry in fs::read_dir(root.join("fixtures"))? {
         let content = fs::read_to_string(entry?.path())?;
         let published = content
@@ -139,7 +140,9 @@ fn fixtures_rewrite_feed_missing_and_generated_urls() -> Result<()> {
             .and_then(|(_, rest)| rest.split_once("</pubDate>"))
             .map(|(published, _)| published)
             .ok_or_else(|| anyhow!("fixture publication date missing"))?;
-        let timestamp = chrono::DateTime::parse_from_rfc2822(published)?.timestamp();
+        let timestamp = jiff::fmt::rfc2822::DateTimeParser::new()
+            .parse_timestamp(published)?
+            .as_second();
         ensure!(
             (started..=finished).contains(&timestamp),
             "fixture publication date must reflect creation time: {published}"

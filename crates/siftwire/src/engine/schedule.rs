@@ -1,10 +1,11 @@
+use jiff::civil::Date;
+use jiff::{SignedDuration, Timestamp};
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use anyhow::{Context, Result, bail};
-use chrono::{DateTime, NaiveDate, TimeDelta, Utc};
-use chrono_tz::Tz;
+use jiff::tz::TimeZone;
 use serde::Deserialize;
 use url::Url;
 
@@ -22,9 +23,9 @@ pub const SPORTS_STATUS_UPCOMING: &str = "upcoming";
 
 #[derive(Clone, Debug)]
 pub struct SportsOptions {
-    pub pre_game_window: TimeDelta,
-    pub post_game_window: TimeDelta,
-    pub timezone: Tz,
+    pub pre_game_window: SignedDuration,
+    pub post_game_window: SignedDuration,
+    pub timezone: TimeZone,
 }
 
 // Use a recognized scripted-client user agent for ESPN's edge.
@@ -34,7 +35,7 @@ const ESPN_USER_AGENT: &str = "curl/8";
 pub(super) fn fetch_schedule(
     client: &HttpClient,
     source: &Source,
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Result<FetchOutput> {
     let sports_updates = match source.schedule_format.as_str() {
@@ -78,32 +79,30 @@ fn espn_fixture_endpoint(configured: &str) -> Result<Option<String>> {
 }
 
 fn update_status(
-    kickoff: DateTime<Utc>,
+    kickoff: Timestamp,
     completed: bool,
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Option<&'static str> {
     if kickoff > now {
-        let limit = now.checked_add_signed(options.pre_game_window)?;
+        let limit = now.checked_add(options.pre_game_window).ok()?;
         return (kickoff <= limit).then_some(SPORTS_STATUS_UPCOMING);
     }
     if completed {
-        let limit = now.checked_sub_signed(options.post_game_window)?;
+        let limit = now.checked_sub(options.post_game_window).ok()?;
         return (kickoff >= limit).then_some(SPORTS_STATUS_FINAL);
     }
     None
 }
 
-fn parse_kickoff(value: &str) -> Option<DateTime<Utc>> {
+fn parse_kickoff(value: &str) -> Option<Timestamp> {
     let trimmed = value.trim();
-    if let Ok(kickoff) = DateTime::parse_from_rfc3339(trimmed) {
-        return Some(kickoff.with_timezone(&Utc));
+    if let Ok(kickoff) = crate::timestamp::parse(trimmed) {
+        return Some(kickoff);
     }
-    // ESPN emits compact stamps like "2026-03-17T20:00Z"; RFC 3339 wants
-    // seconds, so normalize the trailing Z into an explicit UTC offset.
+    // ESPN omits seconds on some UTC kickoffs.
     let without_zone = trimmed.strip_suffix('Z')?;
-    let kickoff = DateTime::parse_from_rfc3339(&format!("{without_zone}:00+00:00")).ok()?;
-    Some(kickoff.with_timezone(&Utc))
+    crate::timestamp::parse(&format!("{without_zone}:00+00:00")).ok()
 }
 
 #[must_use]
@@ -130,7 +129,7 @@ pub fn prepare_sports_updates(updates: Vec<SportsUpdate>) -> Vec<SportsUpdate> {
 }
 
 #[must_use]
-pub fn render_sports_section(updates: &[SportsUpdate], timezone: Tz) -> String {
+pub fn render_sports_section(updates: &[SportsUpdate], timezone: &TimeZone) -> String {
     if updates.is_empty() {
         return String::new();
     }
@@ -157,7 +156,7 @@ fn append_sports_group(
     heading: &str,
     status: &str,
     updates: &[SportsUpdate],
-    timezone: Tz,
+    timezone: &TimeZone,
 ) {
     let mut matching = updates
         .iter()
@@ -168,10 +167,8 @@ fn append_sports_group(
     }
     let _heading_result = write!(section, "\n\n### {heading}");
     for update in matching {
-        let when = update
-            .starts_at
-            .with_timezone(&timezone)
-            .format("%a %b %-d, %-I:%M %p %Z");
+        let local = update.starts_at.to_zoned_datetime(timezone.clone());
+        let when = local.strftime("%a %b %-d, %-I:%M %p %Z");
         let competition = markdown_inline_text(&update.competition);
         let detail = if status == SPORTS_STATUS_FINAL {
             format!("{competition}, final {when}")
@@ -500,7 +497,7 @@ struct RiotTeamSelection {
 fn espn_updates(
     source: &Source,
     body: &[u8],
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Result<Vec<SportsUpdate>> {
     let schedule: EspnSchedule =
@@ -518,7 +515,7 @@ fn espn_event_update(
     source: &Source,
     event: &EspnEvent,
     competition: &str,
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Option<SportsUpdate> {
     let kickoff = parse_kickoff(&event.date)?;
@@ -728,7 +725,7 @@ fn competition_name(season: Option<&EspnSeason>, source: &Source) -> String {
 fn espn_scoreboard_updates(
     client: &HttpClient,
     source: &Source,
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Result<Vec<SportsUpdate>> {
     let endpoint = espn_range_endpoint(&source.url, now, options)?;
@@ -739,7 +736,7 @@ fn espn_scoreboard_updates(
 fn espn_scoreboard_updates_from_body(
     source: &Source,
     body: &[u8],
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Result<Vec<SportsUpdate>> {
     let schedule: EspnSchedule =
@@ -802,7 +799,7 @@ fn espn_bout_update(
     competition: &EspnCompetition,
     competitors: &[&EspnCompetitor],
     url: &str,
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Option<SportsUpdate> {
     let kickoff = parse_kickoff(if competition.date.trim().is_empty() {
@@ -835,7 +832,7 @@ fn espn_scoreboard_event_update(
     event: &EspnEvent,
     url: &str,
     images: &[SportsImage],
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Option<SportsUpdate> {
     let kickoff = parse_kickoff(&event.date)?;
@@ -954,19 +951,15 @@ fn is_espn_fightcenter_url(value: &str) -> bool {
     })
 }
 
-fn espn_range_endpoint(
-    endpoint: &str,
-    now: DateTime<Utc>,
-    options: &SportsOptions,
-) -> Result<String> {
+fn espn_range_endpoint(endpoint: &str, now: Timestamp, options: &SportsOptions) -> Result<String> {
     let start = now
-        .checked_sub_signed(options.post_game_window)
+        .checked_sub(options.post_game_window)
         .unwrap_or(now)
-        .format("%Y%m%d");
+        .strftime("%Y%m%d");
     let horizon = now
-        .checked_add_signed(options.pre_game_window)
+        .checked_add(options.pre_game_window)
         .unwrap_or(now)
-        .format("%Y%m%d");
+        .strftime("%Y%m%d");
     let mut endpoint = Url::parse(endpoint).context("parse ESPN scoreboard endpoint")?;
     let query = endpoint
         .query_pairs()
@@ -985,7 +978,7 @@ fn espn_range_endpoint(
 fn riot_updates(
     source: &Source,
     body: &[u8],
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Result<Vec<SportsUpdate>> {
     let response = parse_riot_schedule(body)?;
@@ -1000,7 +993,7 @@ fn riot_updates(
 fn riot_fetch_updates(
     client: &HttpClient,
     source: &Source,
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Result<Vec<SportsUpdate>> {
     let headers = [("x-api-key", source.api_key.as_str())];
@@ -1076,7 +1069,7 @@ fn riot_schedule_events(response: &RiotScheduleResponse) -> Result<&[RiotEvent]>
 fn riot_updates_for_events(
     source: &Source,
     events: &[RiotEvent],
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Vec<SportsUpdate> {
     events
@@ -1131,17 +1124,19 @@ fn riot_gateway_endpoint(
 
 fn riot_overlapping_tournaments(
     response: &RiotTournamentsResponse,
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Vec<String> {
     let window_start = now
-        .checked_sub_signed(options.post_game_window)
+        .checked_sub(options.post_game_window)
         .unwrap_or(now)
-        .date_naive();
+        .to_zoned_datetime(TimeZone::UTC)
+        .date();
     let window_end = now
-        .checked_add_signed(options.pre_game_window)
+        .checked_add(options.pre_game_window)
         .unwrap_or(now)
-        .date_naive();
+        .to_zoned_datetime(TimeZone::UTC)
+        .date();
     response
         .data
         .leagues
@@ -1155,14 +1150,10 @@ fn riot_overlapping_tournaments(
         .collect()
 }
 
-fn tournament_overlaps(
-    tournament: &RiotTournament,
-    window_start: NaiveDate,
-    window_end: NaiveDate,
-) -> bool {
-    NaiveDate::parse_from_str(&tournament.start_date, "%Y-%m-%d")
+fn tournament_overlaps(tournament: &RiotTournament, window_start: Date, window_end: Date) -> bool {
+    Date::strptime("%Y-%m-%d", &tournament.start_date)
         .ok()
-        .zip(NaiveDate::parse_from_str(&tournament.end_date, "%Y-%m-%d").ok())
+        .zip(Date::strptime("%Y-%m-%d", &tournament.end_date).ok())
         .is_some_and(|(start, end)| start <= window_end && end >= window_start)
 }
 
@@ -1218,7 +1209,7 @@ fn riot_team_selection(teams: Vec<RiotRankedTeam>) -> RiotTeamSelection {
 }
 
 fn riot_schedule_record_selection(events: &[RiotEvent]) -> RiotTeamSelection {
-    let mut latest = BTreeMap::<String, (DateTime<Utc>, RiotTeam)>::new();
+    let mut latest = BTreeMap::<String, (Timestamp, RiotTeam)>::new();
     for event in events {
         let Some(kickoff) = parse_kickoff(&event.start_time) else {
             continue;
@@ -1294,7 +1285,7 @@ fn normalized_team(value: &str) -> String {
 fn riot_event_update(
     source: &Source,
     event: &RiotEvent,
-    now: DateTime<Utc>,
+    now: Timestamp,
     options: &SportsOptions,
 ) -> Option<SportsUpdate> {
     let kickoff = parse_kickoff(&event.start_time)?;
@@ -1399,7 +1390,7 @@ mod tests {
         SCHEDULE_FORMAT_ESPN, SCHEDULE_FORMAT_ESPN_SCOREBOARD, SCHEDULE_FORMAT_RIOT, Source,
     };
     use anyhow::{Context, Result};
-    use chrono::{DateTime, TimeDelta, Utc};
+    use jiff::{SignedDuration, Timestamp, tz::TimeZone};
 
     fn schedule_source(format: &str) -> Source {
         Source {
@@ -1420,16 +1411,15 @@ mod tests {
         }
     }
 
-    fn now() -> Result<DateTime<Utc>> {
-        let moment = DateTime::parse_from_rfc3339("2026-08-24T15:00:00Z")?;
-        Ok(moment.with_timezone(&Utc))
+    fn now() -> Result<Timestamp> {
+        crate::timestamp::parse("2026-08-24T15:00:00Z")
     }
 
     fn options() -> SportsOptions {
         SportsOptions {
-            pre_game_window: TimeDelta::days(7),
-            post_game_window: TimeDelta::days(3),
-            timezone: chrono_tz::America::New_York,
+            pre_game_window: SignedDuration::from_hours(168),
+            post_game_window: SignedDuration::from_hours(72),
+            timezone: TimeZone::UTC,
         }
     }
 
@@ -1704,8 +1694,7 @@ mod tests {
             title: "Team ] Beta vs Team Alpha".to_owned(),
             competition: "Example [League".to_owned(),
             url: "https://fixture.example/events/401?next=>".to_owned(),
-            starts_at: DateTime::parse_from_rfc3339("2026-08-30T12:00:00+00:00")?
-                .with_timezone(&Utc),
+            starts_at: crate::timestamp::parse("2026-08-30T12:00:00+00:00")?,
             images: Vec::new(),
         };
         let source = schedule_source(SCHEDULE_FORMAT_ESPN);
@@ -1724,7 +1713,7 @@ mod tests {
         assert_eq!(processed.status.items, 2);
         assert_eq!(processed.status.new_items, Some(2));
         let updates = prepare_sports_updates(processed.sports_updates);
-        let section = render_sports_section(&updates, chrono_tz::America::New_York);
+        let section = render_sports_section(&updates, &jiff::tz::db().get("America/New_York")?);
         assert_eq!(updates.len(), 1, "duplicate fixture survived");
         assert!(section.starts_with("## Sports\n\n### Upcoming fixtures"));
         assert!(section.contains("Sun Aug 30, 8:00 AM EDT"));
@@ -1771,13 +1760,13 @@ mod tests {
         let moment = now()?;
         let options = options();
         let upcoming = moment
-            .checked_add_signed(TimeDelta::days(7))
+            .checked_add(SignedDuration::from_hours(168))
             .context("calculate upcoming boundary")?;
         let recent = moment
-            .checked_sub_signed(TimeDelta::days(3))
+            .checked_sub(SignedDuration::from_hours(72))
             .context("calculate result boundary")?;
         let old = moment
-            .checked_sub_signed(TimeDelta::days(4))
+            .checked_sub(SignedDuration::from_hours(96))
             .context("calculate old result")?;
         assert_eq!(
             update_status(upcoming, false, moment, &options),

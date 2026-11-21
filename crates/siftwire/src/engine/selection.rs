@@ -1,4 +1,4 @@
-use chrono::{DateTime, FixedOffset, SecondsFormat, TimeDelta, Utc};
+use jiff::{SignedDuration, Timestamp};
 
 use crate::contract::{BriefItem, CurrentNewsStatus};
 use crate::domain::Source;
@@ -12,14 +12,14 @@ pub const CURRENT_NEWS_HOURS: i64 = 24;
 
 pub fn select_current_news(
     items: Vec<FetchedItem>,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> (Vec<FetchedItem>, CurrentNewsStatus) {
     let since = now
-        .checked_sub_signed(TimeDelta::hours(CURRENT_NEWS_HOURS))
-        .unwrap_or(DateTime::<Utc>::MIN_UTC);
+        .checked_sub(SignedDuration::from_hours(CURRENT_NEWS_HOURS))
+        .unwrap_or(Timestamp::MIN);
     let mut status = CurrentNewsStatus {
-        since: since.to_rfc3339_opts(SecondsFormat::AutoSi, true),
-        until: now.to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        since: crate::timestamp::wire(since),
+        until: crate::timestamp::wire(now),
         ..CurrentNewsStatus::default()
     };
     let mut eligible = Vec::new();
@@ -40,10 +40,10 @@ pub fn select_current_news(
     (eligible, status)
 }
 
-pub fn parse_item_time(value: &str) -> Option<DateTime<FixedOffset>> {
-    DateTime::parse_from_rfc3339(value)
-        .or_else(|_error| DateTime::parse_from_rfc2822(value))
+pub fn parse_item_time(value: &str) -> Option<Timestamp> {
+    crate::timestamp::parse(value)
         .ok()
+        .or_else(|| super::publication_time::parse_rfc2822(value))
 }
 
 #[must_use]

@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, anyhow, ensure};
-use chrono::{DateTime, Utc};
+use jiff::Timestamp;
 use rusqlite::{OptionalExtension, Transaction, params};
 
 use super::{
@@ -49,7 +49,7 @@ impl Store {
     /// # Errors
     ///
     /// Returns an error when `SQLite` cannot read a sent item row.
-    pub fn recent_sent_items(&self, since: DateTime<Utc>) -> Result<Vec<StoredSentItem>> {
+    pub fn recent_sent_items(&self, since: Timestamp) -> Result<Vec<StoredSentItem>> {
         // The raw lower bound retains index use; normalization orders fractions correctly.
         let mut statement = self
             .connection

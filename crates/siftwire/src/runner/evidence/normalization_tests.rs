@@ -3,6 +3,8 @@
     reason = "assertions report normalized delivery contracts"
 )]
 
+use jiff::{SignedDuration, Timestamp};
+
 use super::*;
 use crate::contract::{BriefRequest, Paths, SportsUpdate};
 use crate::storage::{RunDeliveryContext, Store};
@@ -23,13 +25,13 @@ fn normalized_fixture() -> Result<(tempfile::TempDir, Store, String)> {
         title: "Alpha at Beta".to_owned(),
         competition: "League".to_owned(),
         url: "https://EXAMPLE.test:443/card".to_owned(),
-        starts_at: chrono::DateTime::from_timestamp(1_800_000_000, 0).unwrap_or_default(),
+        starts_at: Timestamp::new(1_800_000_000, 0).unwrap_or_default(),
         ..SportsUpdate::default()
     };
     let mut second = update.clone();
     second.starts_at = second
         .starts_at
-        .checked_add_signed(chrono::TimeDelta::days(1))
+        .checked_add(SignedDuration::from_hours(24))
         .context("next fixture time")?;
     let context = RunDeliveryContext {
         max_delivery_items: 7,

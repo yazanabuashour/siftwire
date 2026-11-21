@@ -1,3 +1,4 @@
+use jiff::Timestamp;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
@@ -74,7 +75,9 @@ pub fn prepare(mut scenario: Scenario, run_dir: &Path) -> Result<Scenario> {
     let fixture_dir = run_dir.join("fixtures");
     create_dir_all(&fixture_dir, 0o755)?;
     let feed_path = fixture_dir.join("github-blog.xml");
-    let published = chrono::Utc::now().to_rfc2822();
+    let published = Timestamp::now()
+        .strftime("%a, %-d %b %Y %H:%M:%S +0000")
+        .to_string();
     if needs_feed {
         write_file(&feed_path, feed(&published).as_bytes(), 0o644)?;
     }

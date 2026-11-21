@@ -3,11 +3,12 @@
     reason = "behavior tests return Result for fixture decoding while assertions report contract failures"
 )]
 
+use jiff::Timestamp;
+
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use anyhow::{Context, Result, bail};
-use chrono::{DateTime, Utc};
 
 use crate::contract::{CurrentNewsStatus, HealthDelta};
 use crate::domain::{OutletPolicy, Source};
@@ -219,7 +220,7 @@ fn guidless_rss_links_keep_saved_marker_boundaries() -> Result<()> {
         }),
         &[],
         Some(&state(escaped)),
-        DateTime::<Utc>::default(),
+        Timestamp::default(),
     );
     assert_eq!(
         next.collected
@@ -423,7 +424,7 @@ fn same_run_preference_flows_into_recent_exact_headline_suppression() -> Result<
         "same-run suppression audit changed"
     );
 
-    let sent_at = DateTime::parse_from_rfc3339("2026-04-23T00:00:00Z")?.with_timezone(&Utc);
+    let sent_at = crate::timestamp::parse("2026-04-23T00:00:00Z")?;
     let recent = [StoredSentItem {
         title: title.to_owned(),
         url: "https://previous.test/story".to_owned(),
@@ -548,7 +549,7 @@ fn exact_dedup_keeps_distinct_developments_and_required_items() -> Result<()> {
         title: title.to_uppercase(),
         url: reused_url.to_owned(),
         kind: String::new(),
-        sent_at: DateTime::parse_from_rfc3339("2026-04-23T00:00:00Z")?.with_timezone(&Utc),
+        sent_at: crate::timestamp::parse("2026-04-23T00:00:00Z")?,
     }];
     let result = suppress_recent_candidates(classified.candidates, &recent);
     assert_eq!(
@@ -638,7 +639,7 @@ fn current_news_feed() -> Result<(Source, FetchOutput)> {
 #[test]
 fn current_news_uses_the_whole_feed_and_dates_not_markers_or_order() -> Result<()> {
     let (mut feed, output) = current_news_feed()?;
-    let now = DateTime::parse_from_rfc3339("2026-04-23T12:00:00Z")?.with_timezone(&Utc);
+    let now = crate::timestamp::parse("2026-04-23T12:00:00Z")?;
     let expected = CurrentNewsStatus {
         since: "2026-04-22T12:00:00Z".to_owned(),
         until: "2026-04-23T12:00:00Z".to_owned(),
@@ -783,7 +784,7 @@ fn current_news_atom_requires_publication_while_required_keeps_updated() -> Resu
         <entry><title>Nested primary</title><published><date>2026-04-23T11:00:00Z</date></published></entry>
         </feed>"#;
     let feed = source("atom");
-    let now = DateTime::parse_from_rfc3339("2026-04-23T12:00:00Z")?.with_timezone(&Utc);
+    let now = crate::timestamp::parse("2026-04-23T12:00:00Z")?;
     let processed = process_source(
         &feed,
         Ok(FetchOutput {

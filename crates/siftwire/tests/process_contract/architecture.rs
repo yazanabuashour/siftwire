@@ -114,7 +114,7 @@ fn required_items_leave_the_shared_news_and_forum_allowance_intact() -> Result<(
             &feed,
             format!(
                 "<rss version=\"2.0\"><channel><title>Fixture</title><item><title>{key} update</title><link>https://example.test/{key}</link><guid>{key}</guid><pubDate>{}</pubDate></item></channel></rss>",
-                chrono::Utc::now().to_rfc2822()
+                rss_date(Timestamp::now())
             ),
         )?;
         let url = url::Url::from_file_path(&feed).map_err(|()| anyhow::anyhow!("fixture URL"))?;
@@ -189,7 +189,7 @@ fn mixed_rss_release_routing_preserves_saved_sections_and_optional_limits() -> R
         <item><title>Security releases</title><link>https://example.test/project/security/patches</link><pubDate>{published}</pubDate></item>
         <item><title>Project news</title><link>https://example.test/project/news</link><pubDate>{published}</pubDate></item>
         </channel></rss>"#,
-            published = chrono::Utc::now().to_rfc2822()
+            published = rss_date(Timestamp::now())
         ),
     )?;
     let url = url::Url::from_file_path(&feed).map_err(|()| anyhow::anyhow!("fixture URL"))?;
@@ -283,7 +283,7 @@ fn configure_annotation_sources(
         &feed,
         format!(
             r#"<rss version="2.0"><channel><title>Fixture</title><item><title>One - Allowed</title><link>file:///nonexistent/siftwire-one</link><guid>one</guid><pubDate>{published}</pubDate></item><item><title>Two - Watched</title><link>file:///nonexistent/siftwire-two</link><guid>two</guid><pubDate>{published}</pubDate></item><item><title>Three - Blocked</title><link>file:///nonexistent/siftwire-three</link><guid>three</guid><pubDate>{published}</pubDate></item></channel></rss>"#,
-            published = chrono::Utc::now().to_rfc2822()
+            published = rss_date(Timestamp::now())
         ),
     )?;
     let feed_url = url::Url::from_file_path(&feed).map_err(|()| anyhow::anyhow!("fixture URL"))?;

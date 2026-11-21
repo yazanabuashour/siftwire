@@ -159,9 +159,7 @@ impl<'connection> Checker<'connection> {
         let mut answer = format!("Current brief\n\n{}", current.get::<_, String>(0)?);
         while let Some(previous) = rows.next()? {
             let delivered_at =
-                chrono::DateTime::parse_from_rfc3339(&previous.get::<_, String>(1)?)?
-                    .with_timezone(&chrono::Utc)
-                    .to_rfc3339_opts(chrono::SecondsFormat::AutoSi, true);
+                crate::timestamp::wire(crate::timestamp::parse(&previous.get::<_, String>(1)?)?);
             answer.push_str("\n\nPrevious brief (");
             answer.push_str(&delivered_at);
             answer.push_str(")\n\n");

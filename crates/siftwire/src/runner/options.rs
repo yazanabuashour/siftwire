@@ -1,15 +1,14 @@
+use jiff::{SignedDuration, Timestamp};
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
 use anyhow::{Result, ensure};
-use chrono::{DateTime, TimeDelta, Utc};
-use chrono_tz::Tz;
 
 use crate::contract::ConfigRequest;
 use crate::engine::SportsOptions;
 use crate::storage::{
     DEFAULT_MAX_DELIVERY_ITEMS, DEFAULT_SPORTS_POST_GAME_DAYS, DEFAULT_SPORTS_PRE_GAME_DAYS,
-    DEFAULT_SPORTS_TIMEZONE, MAX_DELIVERY_ITEMS_UPPER_BOUND, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
+    MAX_DELIVERY_ITEMS_UPPER_BOUND, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
     RUNTIME_CONFIG_READER_PRIORITIES, RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
     RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS, RUNTIME_CONFIG_SPORTS_TIMEZONE,
 };
@@ -23,7 +22,7 @@ pub(super) struct BriefOptions {
 
 pub(super) fn updates(
     request: &ConfigRequest,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> Result<Vec<(&'static str, String)>> {
     let mut values = Vec::new();
     if let Some(value) = request.max_delivery_items {
@@ -49,7 +48,7 @@ pub(super) fn updates(
     if let Some(raw) = &request.sports_timezone {
         let value = raw.trim();
         ensure!(
-            value.parse::<Tz>().is_ok(),
+            crate::timezone::named(value).is_ok(),
             "{RUNTIME_CONFIG_SPORTS_TIMEZONE} must be an IANA time zone"
         );
         values.push((RUNTIME_CONFIG_SPORTS_TIMEZONE, value.to_owned()));
@@ -65,7 +64,7 @@ pub(super) fn updates(
 }
 
 impl BriefOptions {
-    pub(super) fn from_config(config: &BTreeMap<String, String>, now: DateTime<Utc>) -> Self {
+    pub(super) fn from_config(config: &BTreeMap<String, String>, now: Timestamp) -> Self {
         let mut warnings = BTreeMap::new();
         let max_delivery_items = stored(
             config,
@@ -74,17 +73,27 @@ impl BriefOptions {
             &mut warnings,
             |raw| delivery_limit(raw.parse().ok()?).ok(),
         );
-        let timezone = stored(
-            config,
-            RUNTIME_CONFIG_SPORTS_TIMEZONE,
-            DEFAULT_SPORTS_TIMEZONE,
-            &mut warnings,
-            |raw| raw.parse().ok(),
-        );
+        let timezone =
+            config
+                .get(RUNTIME_CONFIG_SPORTS_TIMEZONE)
+                .map(|raw| raw.trim())
+                .filter(|raw| !raw.is_empty())
+                .and_then(|raw| {
+                    crate::timezone::named(raw)
+                        .map_err(|_error| {
+                            let key = RUNTIME_CONFIG_SPORTS_TIMEZONE;
+                            let default = crate::timezone::CENTRAL;
+                            warnings.insert(format!("runtime:{key}"),
+                    format!("`{key}` config value {raw:?} is invalid; using default {default}"));
+                        })
+                        .ok()
+                })
+                .unwrap_or_else(crate::timezone::central);
         let mut window = |key, default| {
-            TimeDelta::days(stored(config, key, default, &mut warnings, |raw| {
+            let days = stored(config, key, default, &mut warnings, |raw| {
                 sports_days(key, raw.parse().ok()?, now).ok()
-            }))
+            });
+            SignedDuration::from_secs(days.saturating_mul(86_400))
         };
         Self {
             max_delivery_items,
@@ -139,11 +148,14 @@ fn delivery_limit(value: i64) -> Result<i64> {
     Ok(value)
 }
 
-fn sports_days(key: &str, value: i64, now: DateTime<Utc>) -> Result<i64> {
-    let fits = value >= 0
-        && TimeDelta::try_days(value).is_some_and(|window| match key {
-            RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS => now.checked_add_signed(window).is_some(),
-            RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS => now.checked_sub_signed(window).is_some(),
+fn sports_days(key: &str, value: i64, now: Timestamp) -> Result<i64> {
+    let fits = value
+        .checked_mul(86_400)
+        .filter(|seconds| *seconds >= 0)
+        .map(SignedDuration::from_secs)
+        .is_some_and(|window| match key {
+            RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS => now.checked_add(window).is_ok(),
+            RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS => now.checked_sub(window).is_ok(),
             _ => false,
         });
     ensure!(

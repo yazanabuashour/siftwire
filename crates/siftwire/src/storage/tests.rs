@@ -3,6 +3,8 @@
     reason = "storage behavior tests return Result for SQLite setup while assertions report contract failures"
 )]
 
+use jiff::Timestamp;
+
 use std::collections::BTreeMap;
 use std::fs;
 #[cfg(unix)]
@@ -12,7 +14,6 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 
 use anyhow::{Context, Result, bail};
-use chrono::Utc;
 use rusqlite::Connection;
 use tempfile::TempDir;
 
@@ -491,7 +492,7 @@ fn sports_delivery_evidence_does_not_enter_normal_recent_suppression() -> Result
     ))?;
     drop(store);
     let reopened = Store::open(temp.path().join("siftwire.sqlite"))?;
-    let recent = reopened.recent_sent_items(chrono::DateTime::<Utc>::default())?;
+    let recent = reopened.recent_sent_items(Timestamp::default())?;
     assert_eq!(recent.len(), 1);
     assert_eq!(
         recent.first().map(|item| item.title.as_str()),

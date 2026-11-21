@@ -1,9 +1,9 @@
+use jiff::{SignedDuration, Timestamp};
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
 
 use anyhow::{Context, Result};
-use chrono::{SecondsFormat, TimeDelta, Utc};
 
 use crate::contract::ItemDisposition;
 use crate::contract::{
@@ -63,7 +63,7 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
     } else {
         store.start_run(false)?
     };
-    let now = Utc::now();
+    let now = Timestamp::now();
     let mut options = BriefOptions::from_config(&store.runtime_config()?, now);
     let recent = recent_sent_items(store, now)?;
     let mut accumulator = collect_sources(store, &sources, &run_id, dry_run, now, &options.sports)?;
@@ -89,7 +89,7 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
     let health_delta = finish_health(store, &sources, &mut accumulator, now, dry_run)?;
     let health_footnote = build_health_footnote(&health_delta, &accumulator.statuses);
     let sports_updates = prepare_sports_updates(std::mem::take(&mut accumulator.sports_updates));
-    let sports_section = render_sports_section(&sports_updates, options.sports.timezone);
+    let sports_section = render_sports_section(&sports_updates, &options.sports.timezone);
     let candidates = recent_result.candidates;
     accumulator
         .statuses
@@ -130,12 +130,9 @@ fn run(paths: Paths, store: &Store, dry_run: bool) -> Result<BriefResult> {
     })
 }
 
-fn recent_sent_items(
-    store: &Store,
-    now: chrono::DateTime<Utc>,
-) -> Result<Vec<crate::storage::StoredSentItem>> {
+fn recent_sent_items(store: &Store, now: Timestamp) -> Result<Vec<crate::storage::StoredSentItem>> {
     let since = now
-        .checked_sub_signed(TimeDelta::hours(CURRENT_NEWS_HOURS))
+        .checked_sub(SignedDuration::from_hours(CURRENT_NEWS_HOURS))
         .context("calculate recent delivery window")?;
     store.recent_sent_items(since)
 }
@@ -153,7 +150,7 @@ fn finish_health(
     store: &Store,
     sources: &[Source],
     accumulator: &mut Accumulator,
-    now: chrono::DateTime<Utc>,
+    now: Timestamp,
     dry_run: bool,
 ) -> Result<HealthDelta> {
     if !dry_run {
@@ -166,10 +163,7 @@ fn finish_health(
     }
     let delta = store.health_delta(&accumulator.warnings, !dry_run)?;
     if !dry_run {
-        store.set_runtime_config(
-            "last_check",
-            &now.to_rfc3339_opts(SecondsFormat::AutoSi, true),
-        )?;
+        store.set_runtime_config("last_check", &crate::timestamp::wire(now))?;
     }
     Ok(delta)
 }
@@ -179,7 +173,7 @@ fn collect_sources(
     sources: &[Source],
     run_id: &str,
     dry_run: bool,
-    now: chrono::DateTime<Utc>,
+    now: Timestamp,
     sports_options: &SportsOptions,
 ) -> Result<Accumulator> {
     let policies = store.list_outlet_policies()?;
@@ -205,7 +199,7 @@ struct SourceRun<'a> {
     policies: &'a [crate::domain::OutletPolicy],
     run_id: &'a str,
     dry_run: bool,
-    now: chrono::DateTime<Utc>,
+    now: Timestamp,
 }
 
 fn record_source(
@@ -249,7 +243,7 @@ fn record_source(
 
 fn fetch_sources(
     sources: &[Source],
-    now: chrono::DateTime<Utc>,
+    now: Timestamp,
     sports_options: &SportsOptions,
 ) -> Vec<Result<FetchOutput>> {
     let fetcher = Fetcher::new();
@@ -404,7 +398,12 @@ fn persist_delivery_context(
         &RunDeliveryContext {
             max_delivery_items: options.max_delivery_items,
             sports_updates: sports_updates.to_vec(),
-            sports_timezone: options.sports.timezone.to_string(),
+            sports_timezone: options
+                .sports
+                .timezone
+                .iana_name()
+                .context("sports time zone must have an IANA name")?
+                .to_owned(),
             health_footnote: health_footnote.to_owned(),
         },
     )
@@ -413,9 +412,7 @@ fn persist_delivery_context(
 fn previous_brief(delivery: Delivery) -> PreviousBrief {
     PreviousBrief {
         run_id: delivery.run_id,
-        delivered_at: delivery
-            .delivered_at
-            .to_rfc3339_opts(SecondsFormat::AutoSi, true),
+        delivered_at: crate::timestamp::wire(delivery.delivered_at),
         message: delivery.message,
     }
 }

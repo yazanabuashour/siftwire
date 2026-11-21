@@ -1,5 +1,4 @@
 use anyhow::{Context, Result, bail, ensure};
-use chrono::SecondsFormat;
 use feed_rs::model::{Entry, FeedType, Link};
 use quick_xml::NsReader;
 use quick_xml::encoding::DecodingReader;
@@ -66,15 +65,9 @@ fn fetched_item(entry: &Entry, raw_date: Option<&str>, current_news: bool) -> Op
     let published_at = if current_news {
         raw_date.unwrap_or_default().to_owned()
     } else {
-        let parsed_date = entry
-            .updated
-            .or(entry.published)
-            .map_or_else(String::new, |date| {
-                date.to_rfc3339_opts(SecondsFormat::AutoSi, true)
-            });
         raw_date
             .filter(|raw| !raw.is_empty())
-            .map_or(parsed_date, str::to_owned)
+            .map_or_else(|| feed_timestamp(entry), str::to_owned)
     };
     Some(FetchedItem {
         title,
@@ -87,6 +80,19 @@ fn fetched_item(entry: &Entry, raw_date: Option<&str>, current_news: bool) -> Op
         identity,
         outlet: String::new(),
     })
+}
+
+fn feed_timestamp(entry: &Entry) -> String {
+    let Some(date) = entry.updated.or(entry.published) else {
+        return String::new();
+    };
+    // The feed-rs date is already UTC; preserve its exact fractional and leap-second spelling.
+    let mut value = date.to_rfc3339();
+    if let Some(utc) = value.strip_suffix("+00:00") {
+        value.truncate(utc.len());
+        value.push('Z');
+    }
+    value
 }
 
 fn entry_link(links: &[Link]) -> String {

@@ -1,3 +1,4 @@
+use jiff::Timestamp;
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result, ensure};
@@ -47,7 +48,7 @@ impl Store {
     ///
     /// Returns an error when a count exceeds `SQLite`'s integer range or the insert fails.
     pub fn insert_fetch_log(&self, log: &FetchLog) -> Result<()> {
-        let created_at = if log.created_at == chrono::DateTime::<chrono::Utc>::default() {
+        let created_at = if log.created_at == Timestamp::default() {
             self.timestamp()
         } else {
             log.created_at

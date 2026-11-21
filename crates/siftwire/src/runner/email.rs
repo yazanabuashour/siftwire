@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
-use chrono::{DateTime, Timelike, Utc};
-use chrono_tz::Tz;
 use email_ui::{Document, Header, Image, Notice, Row, ScheduleGroup, ScheduleRow, Section};
+use jiff::tz::TimeZone;
 
 use crate::contract::SportsUpdate;
 use crate::storage::{RunDeliveryContext, RunItemRow};
@@ -12,7 +11,7 @@ pub fn render(
     selected: &[&RunItemRow],
     context: &RunDeliveryContext,
     started_at: &str,
-    timezone: Tz,
+    timezone: &TimeZone,
 ) -> Result<String> {
     let document = document(selected, context, started_at, timezone)?;
     Ok(email_ui::render(&document)?.html)
@@ -22,12 +21,11 @@ fn document(
     selected: &[&RunItemRow],
     context: &RunDeliveryContext,
     started_at: &str,
-    timezone: Tz,
+    timezone: &TimeZone,
 ) -> Result<Document> {
-    let started_at = DateTime::parse_from_rfc3339(started_at)
+    let started_at = crate::timestamp::parse(started_at)
         .context("stored brief start time is invalid")?
-        .with_timezone(&Utc)
-        .with_timezone(&timezone);
+        .to_zoned_datetime(timezone.clone());
     let edition = if started_at.hour() < 12 {
         "Morning"
     } else {
@@ -104,9 +102,9 @@ fn document(
         preheader,
         header: Header {
             edition: edition.to_owned(),
-            date: started_at.format("%a, %b %-d").to_string(),
+            date: started_at.strftime("%a, %b %-d").to_string(),
         },
-        footer: format!("Times: {timezone}"),
+        footer: format!("Times: {}", context.sports_timezone),
         sections,
         notice: (!context.health_footnote.is_empty()).then(|| Notice {
             label: "Source health".to_owned(),
@@ -138,15 +136,15 @@ fn news_row(item: &RunItemRow) -> Row {
     }
 }
 
-fn schedule_row(update: &SportsUpdate, timezone: Tz) -> ScheduleRow {
-    let when = update.starts_at.with_timezone(&timezone);
+fn schedule_row(update: &SportsUpdate, timezone: &TimeZone) -> ScheduleRow {
+    let when = update.starts_at.to_zoned_datetime(timezone.clone());
     ScheduleRow {
-        weekday: when.format("%a").to_string(),
-        day: when.format("%-d").to_string(),
-        month: when.format("%b").to_string(),
+        weekday: when.strftime("%a").to_string(),
+        day: when.strftime("%-d").to_string(),
+        month: when.strftime("%b").to_string(),
         title: update.title.clone(),
         url: update.url.clone(),
-        metadata: format!("{} · {}", update.competition, when.format("%-I:%M %p %Z")),
+        metadata: format!("{} · {}", update.competition, when.strftime("%-I:%M %p %Z")),
         images: update
             .images
             .iter()
@@ -167,6 +165,7 @@ mod tests {
     use super::render;
     use crate::contract::{SportsImage, SportsUpdate};
     use crate::storage::{RunDeliveryContext, RunItemRow};
+    use jiff::tz::TimeZone;
 
     fn expected_html(frozen: &str) -> String {
         frozen
@@ -226,8 +225,7 @@ mod tests {
                     title: "Alpha vs Beta".to_owned(),
                     competition: "Example League".to_owned(),
                     url: "https://example.test/game".to_owned(),
-                    starts_at: chrono::DateTime::parse_from_rfc3339("2026-08-29T12:00:00Z")?
-                        .with_timezone(&chrono::Utc),
+                    starts_at: crate::timestamp::parse("2026-08-29T12:00:00Z")?,
                     images: vec![SportsImage {
                         url: "https://images.example/alpha.png".to_owned(),
                         alt: "Alpha".to_owned(),
@@ -238,8 +236,7 @@ mod tests {
                     status: "final".to_owned(),
                     title: "Gamma 2–1 Delta".to_owned(),
                     competition: "Example Cup".to_owned(),
-                    starts_at: chrono::DateTime::parse_from_rfc3339("2026-08-28T00:00:00Z")?
-                        .with_timezone(&chrono::Utc),
+                    starts_at: crate::timestamp::parse("2026-08-28T00:00:00Z")?,
                     ..SportsUpdate::default()
                 },
             ],
@@ -249,7 +246,7 @@ mod tests {
             &[&item, &news],
             &context,
             "2026-08-28T00:00:00Z",
-            chrono_tz::America::Chicago,
+            &jiff::tz::db().get("America/Chicago")?,
         )?;
         assert_eq!(
             evening,
@@ -297,8 +294,7 @@ mod tests {
                 status: "upcoming".to_owned(),
                 title: "Alpha & Beta <final>".to_owned(),
                 competition: "League \"one\" & 'two'".to_owned(),
-                starts_at: chrono::DateTime::parse_from_rfc3339("2026-01-01T18:05:00Z")?
-                    .with_timezone(&chrono::Utc),
+                starts_at: crate::timestamp::parse("2026-01-01T23:35:00+05:30")?,
                 images: (1..=3)
                     .map(|index| SportsImage {
                         url: format!("https://images.example/{index}.png?a=1&b=2"),
@@ -315,7 +311,7 @@ mod tests {
             &[first_news, first_release, second_news, second_release],
             &context,
             "2026-01-01T23:00:00Z",
-            chrono_tz::Asia::Tokyo,
+            &crate::timezone::named("Asia/Tokyo")?,
         )?;
         assert_eq!(
             morning,
@@ -324,11 +320,12 @@ mod tests {
             ))
         );
         let empty_context = RunDeliveryContext {
+            sports_timezone: "UTC".to_owned(),
             sports_updates: vec![],
             health_footnote: String::new(),
             ..context
         };
-        let empty = render(&[], &empty_context, "2026-01-01T12:00:00Z", chrono_tz::UTC)?;
+        let empty = render(&[], &empty_context, "2026-01-01T12:00:00Z", &TimeZone::UTC)?;
         assert_eq!(
             empty,
             expected_html(include_str!("../../tests/fixtures/email/empty-noon.html"))
@@ -342,7 +339,7 @@ mod tests {
             &[],
             &unknown_context,
             "2026-01-01T11:59:00Z",
-            chrono_tz::UTC,
+            &TimeZone::UTC,
         )?;
         assert_eq!(
             unknown,

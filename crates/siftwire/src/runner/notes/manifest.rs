@@ -1,13 +1,13 @@
+use jiff::Timestamp;
+use jiff::civil::Date;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use anyhow::{Context, Result, bail};
-use chrono::{DateTime, NaiveDate, SecondsFormat, Timelike, Utc};
-use chrono_tz::Tz;
 use serde::{Deserialize, Serialize};
 
 pub const NOTE_PATH: &str = "technology/daily-briefs.md";
-const TIMEZONE: Tz = chrono_tz::America::Chicago;
+use crate::timezone::{CENTRAL, central};
 const SCHEMA_VERSION: u64 = 1;
 // Notes rejects a section over 400 words.
 const RECENT_DATES: usize = 14;
@@ -30,20 +30,21 @@ impl Slot {
 
 /// Maps a brief's start to its reporting date, matching the email's morning and evening cutoff.
 #[must_use]
-pub fn reporting_slot(started_at: DateTime<Utc>) -> (NaiveDate, Slot) {
-    let local = started_at.with_timezone(&TIMEZONE);
+pub fn reporting_slot(started_at: Timestamp) -> (Date, Slot) {
+    let local = started_at.to_zoned_datetime(central());
     let slot = if local.hour() < 12 {
         Slot::Am
     } else {
         Slot::Pm
     };
-    (local.date_naive(), slot)
+    (local.date(), slot)
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct Edition {
-    pub date: NaiveDate,
+    #[serde(with = "manifest_date")]
+    pub date: Date,
     pub slot: Slot,
     pub revision: u32,
     #[serde(rename = "editionId")]
@@ -58,7 +59,7 @@ pub struct Edition {
 
 impl Edition {
     #[must_use]
-    pub fn id_for(date: NaiveDate, slot: Slot, revision: u32) -> String {
+    pub fn id_for(date: Date, slot: Slot, revision: u32) -> String {
         let base = format!("brief-{date}-{}", slot.label());
         if revision > 1 {
             format!("{base}-r{revision}")
@@ -95,9 +96,54 @@ impl SlotStatus {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 struct OpenSlot {
-    date: NaiveDate,
+    #[serde(with = "manifest_date")]
+    date: Date,
     slot: Slot,
     status: SlotStatus,
+}
+
+mod manifest_date {
+    use std::sync::LazyLock;
+
+    use jiff::civil::Date;
+    use regex::Regex;
+    use serde::{Deserialize, Deserializer, Serializer, de::Error as _};
+
+    #[expect(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "Serde field serializers take a reference"
+    )]
+    pub(super) fn serialize<S: Serializer>(date: &Date, serializer: S) -> Result<S::Ok, S::Error> {
+        let year = date.year();
+        let sign = if year < 0 { "-" } else { "" };
+        let month = date.month();
+        let day = date.day();
+        serializer.collect_str(&format_args!(
+            "{sign}{:04}-{month:02}-{day:02}",
+            year.unsigned_abs()
+        ))
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Date, D::Error> {
+        static DATE: LazyLock<Result<Regex, regex::Error>> = LazyLock::new(|| {
+            Regex::new(r"\A\s*([+-][0-9]+|[0-9]{1,4})\s*-\s*([0-9]{1,2})\s*-\s*([0-9]{1,2})\s*\z")
+        });
+        let value = String::deserialize(deserializer)?;
+        let (_, [year, month, day]) = DATE
+            .as_ref()
+            .map_err(D::Error::custom)?
+            .captures(&value)
+            .ok_or_else(|| D::Error::custom("expected a date without a time or offset"))?
+            .extract();
+        Date::new(
+            year.parse().map_err(D::Error::custom)?,
+            month.parse().map_err(D::Error::custom)?,
+            day.parse().map_err(D::Error::custom)?,
+        )
+        .map_err(D::Error::custom)
+    }
 }
 
 /// The index note's JSON block. Its editions are the record of what is published.
@@ -115,7 +161,7 @@ impl Default for Manifest {
     fn default() -> Self {
         Self {
             schema_version: SCHEMA_VERSION,
-            timezone: TIMEZONE.name().to_owned(),
+            timezone: CENTRAL.to_owned(),
             updated_at: String::new(),
             editions: Vec::new(),
             slots: Vec::new(),
@@ -146,7 +192,7 @@ impl Manifest {
         }
         let manifest: Self =
             serde_json::from_value(value).context("index note manifest has an invalid shape")?;
-        if manifest.timezone != TIMEZONE.name() {
+        if manifest.timezone != CENTRAL {
             bail!("index note manifest uses timezone {}", manifest.timezone);
         }
         Ok(manifest)
@@ -168,7 +214,7 @@ impl Manifest {
     }
 
     #[must_use]
-    pub fn next_revision(&self, date: NaiveDate, slot: Slot) -> u32 {
+    pub fn next_revision(&self, date: Date, slot: Slot) -> u32 {
         self.editions
             .iter()
             .filter(|edition| edition.date == date && edition.slot == slot)
@@ -180,13 +226,13 @@ impl Manifest {
 
     /// Adds an edition and recomputes every open slot as of `now`.
     #[must_use]
-    pub fn with_edition(&self, edition: Edition, now: DateTime<Utc>) -> Self {
+    pub fn with_edition(&self, edition: Edition, now: Timestamp) -> Self {
         let mut editions = self.editions.clone();
         editions.push(edition);
         editions.sort_by_key(|entry| std::cmp::Reverse((entry.date, entry.slot, entry.revision)));
         Self {
             slots: open_slots(&editions, now),
-            updated_at: now.to_rfc3339_opts(SecondsFormat::Secs, true),
+            updated_at: format!("{now:.0}"),
             editions,
             ..Self::default()
         }
@@ -233,7 +279,7 @@ impl Manifest {
         lines
     }
 
-    fn slot_summary(&self, date: NaiveDate, slot: Slot) -> Option<String> {
+    fn slot_summary(&self, date: Date, slot: Slot) -> Option<String> {
         let latest = self
             .editions
             .iter()
@@ -250,9 +296,9 @@ impl Manifest {
     }
 }
 
-fn open_slots(editions: &[Edition], now: DateTime<Utc>) -> Vec<OpenSlot> {
-    let local = now.with_timezone(&TIMEZONE);
-    let today = local.date_naive();
+fn open_slots(editions: &[Edition], now: Timestamp) -> Vec<OpenSlot> {
+    let local = now.to_zoned_datetime(central());
+    let today = local.date();
     let filled = editions
         .iter()
         .map(|edition| (edition.date, edition.slot))
@@ -261,7 +307,10 @@ fn open_slots(editions: &[Edition], now: DateTime<Utc>) -> Vec<OpenSlot> {
         return Vec::new();
     };
     let mut slots = Vec::new();
-    for date in first.iter_days().take_while(|date| *date <= today) {
+    for date in first
+        .series(jiff::Span::new().days(1))
+        .take_while(|date| *date <= today)
+    {
         for slot in [Slot::Am, Slot::Pm] {
             if filled.contains(&(date, slot)) {
                 continue;
@@ -289,15 +338,15 @@ fn open_slots(editions: &[Edition], now: DateTime<Utc>) -> Vec<OpenSlot> {
 )]
 mod tests {
     use anyhow::{Context, Result};
-    use chrono::{DateTime, NaiveDate, Utc};
+    use jiff::{Timestamp, civil::Date};
 
     use super::{Edition, Manifest, Slot, SlotStatus, reporting_slot};
 
-    fn at(value: &str) -> Result<DateTime<Utc>> {
-        Ok(DateTime::parse_from_rfc3339(value)?.with_timezone(&Utc))
+    fn at(value: &str) -> Result<Timestamp> {
+        crate::timestamp::parse(value)
     }
 
-    fn date(value: &str) -> Result<NaiveDate> {
+    fn date(value: &str) -> Result<Date> {
         Ok(value.parse()?)
     }
 
@@ -411,6 +460,16 @@ mod tests {
             );
         let note = manifest.render_note()?;
         assert_eq!(Manifest::parse_note(&note)?, manifest);
+        let legacy = note.replace("\"date\": \"2026-11-06\"", "\"date\": \"2026-11-6\"");
+        assert_eq!(Manifest::parse_note(&legacy)?, manifest);
+        let datetime = note.replace(
+            "\"date\": \"2026-11-06\"",
+            "\"date\": \"2026-11-06T23:00:00+00\"",
+        );
+        assert!(
+            Manifest::parse_note(&datetime).is_err(),
+            "manifest dates must not contain a time"
+        );
         assert_eq!(
             manifest.next_revision(date("2026-11-06")?, Slot::Pm),
             3,
@@ -430,7 +489,7 @@ mod tests {
     fn links_stay_bounded_while_the_manifest_keeps_every_edition() -> Result<()> {
         let mut manifest = Manifest::default();
         let first = date("2026-01-01")?;
-        for day in first.iter_days().take(40) {
+        for day in first.series(jiff::Span::new().days(1)).take(40) {
             manifest = manifest.with_edition(
                 edition(&day.to_string(), Slot::Am, 1)?,
                 at(&format!("{day}T23:00:00Z"))?,

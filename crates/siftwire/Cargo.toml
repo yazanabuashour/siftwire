@@ -1,6 +1,6 @@
 [package]
 name = "siftwire"
-version = "0.16.4"
+version = "0.16.5"
 edition.workspace = true
 rust-version.workspace = true
 description = "Local-first brief runtime for agents"
@@ -12,14 +12,18 @@ autolib = false
 
 [dependencies]
 anyhow = "1"
-chrono = { version = "0.4", features = ["serde"] }
-chrono-tz = "0.10"
 email-ui = { git = "https://github.com/yazanabuashour/email-ui.git", rev = "78f04a4ac98f7289936778673ae55b26a477ce5e" }
 feed-rs = "3.0"
 # Keep feed-rs on the parser that produced existing feed links and markers.
 feed-url = { package = "url", version = "=2.5.8" }
 fs2 = "0.4"
 getrandom = "0.4"
+jiff = { version = "1.0.2", default-features = false, features = [
+  "static",
+  "std",
+  "tz-fat",
+  "tzdb-bundle-always",
+] }
 path-clean = "1"
 quick-xml = { version = "0.42", features = ["encoding"] }
 regex = "1"

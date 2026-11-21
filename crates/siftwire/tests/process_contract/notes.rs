@@ -289,7 +289,7 @@ impl Fixture {
             self.feed(),
             format!(
                 r#"<?xml version="1.0"?><rss version="2.0"><channel><title>F</title><item><title>Story {story}</title><link>https://example.test/{story}</link><guid>{story}</guid><pubDate>{}</pubDate></item></channel></rss>"#,
-                chrono::Utc::now().to_rfc2822()
+                super::rss_date(jiff::Timestamp::now())
             ),
         )?;
         Ok(())

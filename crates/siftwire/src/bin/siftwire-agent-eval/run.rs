@@ -1,3 +1,4 @@
+use jiff::Timestamp;
 use std::env;
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -5,7 +6,6 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use anyhow::{Context, Result, anyhow, bail};
-use chrono::Utc;
 
 use crate::adapter;
 use crate::filesystem::{
@@ -185,7 +185,7 @@ fn user_cache_root() -> Result<PathBuf> {
 fn temporary_run_root(parent: &Path) -> Result<PathBuf> {
     let prefix = format!(
         "run-{}-{}",
-        Utc::now().timestamp_micros(),
+        Timestamp::now().as_microsecond(),
         std::process::id()
     );
     for nonce in 0_u64..=u64::MAX {

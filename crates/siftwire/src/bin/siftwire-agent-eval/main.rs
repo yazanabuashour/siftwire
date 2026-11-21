@@ -5,6 +5,8 @@ mod output;
 mod report;
 mod run;
 mod scenarios;
+#[path = "../../timestamp.rs"]
+mod timestamp;
 mod types;
 mod verify;
 mod verify_checks;

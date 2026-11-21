@@ -1,3 +1,4 @@
+use jiff::Timestamp;
 #[cfg(test)]
 mod architecture_tests;
 mod delivery;
@@ -23,7 +24,6 @@ use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
-use chrono::{DateTime, Timelike, Utc};
 use fs2::FileExt;
 use rusqlite::{Connection, OpenFlags};
 
@@ -45,7 +45,6 @@ pub const DEFAULT_MAX_DELIVERY_ITEMS: i64 = 7;
 // requested recurring windows and the retained Central-time default.
 pub const DEFAULT_SPORTS_POST_GAME_DAYS: i64 = 3;
 pub const DEFAULT_SPORTS_PRE_GAME_DAYS: i64 = 7;
-pub const DEFAULT_SPORTS_TIMEZONE: chrono_tz::Tz = chrono_tz::America::Chicago;
 pub const MAX_DELIVERY_ITEMS_UPPER_BOUND: i64 = 25;
 pub const DELIVERY_MESSAGE_CONFLICT: &str = "run_id was already delivered with a different message";
 
@@ -57,7 +56,7 @@ pub struct SourceState {
     pub latest_title: String,
     pub latest_url: String,
     pub latest_published_at: String,
-    pub checked_at: DateTime<Utc>,
+    pub checked_at: Timestamp,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -70,14 +69,14 @@ pub struct FetchLog {
     pub item_count: usize,
     pub new_item_count: Option<usize>,
     pub current_news: Option<crate::contract::CurrentNewsStatus>,
-    pub created_at: DateTime<Utc>,
+    pub created_at: Timestamp,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct Delivery {
     pub run_id: String,
     pub message: String,
-    pub delivered_at: DateTime<Utc>,
+    pub delivered_at: Timestamp,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -85,7 +84,7 @@ pub struct StoredSentItem {
     pub title: String,
     pub url: String,
     pub kind: String,
-    pub sent_at: DateTime<Utc>,
+    pub sent_at: Timestamp,
 }
 
 #[derive(Debug)]
@@ -157,7 +156,7 @@ pub struct Store {
     connection: Connection,
     // SQLite's POSIX locks require this descriptor to close after the connection.
     collection_lock: File,
-    now: fn() -> DateTime<Utc>,
+    now: fn() -> Timestamp,
 }
 
 impl Store {
@@ -193,7 +192,7 @@ impl Store {
             let store = Self {
                 connection,
                 collection_lock,
-                now: Utc::now,
+                now: Timestamp::now,
             };
             store.init_schema()?;
             Ok(store)
@@ -217,7 +216,7 @@ impl Store {
             .context("lock durable collection")
     }
 
-    fn timestamp(&self) -> DateTime<Utc> {
+    fn timestamp(&self) -> Timestamp {
         (self.now)()
     }
 }
@@ -328,22 +327,12 @@ fn bool_i64(value: bool) -> i64 {
     i64::from(value)
 }
 
-fn format_timestamp(value: DateTime<Utc>) -> String {
-    let mut timestamp = value.format("%Y-%m-%dT%H:%M:%S").to_string();
-    let nanoseconds = value.nanosecond();
-    if nanoseconds != 0 {
-        let fraction = format!("{nanoseconds:09}");
-        timestamp.push('.');
-        timestamp.push_str(fraction.trim_end_matches('0'));
-    }
-    timestamp.push('Z');
-    timestamp
+fn format_timestamp(value: Timestamp) -> String {
+    value.to_string()
 }
 
-fn parse_timestamp(value: &str) -> Result<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(value)
-        .map(|timestamp| timestamp.with_timezone(&Utc))
-        .with_context(|| format!("invalid stored timestamp {value:?}"))
+fn parse_timestamp(value: &str) -> Result<Timestamp> {
+    crate::timestamp::parse(value).with_context(|| format!("invalid stored timestamp {value:?}"))
 }
 
 fn new_run_id() -> Result<String> {

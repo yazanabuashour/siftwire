@@ -2,6 +2,10 @@
 
 Public release notes are mirrored in `docs/release-notes/`.
 
+## v0.16.5
+
+- Move SiftWire's clock and schedule rendering to Jiff without rewriting saved timestamps. [Release notes](https://github.com/yazanabuashour/siftwire/releases/tag/v0.16.5) describe the time-zone update.
+
 ## v0.16.4
 
 - Upgrade general URL handling to `url` 2.5.9 without changing feed links, saved markers, or delivery history.

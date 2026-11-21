@@ -1,7 +1,7 @@
+use jiff::Timestamp;
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use chrono::{DateTime, Utc};
 
 use crate::contract::{FetchStatus, SportsUpdate, SuppressedPolicyItem};
 use crate::domain::{OutletPolicy, SOURCE_KIND_SCHEDULE, Source};
@@ -30,7 +30,7 @@ pub fn process_source(
     output: Result<FetchOutput>,
     policies: &[OutletPolicy],
     state: Option<&SourceState>,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> SourceOutcome {
     match output {
         Ok(output) => process_items(source, output, policies, state, now),
@@ -58,7 +58,7 @@ fn process_items(
     output: FetchOutput,
     policies: &[OutletPolicy],
     state: Option<&SourceState>,
-    now: DateTime<Utc>,
+    now: Timestamp,
 ) -> SourceOutcome {
     let item_count = if source.kind == SOURCE_KIND_SCHEDULE {
         output.sports_updates.len()

@@ -1,6 +1,6 @@
+use jiff::Timestamp;
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use crate::domain::{OutletPolicy, Source};
@@ -184,9 +184,29 @@ pub struct SportsUpdate {
     pub title: String,
     pub competition: String,
     pub url: String,
-    pub starts_at: DateTime<Utc>,
+    #[serde(with = "sports_timestamp")]
+    pub starts_at: Timestamp,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub images: Vec<SportsImage>,
+}
+
+mod sports_timestamp {
+    use jiff::Timestamp;
+    use serde::{Deserialize, Deserializer, Serializer, de::Error as _};
+
+    pub(super) fn serialize<S: Serializer>(
+        value: &Timestamp,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&crate::timestamp::wire(*value))
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Timestamp, D::Error> {
+        let value = String::deserialize(deserializer)?;
+        crate::timestamp::parse(&value).map_err(D::Error::custom)
+    }
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]

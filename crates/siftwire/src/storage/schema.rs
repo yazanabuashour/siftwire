@@ -3,9 +3,8 @@ use rusqlite::{Connection, Transaction, TransactionBehavior, params};
 
 use super::{
     DEFAULT_MAX_DELIVERY_ITEMS, DEFAULT_SPORTS_POST_GAME_DAYS, DEFAULT_SPORTS_PRE_GAME_DAYS,
-    DEFAULT_SPORTS_TIMEZONE, RUNTIME_CONFIG_MAX_DELIVERY_ITEMS,
-    RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS, RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS,
-    RUNTIME_CONFIG_SPORTS_TIMEZONE, Store, format_timestamp,
+    RUNTIME_CONFIG_MAX_DELIVERY_ITEMS, RUNTIME_CONFIG_SPORTS_POST_GAME_DAYS,
+    RUNTIME_CONFIG_SPORTS_PRE_GAME_DAYS, RUNTIME_CONFIG_SPORTS_TIMEZONE, Store, format_timestamp,
 };
 
 const RELEASE_URL_PREFIXES_MIGRATION: &str =
@@ -239,7 +238,7 @@ fn seed_runtime_config(connection: &Connection, now: &str) -> Result<()> {
         ),
         (
             RUNTIME_CONFIG_SPORTS_TIMEZONE,
-            DEFAULT_SPORTS_TIMEZONE.to_string(),
+            crate::timezone::CENTRAL.to_owned(),
         ),
     ] {
         connection

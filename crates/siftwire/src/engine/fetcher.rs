@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use jiff::Timestamp;
 use serde::Deserialize;
 
 use crate::domain::{SOURCE_KIND_SCHEDULE, Source};
@@ -40,7 +41,7 @@ impl Fetcher {
     pub fn fetch(
         &self,
         source: &Source,
-        now: chrono::DateTime<chrono::Utc>,
+        now: Timestamp,
         sports_options: &SportsOptions,
     ) -> Result<FetchOutput> {
         match source.kind.as_str() {

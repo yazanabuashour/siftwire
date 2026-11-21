@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use jiff::Timestamp;
 use rusqlite::{OptionalExtension, params};
 
 use super::{SourceState, Store, format_timestamp, parse_timestamp};
@@ -54,7 +55,7 @@ impl Store {
         if state.source_key.trim().is_empty() || state.latest_identity.trim().is_empty() {
             bail!("source state key and latest identity are required");
         }
-        let checked_at = if state.checked_at == chrono::DateTime::<chrono::Utc>::default() {
+        let checked_at = if state.checked_at == Timestamp::default() {
             self.timestamp()
         } else {
             state.checked_at

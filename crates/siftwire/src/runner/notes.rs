@@ -1,3 +1,5 @@
+use jiff::Timestamp;
+use jiff::civil::Date;
 mod client;
 mod manifest;
 
@@ -8,7 +10,6 @@ use std::os::unix::fs::PermissionsExt;
 use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail, ensure};
-use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use url::{Host, Url};
 
@@ -54,14 +55,14 @@ struct Report {
 
 struct Target {
     public_url: String,
-    start_date: NaiveDate,
+    start_date: Date,
 }
 
 struct Brief {
     plan: PublishablePlan,
-    date: NaiveDate,
+    date: Date,
     slot: Slot,
-    started_at: DateTime<Utc>,
+    started_at: Timestamp,
 }
 
 pub fn run(arguments: &[String]) -> ExitCode {
@@ -107,7 +108,7 @@ fn publish(store: &Store, request: &Request) -> Result<Report> {
             .as_str()
             .trim_end_matches('/')
             .to_owned(),
-        start_date: NaiveDate::parse_from_str(&request.start_date, "%Y-%m-%d")
+        start_date: Date::strptime("%Y-%m-%d", &request.start_date)
             .context("start_date must be YYYY-MM-DD")?,
     };
     let token = read_token(&request.token_file)?;
@@ -157,12 +158,11 @@ fn read_index(client: &Client) -> Result<(Option<Note>, Manifest)> {
     Ok((note, manifest))
 }
 
-fn briefs_to_publish(store: &Store, start_date: NaiveDate) -> Result<Vec<Brief>> {
+fn briefs_to_publish(store: &Store, start_date: Date) -> Result<Vec<Brief>> {
     let mut briefs = Vec::new();
     for plan in store.publishable_plans(&start_date.to_string())? {
-        let started_at = DateTime::parse_from_rfc3339(&plan.started_at)
-            .with_context(|| format!("run {} has an invalid start time", plan.run_id))?
-            .with_timezone(&Utc);
+        let started_at = crate::timestamp::parse(&plan.started_at)
+            .with_context(|| format!("run {} has an invalid start time", plan.run_id))?;
         let (date, slot) = reporting_slot(started_at);
         if date >= start_date {
             briefs.push(Brief {
@@ -198,7 +198,7 @@ fn publish_brief(client: &Client, target: &Target, brief: &Brief) -> Result<Opti
             .saturating_add(occupied);
         let edition = edition(target, brief, revision, &html_sha256);
         let text = manifest
-            .with_edition(edition.clone(), Utc::now())
+            .with_edition(edition.clone(), Timestamp::now())
             .render_note()?;
         let changes = [
             Change {

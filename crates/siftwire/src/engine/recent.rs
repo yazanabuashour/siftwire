@@ -1,5 +1,3 @@
-use chrono::SecondsFormat;
-
 use crate::contract::{BriefItem, SuppressedRecentItem};
 use crate::storage::StoredSentItem;
 
@@ -32,7 +30,7 @@ pub fn suppress_recent_candidates(
             title: item.brief_item.title,
             url: item.brief_item.url,
             matched_prior_title: prior.title.clone(),
-            prior_sent_at: prior.sent_at.to_rfc3339_opts(SecondsFormat::AutoSi, true),
+            prior_sent_at: crate::timestamp::wire(prior.sent_at),
         });
     }
     sort_brief_items(&mut candidates);

@@ -3,6 +3,8 @@
     reason = "process tests return Result for setup while assertions report contract failures"
 )]
 
+use jiff::{SignedDuration, Timestamp};
+
 #[path = "process_contract/admission.rs"]
 mod admission;
 #[path = "process_contract/architecture.rs"]
@@ -154,7 +156,7 @@ const DELIVERY_STORY_URL: &str = r"https://example.test/article?pattern=\d";
 fn delivery_feed_xml() -> String {
     format!(
         r#"<?xml version="1.0"?><rss version="2.0"><channel><title>Fixture</title><item><title>Contract story</title><link>{DELIVERY_STORY_URL}</link><guid>story-1</guid><pubDate>{}</pubDate></item></channel></rss>"#,
-        chrono::Utc::now().to_rfc2822()
+        rss_date(Timestamp::now())
     )
 }
 
@@ -495,13 +497,19 @@ fn assert_runs_report_selection_evidence(
     Ok(())
 }
 
+fn rss_date(timestamp: Timestamp) -> String {
+    timestamp
+        .strftime("%a, %-d %b %Y %H:%M:%S +0000")
+        .to_string()
+}
+
 fn write_sports_schedule(temp: &TempDir) -> Result<url::Url> {
-    let now = chrono::Utc::now();
+    let now = Timestamp::now();
     let upcoming = now
-        .checked_add_signed(chrono::TimeDelta::days(6))
+        .checked_add(SignedDuration::from_hours(144))
         .context("calculate upcoming fixture")?;
     let completed = now
-        .checked_sub_signed(chrono::TimeDelta::days(1))
+        .checked_sub(SignedDuration::from_hours(24))
         .context("calculate completed fixture")?;
     let schedule = temp.path().join("schedule.json");
     fs::write(
@@ -510,7 +518,7 @@ fn write_sports_schedule(temp: &TempDir) -> Result<url::Url> {
             "events": [
                 {
                     "id": "upcoming-1",
-                    "date": upcoming.to_rfc3339(),
+                    "date": upcoming.to_string(),
                     "name": "Team Beta at Team Alpha",
                     "links": [{"href": "https://example.test/events/upcoming-1", "rel": ["web"]}],
                     "competitions": [{"competitors": [
@@ -520,7 +528,7 @@ fn write_sports_schedule(temp: &TempDir) -> Result<url::Url> {
                 },
                 {
                     "id": "final-1",
-                    "date": completed.to_rfc3339(),
+                    "date": completed.to_string(),
                     "name": "Team Gamma at Team Alpha",
                     "links": [{"href": "https://example.test/events/final-1", "rel": ["web"]}],
                     "status": {"type": {"completed": true}},
